@@ -1,0 +1,347 @@
+//
+//  TrackTableView.swift
+//  Sleeve
+//
+//  Modusübergreifend — dieselbe Liste in jedem Modus (Spec §1.1).
+//
+
+import SwiftUI
+
+struct TrackTableView: View {
+    @Environment(AppState.self) private var state
+
+    @State private var isTargetedByDrop = false
+
+    var body: some View {
+        @Bindable var list = state.trackList
+
+        Table(list.tracksInDisplayOrder,
+              selection: $list.selection,
+              sortOrder: $list.sortOrder,
+              columnCustomization: $list.columnLayout) {
+            columns
+        }
+        .textFieldStyle(.plain)
+        .tableStyle(.inset(alternatesRowBackgrounds: true))
+        // Drag & Drop von Dateien und Ordnern, rekursiv aufgelöst (Spec §4.1).
+        .dropDestination(for: URL.self) { urls, _ in
+            Task { await state.addFiles(urls) }
+            return true
+        } isTargeted: { isTargetedByDrop = $0 }
+        .overlay { overlays }
+        // `TableColumn` nimmt als Kopfzeile nur Text, keine eigene View.
+        // Das Menü liegt deshalb über der Kopfzeile, bündig rechts — dort,
+        // wo man es sucht. Den Rechtsklick auf die Kopfzeile bietet macOS
+        // ohnehin zusätzlich an.
+        .overlay(alignment: .topTrailing) {
+            ColumnMenu()
+                .padding(.trailing, 7)
+                .padding(.top, 3)
+        }
+    }
+
+    /// Eigene Property mit explizitem Ergebnistyp — als Literal im
+    /// `Table`-Aufruf braucht der Type-Checker dafür unzumutbar lange.
+    @TableColumnBuilder<TrackFile, KeyPathComparator<TrackFile>>
+    private var columns: some TableColumnContent<TrackFile, KeyPathComparator<TrackFile>> {
+        defaultColumns
+        optionalColumns
+        statusColumn
+    }
+
+    // MARK: - Immer sichtbar
+
+    @TableColumnBuilder<TrackFile, KeyPathComparator<TrackFile>>
+    private var defaultColumns: some TableColumnContent<TrackFile, KeyPathComparator<TrackFile>> {
+        TableColumn("#", value: \TrackFile.trackValue) { track in
+            EditableCell(track: track, field: .trackNumber, alignment: .trailing)
+        }
+        .width(44)
+        .customizationID("track")
+
+        TableColumn("Title", value: \TrackFile.titleText) { track in
+            EditableCell(track: track, field: .title)
+        }
+        .width(min: 140, ideal: 220)
+        .customizationID("title")
+
+        TableColumn("Artist", value: \TrackFile.artistText) { track in
+            EditableCell(track: track, field: .artist)
+        }
+        .width(min: 120, ideal: 180)
+        .customizationID("artist")
+
+        TableColumn("Album", value: \TrackFile.albumText) { track in
+            EditableCell(track: track, field: .album)
+        }
+        .width(min: 120, ideal: 180)
+        .customizationID("album")
+
+        TableColumn("Year", value: \TrackFile.yearValue) { track in
+            EditableCell(track: track, field: .year, alignment: .trailing)
+        }
+        .width(56)
+        .customizationID("year")
+
+        TableColumn("Length", value: \TrackFile.durationSeconds) { track in
+            PlainCell(text: track.properties.duration.formatted(
+                .time(pattern: .minuteSecond)), alignment: .trailing)
+        }
+        .width(64)
+        .customizationID("length")
+
+        TableColumn("File name", value: \TrackFile.filename) { track in
+            FilenameCell(track: track)
+        }
+        .width(min: 120, ideal: 200)
+        .customizationID("filename")
+    }
+
+    // MARK: - Zuschaltbar
+    //
+    // Standardmäßig versteckt. Ein- und ausblenden über das Menü rechts in
+    // der Kopfzeile — oder über den Rechtsklick, den macOS von sich aus
+    // anbietet. Die Auswahl überlebt den Programmstart.
+
+    @TableColumnBuilder<TrackFile, KeyPathComparator<TrackFile>>
+    private var optionalColumns: some TableColumnContent<TrackFile, KeyPathComparator<TrackFile>> {
+        TableColumn("Bitrate", value: \TrackFile.properties.bitrate) { track in
+            PlainCell(text: track.properties.bitrate > 0
+                      ? "\(track.properties.bitrate) kbit/s" : "—",
+                      alignment: .trailing)
+        }
+        .width(88)
+        .customizationID("bitrate")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Size", value: \TrackFile.fileSize) { track in
+            PlainCell(text: track.fileSize > 0
+                      ? track.fileSize.formatted(.byteCount(style: .file)) : "—",
+                      alignment: .trailing)
+        }
+        .width(80)
+        .customizationID("size")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Format", value: \TrackFile.formatText) { track in
+            PlainCell(text: track.formatText)
+        }
+        .width(64)
+        .customizationID("format")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Sample rate", value: \TrackFile.properties.sampleRate) { track in
+            PlainCell(text: track.properties.sampleRate > 0
+                      ? "\(track.properties.sampleRate) Hz" : "—",
+                      alignment: .trailing)
+        }
+        .width(92)
+        .customizationID("samplerate")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Album artist", value: \TrackFile.albumArtistText) { track in
+            EditableCell(track: track, field: .albumArtist)
+        }
+        .width(min: 100, ideal: 160)
+        .customizationID("albumartist")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Genre", value: \TrackFile.genreText) { track in
+            EditableCell(track: track, field: .genre)
+        }
+        .width(min: 90, ideal: 130)
+        .customizationID("genre")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Composer", value: \TrackFile.composerText) { track in
+            EditableCell(track: track, field: .composer)
+        }
+        .width(min: 90, ideal: 140)
+        .customizationID("composer")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Disc", value: \TrackFile.discValue) { track in
+            EditableCell(track: track, field: .discNumber, alignment: .trailing)
+        }
+        .width(50)
+        .customizationID("disc")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Comment", value: \TrackFile.commentText) { track in
+            EditableCell(track: track, field: .comment)
+        }
+        .width(min: 100, ideal: 180)
+        .customizationID("comment")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Folder", value: \TrackFile.folderText) { track in
+            PlainCell(text: track.folderText)
+        }
+        .width(min: 100, ideal: 160)
+        .customizationID("folder")
+        .defaultVisibility(.hidden)
+    }
+
+    // MARK: - Statusspalte mit dem Spaltenmenü
+
+    @TableColumnBuilder<TrackFile, KeyPathComparator<TrackFile>>
+    private var statusColumn: some TableColumnContent<TrackFile, KeyPathComparator<TrackFile>> {
+        TableColumn("", value: \TrackFile.statusSortKey) { track in
+            StatusIndicator(track: track)
+        }
+        // Etwas breiter als nötig: rechts darüber liegt das Spaltenmenü.
+        .width(46)
+        .customizationID("status")
+        .disabledCustomizationBehavior(.visibility)
+    }
+
+    @ViewBuilder
+    private var overlays: some View {
+        if state.trackList.tracks.isEmpty {
+            EmptyListHint(isTargeted: isTargetedByDrop)
+        } else if isTargetedByDrop {
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(Color.accentColor, lineWidth: 2)
+                .padding(4)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
+// MARK: - Spaltenmenü
+
+private struct ColumnMenu: View {
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        @Bindable var list = state.trackList
+
+        Menu {
+            Section("Columns") {
+                ForEach(TrackListModel.optionalColumnIDs, id: \.self) { id in
+                    Toggle(Self.label(for: id), isOn: Binding(
+                        get: { list.columnLayout[visibility: id] == .visible },
+                        set: { list.columnLayout[visibility: id] = $0 ? .visible : .hidden }
+                    ))
+                }
+            }
+            Divider()
+            Button("Reset Columns") { list.resetColumns() }
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+        }
+        .menuIndicator(.hidden)
+        .menuStyle(.borderlessButton)
+        .help("Show or hide columns")
+    }
+
+    static func label(for id: String) -> LocalizedStringKey {
+        switch id {
+        case "bitrate":     "Bitrate"
+        case "size":        "Size"
+        case "format":      "Format"
+        case "samplerate":  "Sample rate"
+        case "albumartist": "Album artist"
+        case "genre":       "Genre"
+        case "composer":    "Composer"
+        case "disc":        "Disc"
+        case "comment":     "Comment"
+        case "folder":      "Folder"
+        default:            "—"
+        }
+    }
+}
+
+// MARK: - Zellen
+
+/// Inline editierbar. Der Setter läuft über `TrackFile.set`, markiert das Feld
+/// also als berührt — Tippen in der Tabelle und Tippen im Inspector sind
+/// derselbe Vorgang.
+///
+/// Ein nacktes `TextField` in einer Tabellenzelle sieht aus wie Text. Damit
+/// erkennbar ist, dass hier etwas einzutragen geht, hebt sich die Zelle unter
+/// dem Mauszeiger ab und leere Felder zeigen einen Gedankenstrich.
+private struct EditableCell: View {
+    let track: TrackFile
+    let field: TagField
+    var alignment: TextAlignment = .leading
+
+    @State private var isHovering = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField("", text: track.textBinding(for: field), prompt: Text("—"))
+            .multilineTextAlignment(alignment)
+            .focused($isFocused)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(.quaternary.opacity(isHovering && !isFocused ? 1 : 0))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 4)
+                    .strokeBorder(Color.accentColor, lineWidth: isFocused ? 2 : 0)
+            }
+            .padding(.horizontal, -5)
+            .onHover { isHovering = $0 }
+    }
+}
+
+/// Nur-lesende Werte wie Dauer, Bitrate oder Dateigröße.
+private struct PlainCell: View {
+    let text: String
+    var alignment: Alignment = .leading
+
+    var body: some View {
+        Text(text)
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: alignment)
+    }
+}
+
+private struct FilenameCell: View {
+    let track: TrackFile
+
+    var body: some View {
+        Text(track.proposedFilename ?? track.filename)
+            .foregroundStyle(track.proposedFilename == nil ? Color.primary : Color.accentColor)
+            .lineLimit(1)
+            .truncationMode(.middle)
+    }
+}
+
+private struct StatusIndicator: View {
+    let track: TrackFile
+
+    var body: some View {
+        switch track.status {
+        case .unchanged:
+            Color.clear.frame(width: 1)
+        case .changed:
+            Image(systemName: "pencil.circle.fill")
+                .foregroundStyle(.tint)
+                .help("Changed — not written yet")
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .help("Writing this file failed")
+        }
+    }
+}
+
+// MARK: - Leere Liste
+
+private struct EmptyListHint: View {
+    let isTargeted: Bool
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("No tracks", systemImage: "music.note.list")
+        } description: {
+            Text("Drop audio files or folders here. Folders are scanned recursively.")
+        }
+        .background(isTargeted ? Color.accentColor.opacity(0.08) : Color.clear)
+    }
+}

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="sleeveGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E6EA6"/>
+      <stop offset="1" stop-color="#063D63"/>
+    </linearGradient>
+    <linearGradient id="glossGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="softShadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18"
+                    flood-color="#031F33" flood-opacity="0.45"/>
+    </filter>
+    <clipPath id="squircleClip">
+      <rect x="100" y="100" width="824" height="824" rx="184"/>
+    </clipPath>
+    <clipPath id="sleeveClip">
+      <rect x="150" y="277" width="470"
+            height="470" rx="20"/>
+    </clipPath>
+  </defs>
+  <g id="sleeve">
+    <g transform="translate(512.0,512.0) scale(1.242718) translate(-512.0,-512.0) translate(10,0)">
+      <rect x="150" y="277" width="470"
+            height="470" rx="20"
+            fill="url(#sleeveGradient)"/>
+      <!-- Glanzkante, an der Hüllenform beschnitten -->
+      <rect x="150" y="277" width="470" height="46"
+            fill="url(#glossGradient)" clip-path="url(#sleeveClip)"/>
+      <!-- Öffnungsschlitz, aus dem die CD kommt -->
+      <rect x="602" y="297" width="16"
+            height="430" rx="8"
+            fill="#031F33" opacity="0.45"/>
+    </g>
+  </g>
+</svg>

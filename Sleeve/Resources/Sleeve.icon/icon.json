@@ -1,0 +1,49 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.2078,0.7059,0.9098,1.0000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "metadata.svg",
+          "name": "metadata"
+        },
+        {
+          "image-name": "sleeve.svg",
+          "name": "sleeve"
+        },
+        {
+          "image-name": "disc.svg",
+          "name": "disc"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "background.svg",
+          "name": "background"
+        }
+      ]
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": [
+      "iOS",
+      "macOS"
+    ]
+  }
+}

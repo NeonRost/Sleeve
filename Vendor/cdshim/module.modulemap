@@ -1,0 +1,6 @@
+// Kein `link` nötig: die ioctls stecken in libSystem, IOKit kommt als
+// Framework über die üblichen Build-Einstellungen dazu.
+module CDShim {
+    header "CDShim.h"
+    export *
+}

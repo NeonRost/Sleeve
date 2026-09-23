@@ -1,0 +1,86 @@
+{"id":82730,"status":"Accepted","year":2000,"resource_url":"https://api.discogs.com/releases/82730","uri":"https://www.discogs.com/release/82730-Various-Positive-Ways","artists":[{"name":"Various","anv":"","join":"","role":"","tracks":"","id":194,"resource_url":"https://api.discogs.com/artists/194"}],"artists_sort":"Various","labels":[{"name":"euphonic","catno":"euphonic9.2","entity_type":"1","entity_type_name":"Label","id":5917,"resource_url":"https://api.discogs.com/labels/5917","thumbnail_url":"https://i.discogs.com/MvoQ7xsDu0Wbp416_BvL6wuwbNqoVyjZWYFOzOTcRwc/rs:fit/g:sm/q:90/h:253/w:600/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9MLTU5MTct/MTUyMTE5MzM2OS05/MTQzLnBuZw.jpeg"}],"series":[{"name":"Positive Ways","catno":"1","entity_type":"2","entity_type_name":"Series","id":665450,"resource_url":"https://api.discogs.com/labels/665450"}],"companies":[],"formats":[{"name":"CD","qty":"1","descriptions":["Compilation"]}],"data_quality":"Needs Vote","community":{"have":39,"want":15,"rating":{"count":9,"average":3.78},"submitter":{"username":"Boerk","resource_url":"https://api.discogs.com/users/Boerk"},"contributors":[{"username":"Boerk","resource_url":"https://api.discogs.com/users/Boerk"},{"username":"msone","resource_url":"https://api.discogs.com/users/msone"},{"username":"MetallicRaver","resource_url":"https://api.discogs.com/users/MetallicRaver"},{"username":"somapeti2","resource_url":"https://api.discogs.com/users/somapeti2"},{"username":"maxxyme","resource_url":"https://api.discogs.com/users/maxxyme"},{"username":"EpicForever","resource_url":"https://api.discogs.com/users/EpicForever"},{"username":"mazi","resource_url":"https://api.discogs.com/users/mazi"}],"data_quality":"Needs Vote","status":"Accepted"},"format_quantity":1,"date_added":"2002-12-11T21:25:30-08:00","date_changed":"2023-04-28T03:22:06-07:00","num_for_sale":4,"lowest_price":2.01,"master_id":793248,"master_url":"https://api.discogs.com/masters/793248","title":"Positive Ways","country":"Germany","released":"2000","notes":"Issued in digipak, with no additional booklet. 
+Mix names are not mentioned on the release.","released_formatted":"2000","identifiers":[{"type":"Barcode","value":"4030765009204"}],"videos":[{"uri":"https://www.youtube.com/watch?v=45xQgwL_N3Q","title":"Quad - One Night Stand","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":323,"embed":true},{"uri":"https://www.youtube.com/watch?v=6SCcgW8cNjs","title":"Shandy - Bootleg Three","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":321,"embed":true},{"uri":"https://www.youtube.com/watch?v=zXZYwklx52I","title":"Aureal Unit - Simplicity","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":282,"embed":true},{"uri":"https://www.youtube.com/watch?v=MI2RHoD8flg","title":"Spacewalker - Baywatch","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":249,"embed":true},{"uri":"https://www.youtube.com/watch?v=kFNfbecWVxE","title":"Sonorous - Inspirational Daylight","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000 
+
+*For anyone that can't seem to connect the dots, this is a version of 'Second Sun'. Released a bit earlier.","duration":311,"embed":true},{"uri":"https://www.youtube.com/watch?v=48n1_pXRXmI","title":"Kyau vs. Albert - Great","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":343,"embed":true},{"uri":"https://www.youtube.com/watch?v=c_0g6MtJEHc","title":"Flamingo Brothers - A Love Like This","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":347,"embed":true},{"uri":"https://www.youtube.com/watch?v=O9C7vMBg5JI","title":"Dope The Globe - Trembling","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":352,"embed":true},{"uri":"https://www.youtube.com/watch?v=ImiEAG5-LNA","title":"Mirco De Govia - Mindspring","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":420,"embed":true},{"uri":"https://www.youtube.com/watch?v=zqWgpOXv7gE","title":"Mirco De Govia - Things That Matter","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":591,"embed":true},{"uri":"https://www.youtube.com/watch?v=45xQgwL_N3Q","title":"Quad - One Night Stand","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":323,"embed":true},{"uri":"https://www.youtube.com/watch?v=6SCcgW8cNjs","title":"Shandy - Bootleg Three","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":321,"embed":true},{"uri":"https://www.youtube.com/watch?v=zXZYwklx52I","title":"Aureal Unit - Simplicity","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":282,"embed":true},{"uri":"https://www.youtube.com/watch?v=MI2RHoD8flg","title":"Spacewalker - Baywatch","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":249,"embed":true},{"uri":"https://www.youtube.com/watch?v=kFNfbecWVxE","title":"Sonorous - Inspirational Daylight","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000 
+
+*For anyone that can't seem to connect the dots, this is a version of 'Second Sun'. Released a bit earlier.","duration":311,"embed":true},{"uri":"https://www.youtube.com/watch?v=48n1_pXRXmI","title":"Kyau vs. Albert - Great","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":343,"embed":true},{"uri":"https://www.youtube.com/watch?v=c_0g6MtJEHc","title":"Flamingo Brothers - A Love Like This","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":347,"embed":true},{"uri":"https://www.youtube.com/watch?v=O9C7vMBg5JI","title":"Dope The Globe - Trembling","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":352,"embed":true},{"uri":"https://www.youtube.com/watch?v=ImiEAG5-LNA","title":"Mirco De Govia - Mindspring","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":420,"embed":true},{"uri":"https://www.youtube.com/watch?v=zqWgpOXv7gE","title":"Mirco De Govia - Things That Matter","description":"Positive Ways
+Label: euphonic ‎-- euphonic 9.2 
+Format:CD, Compilation 
+Country:Germany 
+Released:2000","duration":591,"embed":true}],"genres":["Electronic"],"styles":["Trance","Techno","House"],"tracklist":[{"position":"1","type_":"track","artists":[{"name":"Mirco de Govia","anv":"","join":"","role":"","tracks":"","id":19288,"resource_url":"https://api.discogs.com/artists/19288"}],"title":"Mindspring (Club Mix)","duration":"6:57"},{"position":"2","type_":"track","artists":[{"name":"Kyau & Albert","anv":"Kyau vs. Albert","join":"","role":"","tracks":"","id":627536,"resource_url":"https://api.discogs.com/artists/627536"}],"title":"Great (Original Mix - Edit)","duration":"5:40"},{"position":"3","type_":"track","artists":[{"name":"Flamingo Brothers","anv":"","join":"","role":"","tracks":"","id":62013,"resource_url":"https://api.discogs.com/artists/62013"}],"title":"A Love Like This (Original Mix)","duration":"5:44"},{"position":"4","type_":"track","artists":[{"name":"Sonorous","anv":"","join":"","role":"","tracks":"","id":13839,"resource_url":"https://api.discogs.com/artists/13839"}],"title":"Facial...","extraartists":[{"name":"Ron E. Newman","anv":"","join":"","role":"Co-producer","tracks":"","id":62016,"resource_url":"https://api.discogs.com/artists/62016"}],"duration":"5:04"},{"position":"5","type_":"track","artists":[{"name":"Mirco de Govia","anv":"","join":"","role":"","tracks":"","id":19288,"resource_url":"https://api.discogs.com/artists/19288"}],"title":"Things That Matter (Original Version)","duration":"9:48"},{"position":"6","type_":"track","artists":[{"name":"Sonorous","anv":"","join":"","role":"","tracks":"","id":13839,"resource_url":"https://api.discogs.com/artists/13839"}],"title":"Inspirational Daylight","extraartists":[{"name":"Ron E. Newman","anv":"","join":"","role":"Co-producer","tracks":"","id":62016,"resource_url":"https://api.discogs.com/artists/62016"}],"duration":"5:08"},{"position":"7","type_":"track","artists":[{"name":"Spacewalker","anv":"","join":"","role":"","tracks":"","id":62017,"resource_url":"https://api.discogs.com/artists/62017"}],"title":"Baywatch (Original Edit)","duration":"4:05"},{"position":"8","type_":"track","artists":[{"name":"Shandy","anv":"","join":"","role":"","tracks":"","id":62020,"resource_url":"https://api.discogs.com/artists/62020"}],"title":"Bootleg Three","extraartists":[{"name":"Steven Moebius Albert","anv":"","join":"","role":"Co-producer","tracks":"","id":62011,"resource_url":"https://api.discogs.com/artists/62011"}],"duration":"5:19"},{"position":"9","type_":"track","artists":[{"name":"Moebius AG","anv":"","join":"","role":"","tracks":"","id":62022,"resource_url":"https://api.discogs.com/artists/62022"}],"title":"Do What I Want (Original Mix)","duration":"6:05"},{"position":"10","type_":"track","artists":[{"name":"Quad (2)","anv":"","join":"","role":"","tracks":"","id":140347,"resource_url":"https://api.discogs.com/artists/140347"}],"title":"One Night Stand","duration":"5:20"},{"position":"11","type_":"track","artists":[{"name":"Sonorous","anv":"","join":"","role":"","tracks":"","id":13839,"resource_url":"https://api.discogs.com/artists/13839"}],"title":"Did You Ever Dream? (Calm Version)","duration":"5:33"},{"position":"12","type_":"track","artists":[{"name":"Dope The Globe","anv":"","join":"","role":"","tracks":"","id":62023,"resource_url":"https://api.discogs.com/artists/62023"}],"title":"Trembling","duration":"5:49"},{"position":"13","type_":"track","artists":[{"name":"Aureal Unit","anv":"","join":"","role":"","tracks":"","id":62024,"resource_url":"https://api.discogs.com/artists/62024"}],"title":"Simplicity","duration":"4:40"}],"images":[{"type":"primary","uri":"https://i.discogs.com/9KMxrIgd7NIGajxp1Mrggi_iSlvvGJvmFl8dzBou1Tk/rs:fit/g:sm/q:90/h:300/w:335/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTgyNzMw/LTEwNzMyOTY2NzIu/Z2lm.jpeg","resource_url":"https://i.discogs.com/9KMxrIgd7NIGajxp1Mrggi_iSlvvGJvmFl8dzBou1Tk/rs:fit/g:sm/q:90/h:300/w:335/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTgyNzMw/LTEwNzMyOTY2NzIu/Z2lm.jpeg","uri150":"https://i.discogs.com/9_1cg-1j-Os_EW9WxDnxcoehOg9_CNlUXPGtbOncMxU/rs:fit/g:sm/q:40/h:150/w:150/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTgyNzMw/LTEwNzMyOTY2NzIu/Z2lm.jpeg","width":335,"height":300}],"thumb":"https://i.discogs.com/9_1cg-1j-Os_EW9WxDnxcoehOg9_CNlUXPGtbOncMxU/rs:fit/g:sm/q:40/h:150/w:150/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTgyNzMw/LTEwNzMyOTY2NzIu/Z2lm.jpeg","estimated_weight":85,"blocked_from_sale":false,"is_offensive":false}

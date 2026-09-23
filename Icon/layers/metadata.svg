@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="squircleClip">
+      <rect x="100" y="100" width="824" height="824" rx="184"/>
+    </clipPath>
+    <clipPath id="sleeveClip">
+      <rect x="150" y="277" width="470"
+            height="470" rx="20"/>
+    </clipPath>
+  </defs>
+  <g id="metadata">
+    <g transform="translate(512.0,512.0) scale(1.242718) translate(-512.0,-512.0) translate(10,0)">
+      <rect x="196" y="400" width="330" height="30" rx="15" fill="#EAF7FF" opacity="0.92"/>
+      <rect x="196" y="456" width="238" height="30" rx="15" fill="#EAF7FF" opacity="0.62"/>
+      <rect x="196" y="512" width="286" height="30" rx="15" fill="#EAF7FF" opacity="0.4"/>
+      <rect x="196" y="568" width="164" height="30" rx="15" fill="#EAF7FF" opacity="0.26"/>
+    </g>
+  </g>
+</svg>

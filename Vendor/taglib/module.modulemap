@@ -1,0 +1,15 @@
+// Module-Map für die TagLib-C-API.
+//
+// Einbindung: Vendor/taglib als Header Search Path setzen — clang findet die
+// module.modulemap dann selbst.
+//
+// Wichtig: TagLib 2.x liefert die C-Bindings in einer EIGENEN Bibliothek
+// (libtag_c.a). "link tag" allein reicht nicht.
+module CTagLib {
+    header "include/taglib/tag_c.h"
+    link "tag_c"
+    link "tag"
+    link "z"
+    link "c++"
+    export *
+}

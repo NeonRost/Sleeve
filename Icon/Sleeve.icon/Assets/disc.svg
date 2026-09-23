@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="discGradient" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.30" stop-color="#CFEEFB"/>
+      <stop offset="0.55" stop-color="#8FD4F0"/>
+      <stop offset="0.78" stop-color="#E8F8FF"/>
+      <stop offset="1" stop-color="#9BC9DE"/>
+    </linearGradient>
+    <filter id="softShadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18"
+                    flood-color="#031F33" flood-opacity="0.45"/>
+    </filter>
+    <clipPath id="squircleClip">
+      <rect x="100" y="100" width="824" height="824" rx="184"/>
+    </clipPath>
+    <clipPath id="sleeveClip">
+      <rect x="150" y="277" width="470"
+            height="470" rx="20"/>
+    </clipPath>
+  </defs>
+  <g id="disc">
+    <g transform="translate(512.0,512.0) scale(1.242718) translate(-512.0,-512.0) translate(10,0)">
+      <circle cx="620" cy="512" r="235"
+              fill="url(#discGradient)"/>
+      <circle cx="620" cy="512" r="88"
+              fill="#063D63" opacity="0.18"/>
+      <circle cx="620" cy="512" r="42" fill="#F6FCFF"/>
+      <circle cx="620" cy="512" r="42" fill="none"
+              stroke="#0A5C8F" stroke-opacity="0.30" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

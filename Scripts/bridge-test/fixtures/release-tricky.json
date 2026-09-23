@@ -1,0 +1,95 @@
+{
+  "id": 999999,
+  "title": "Die Hüllen - Sampler",
+  "year": 1994,
+  "country": "Germany",
+  "genres": [
+    "Rock"
+  ],
+  "styles": [
+    "Melodic Death Metal",
+    "Doom Metal"
+  ],
+  "artists": [
+    {
+      "name": "Nirvana (2)",
+      "anv": "",
+      "join": "&"
+    },
+    {
+      "name": "Die Ärzte",
+      "anv": "",
+      "join": ","
+    },
+    {
+      "name": "Queen",
+      "anv": "Queen Featuring",
+      "join": ""
+    }
+  ],
+  "labels": [
+    {
+      "name": "RCA",
+      "catno": "PB 41447"
+    }
+  ],
+  "formats": [
+    {
+      "name": "CD",
+      "qty": "2",
+      "descriptions": [
+        "Album",
+        "Compilation"
+      ]
+    }
+  ],
+  "tracklist": [
+    {
+      "position": "",
+      "type_": "heading",
+      "title": "CD 1 — Die frühen Jahre"
+    },
+    {
+      "position": "1-1",
+      "type_": "track",
+      "title": "Erstes Stück",
+      "duration": "3:12"
+    },
+    {
+      "position": "1-2",
+      "type_": "track",
+      "title": "Zweites Stück",
+      "duration": "4:01",
+      "artists": [
+        {
+          "name": "Böhse Mädelz (3)",
+          "anv": "",
+          "join": "Feat."
+        },
+        {
+          "name": "NeonRost",
+          "anv": "",
+          "join": ""
+        }
+      ]
+    },
+    {
+      "position": "",
+      "type_": "index",
+      "title": "Medley",
+      "duration": "9:00"
+    },
+    {
+      "position": "2-1",
+      "type_": "track",
+      "title": "Drittes Stück",
+      "duration": "2:44"
+    },
+    {
+      "position": "2-2",
+      "type_": "track",
+      "title": "Viertes Stück",
+      "duration": "5:20"
+    }
+  ]
+}
