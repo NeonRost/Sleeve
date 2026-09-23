@@ -2,7 +2,22 @@
 //  TextCase.swift
 //  Sleeve
 //
-//  Schreibweise (Spec §4.3).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Capitalization (spec §4.3).
 //
 
 import Foundation
@@ -22,8 +37,8 @@ enum TextCase: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Kleingeschriebene Wörter im Title Case. Sprachabhängig — „Die Ärzte"
-    /// und „The Doors" brauchen verschiedene Listen.
+    /// Words kept lowercase in Title Case. Language-dependent — "Die Ärzte"
+    /// and "The Doors" need different lists.
     enum Language: String, CaseIterable, Identifiable, Sendable {
         case english, german, spanish
 
@@ -76,8 +91,8 @@ enum TextCase: String, CaseIterable, Identifiable, Sendable {
     }
 
     private func titleCased(_ text: String, language: Language) -> String {
-        // An Leerzeichen trennen, aber die Trennung erhalten, damit
-        // Mehrfach-Leerzeichen nicht verloren gehen.
+        // Split at spaces but keep the separators, so that multiple spaces
+        // are not lost.
         let words = text.split(separator: " ", omittingEmptySubsequences: false)
         let minor = language.minorWords
 
@@ -85,8 +100,8 @@ enum TextCase: String, CaseIterable, Identifiable, Sendable {
             let plain = String(word)
             guard !plain.isEmpty else { return plain }
 
-            // Anfang, Ende — und alles, was einen neuen Teiltitel eröffnet:
-            // „Live (At the BBC)", „Reise: Der Anfang".
+            // Start, end — and anything that opens a new subtitle:
+            // "Live (At the BBC)", "Reise: Der Anfang".
             let opensClause = plain.first.map { "([{\"'".contains($0) } ?? false
             let followsBreak = index > 0
                 && (words[index - 1].last.map { ":;–—".contains($0) } ?? false)
@@ -104,8 +119,8 @@ enum TextCase: String, CaseIterable, Identifiable, Sendable {
         return result.joined(separator: " ")
     }
 
-    /// Großschreiben ab dem ersten Buchstaben — `(live)` wird zu `(Live)`,
-    /// nicht zu `(live)`.
+    /// Capitalize from the first letter on — `(live)` becomes `(Live)`,
+    /// not `(live)`.
     private func capitalizeFirstLetter(_ word: String, language: Language) -> String {
         let lowered = word.lowercased(with: language.locale)
         guard let index = lowered.firstIndex(where: { $0.isLetter }) else { return lowered }

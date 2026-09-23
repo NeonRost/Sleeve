@@ -2,12 +2,27 @@
 //  AudioTags.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import Foundation
 
-/// Einzelnes Tag-Feld. Grundlage für `TrackFile.touchedFields`: geschrieben
-/// wird ausschließlich, was hier drinsteht — nie auf Basis eines
-/// String-Vergleichs. Siehe Spec §4.1.
+/// A single tag field. The basis for `TrackFile.touchedFields`: only what is
+/// in there gets written — never based on a string comparison. See spec
+/// §4.1.
 enum TagField: String, CaseIterable, Sendable, Hashable {
     case title
     case artist
@@ -39,8 +54,8 @@ struct AudioTags: Equatable, Sendable {
     var discNumber: Int?
     var discTotal: Int?
     var comment: String?
-    /// Unsynchronisierter Songtext. TagLib legt ihn als `USLT` (MP3),
-    /// `©lyr` (MP4) bzw. `LYRICS` (Vorbis) ab.
+    /// Unsynchronized lyrics. TagLib stores them as `USLT` (MP3), `©lyr` (MP4)
+    /// or `LYRICS` (Vorbis).
     var lyrics: String?
     var isCompilation: Bool
     var artwork: [Artwork]
@@ -79,8 +94,8 @@ struct AudioTags: Equatable, Sendable {
         self.artwork = artwork
     }
 
-    /// Textwert eines Feldes — für Inspector-Bindings und den
-    /// `<Verschiedene>`-Vergleich bei Mehrfachauswahl.
+    /// Text value of a field — for inspector bindings and the
+    /// `<Multiple values>` comparison with several tracks selected.
     func stringValue(for field: TagField) -> String? {
         switch field {
         case .title:         title
@@ -101,9 +116,9 @@ struct AudioTags: Equatable, Sendable {
         }
     }
 
-    /// Gegenstück zu `stringValue(for:)`. Ein leerer String bedeutet
-    /// „Feld leeren", nicht „nicht anfassen" — die Unterscheidung trifft
-    /// allein `touchedFields`.
+    /// Counterpart to `stringValue(for:)`. An empty string means "clear the
+    /// field", not "leave it alone" — that distinction is made by
+    /// `touchedFields` alone.
     mutating func setStringValue(_ value: String?, for field: TagField) {
         let text = value?.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleaned = (text?.isEmpty ?? true) ? nil : text
@@ -124,15 +139,15 @@ struct AudioTags: Equatable, Sendable {
         case .discNumber:    discNumber = number
         case .discTotal:     discTotal = number
         case .isCompilation: isCompilation = (cleaned == "1" || cleaned?.lowercased() == "true")
-        case .artwork:       break   // Bilder laufen nicht über Text
+        case .artwork:       break   // Pictures do not go through text
         }
     }
 }
 
-/// Nur-lesende Kenndaten des Audiostreams. Kein Teil von `AudioTags`, weil
-/// nichts davon schreibbar ist.
+/// Read-only properties of the audio stream. Not part of `AudioTags`,
+/// because none of it can be written.
 struct AudioProperties: Equatable, Sendable {
-    var duration: Duration      // Spielzeit
+    var duration: Duration      // Playing time
     var bitrate: Int            // kbit/s
     var sampleRate: Int         // Hz
     var channels: Int
@@ -142,7 +157,7 @@ struct AudioProperties: Equatable, Sendable {
     )
 }
 
-/// Was `TagLibBridge.read` zurückgibt.
+/// What `TagLibBridge.read` returns.
 struct AudioFileInfo: Equatable, Sendable {
     var tags: AudioTags
     var properties: AudioProperties

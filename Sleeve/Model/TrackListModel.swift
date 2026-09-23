@@ -2,39 +2,54 @@
 //  TrackListModel.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import Foundation
 import SwiftUI
 
-/// Die Dateiliste — **modusübergreifend**. Sie ist das gemeinsame Objekt, an
-/// dem Taggen, Konvertieren und Rippen arbeiten, und überlebt jeden
-/// Moduswechsel (Spec §1.1).
+/// The file list — **shared by all modes**. It is the common object that
+/// tagging, converting and ripping work on, and it survives every mode
+/// switch (spec §1.1).
 @Observable
 final class TrackListModel {
     var tracks: [TrackFile] = []
     var selection: Set<TrackFile.ID> = []
 
-    /// Von der `Table` gesetzte Sortierung. Liegt im Modell und nicht als
-    /// `@State` in der View, weil die Nummerierung sie braucht — §4.2 sagt
-    /// „nach aktueller Sortierung durchnummerieren".
+    /// Sort order set by the `Table`. Lives in the model rather than as
+    /// `@State` in the view because numbering needs it — §4.2 says "number
+    /// in the current sort order".
     var sortOrder: [KeyPathComparator<TrackFile>] = [
         KeyPathComparator(\TrackFile.trackValue)
     ]
 
-    /// Die Liste so, wie sie gerade auf dem Schirm steht.
+    /// The list as it currently appears on screen.
     var tracksInDisplayOrder: [TrackFile] { tracks.sorted(using: sortOrder) }
 
-    // MARK: - Spalten
+    // MARK: - Columns
 
-    /// Welche Spalten sichtbar sind und in welcher Reihenfolge. macOS pflegt
-    /// das selbst; wir sichern es nur über den Programmstart hinweg.
+    /// Which columns are visible and in which order. macOS maintains this
+    /// itself; we only preserve it across launches.
     var columnLayout = TableColumnCustomization<TrackFile>() {
         didSet { persistColumnLayout() }
     }
 
-    /// Kennungen der zuschaltbaren Spalten, in Menü-Reihenfolge. Nur die
-    /// Kennungen — die Beschriftungen gehören in die View, schon weil
-    /// `LocalizedStringKey` nicht `Sendable` ist.
+    /// Identifiers of the optional columns, in menu order. Identifiers only —
+    /// the labels belong to the view, not least because `LocalizedStringKey`
+    /// is not `Sendable`.
     static let optionalColumnIDs = [
         "bitrate", "size", "format", "samplerate",
         "albumartist", "genre", "composer", "disc", "comment", "folder",
@@ -60,7 +75,7 @@ final class TrackListModel {
     }
 
     var selectedTracks: [TrackFile] {
-        // In der Reihenfolge der Liste, nicht in der des Sets.
+        // In list order, not in set order.
         tracks.filter { selection.contains($0.id) }
     }
 
@@ -70,9 +85,9 @@ final class TrackListModel {
 
     var hasErrors: Bool { tracks.contains { $0.lastError != nil } }
 
-    // MARK: - Bestand ändern
+    // MARK: - Changing the contents
 
-    /// Hängt an und überspringt Pfade, die schon in der Liste stehen.
+    /// Appends, skipping paths that are already in the list.
     func append(contentsOf newTracks: [TrackFile]) {
         let known = Set(tracks.map(\.url.standardizedFileURL))
         tracks.append(contentsOf: newTracks.filter { !known.contains($0.url.standardizedFileURL) })

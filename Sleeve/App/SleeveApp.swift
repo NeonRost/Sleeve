@@ -2,6 +2,21 @@
 //  SleeveApp.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import SwiftUI
 
@@ -21,8 +36,8 @@ struct SleeveApp: App {
         }
         .commands { SleeveCommands(state: state) }
 
-        // Eigenes Fenster statt Blatt: verschiebbar, vergrößerbar, und es
-        // hängt an keiner Scheibe im Hauptfenster (Spec §7).
+        // A window of its own instead of a sheet: movable, resizable, and not
+        // tied to a disc in the main window (spec §7).
         Window("Split Into Tracks", id: SleeveApp.splitWindowID) {
             SplitWindow()
                 .environment(state)
@@ -30,8 +45,9 @@ struct SleeveApp: App {
         .defaultSize(width: 760, height: 680)
         .windowResizability(.contentMinSize)
 
-        // Eigene Fenster statt des Standardfelds — siehe AboutWindow.swift.
-        // Ohne Eintrag im Fenster-Menü: erreichbar über „Über Sleeve".
+        // Windows of their own instead of the standard panel — see
+        // AboutWindow.swift. No entry in the Window menu: reached through
+        // "About Sleeve".
         Window("About Sleeve", id: SleeveApp.aboutWindowID) {
             AboutView()
         }
@@ -82,18 +98,17 @@ struct SleeveCommands: Commands {
         }
 
         CommandGroup(after: .importExport) {
-            // Reines Convenience-Feature, bewusst klein gehalten (Spec §4.7) —
-            // in der Toolbar nimmt es nur Platz weg.
+            // Pure convenience, deliberately kept small (spec §4.7) — in the
+            // toolbar it would only take up room.
             Button("Add to Music") { state.addToMusic() }
                 .disabled(state.operationTargets.isEmpty)
 
             Divider()
 
-            // Gelegentliche Medienfunktionen gehören in die Ablage, nicht ins
-            // Sleeve-Menü — das ist bei macOS für das Programm selbst da
-            // (Über, Einstellungen, Beenden). Und nicht in den Rip-Bereich:
-            // dort wählt man Spuren aus, ein Abbild ist immer die ganze
-            // Scheibe (Spec §9.1).
+            // Occasional media functions belong in the File menu, not in the
+            // Sleeve menu — on macOS that one is for the program itself
+            // (About, Settings, Quit). And not in the Rip section: there one
+            // picks tracks, an image is always the whole disc (spec §6.9).
             Button("Create Disc Image…") { state.showImageSheet() }
             Button("Burn Image to CD…") { state.showBurnSheet() }
 

@@ -2,16 +2,31 @@
 //  TagEngine.swift
 //  Sleeve
 //
-//  Fassade vor `TagLibBridge`. Als `actor`, damit kein TagLib-Aufruf je auf
-//  dem Main-Thread landet (Spec §4.1).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Facade in front of `TagLibBridge`. An `actor`, so that no TagLib call
+//  ever lands on the main thread (spec §4.1).
 //
 
 import Foundation
 
 actor TagEngine {
 
-    /// Was Sleeve im Tag-Modus anfasst. AIFF ist dabei, weil macOS
-    /// Audio-CD-Tracks so einhängt (Spec §6.1).
+    /// What Sleeve handles in tag mode. AIFF is included because macOS
+    /// mounts audio CD tracks that way (spec §6.1).
     static let supportedExtensions: Set<String> = [
         "mp3", "m4a", "m4b", "mp4", "flac", "ogg", "oga", "opus",
         "aiff", "aif", "aifc", "wav", "wv", "ape", "mpc", "wma", "dsf", "dff",
@@ -23,24 +38,24 @@ actor TagEngine {
         let fields: Set<TagField>
     }
 
-    // MARK: - Lesen
+    // MARK: - Reading
 
     func read(_ url: URL) throws -> AudioFileInfo {
         try TagLibBridge.read(from: url)
     }
 
-    // MARK: - Schreiben
+    // MARK: - Writing
 
-    /// Schreibt eine Datei. Wirft `TagError` — der Aufrufer sammelt die Fehler
-    /// ein und macht weiter, damit eine kaputte Datei den Batch nicht abbricht.
+    /// Writes one file. Throws `TagError` — the caller collects the errors and
+    /// carries on, so that one broken file does not abort the batch.
     func write(_ request: WriteRequest) throws {
         try TagLibBridge.write(request.tags, fields: request.fields, to: request.url)
     }
 
-    // MARK: - Umbenennen
+    // MARK: - Renaming
 
-    /// Benennt um und weicht Kollisionen mit `" (2)"` aus. Gibt den neuen
-    /// Pfad zurück, damit `TrackFile.url` nachgezogen werden kann.
+    /// Renames and avoids collisions with `" (2)"`. Returns the new path so
+    /// that `TrackFile.url` can be updated.
     func rename(_ url: URL, to newName: String) throws -> URL {
         let folder = url.deletingLastPathComponent()
         let ext = (newName as NSString).pathExtension
@@ -50,7 +65,7 @@ actor TagEngine {
         var target = folder.appendingPathComponent(newName)
         var counter = 2
         while FileManager.default.fileExists(atPath: target.path(percentEncoded: false)) {
-            // Derselbe Pfad ist keine Kollision — dann ist nichts zu tun.
+            // The same path is no collision — then there is nothing to do.
             if target.standardizedFileURL == url.standardizedFileURL { return url }
             let candidate = ext.isEmpty ? "\(base) (\(counter))" : "\(base) (\(counter)).\(ext)"
             target = folder.appendingPathComponent(candidate)
@@ -65,11 +80,11 @@ actor TagEngine {
         return target
     }
 
-    // MARK: - Dateien einsammeln
+    // MARK: - Collecting files
 
-    /// Löst Ordner rekursiv auf und filtert auf unterstützte Endungen.
-    /// Läuft bewusst hier und nicht auf dem Main-Thread — ein
-    /// hineingezogener Musikordner kann zehntausende Einträge haben.
+    /// Resolves folders recursively and filters for supported extensions.
+    /// Runs here on purpose and not on the main thread — a music folder
+    /// dragged in can have tens of thousands of entries.
     func collectAudioFiles(from urls: [URL]) -> [URL] {
         var result: [URL] = []
         var seen: Set<URL> = []
@@ -102,7 +117,7 @@ actor TagEngine {
             }
         }
 
-        // Natürliche Sortierung, damit „Track 2" vor „Track 10" steht.
+        // Natural sort order, so that "Track 2" comes before "Track 10".
         return result.sorted {
             $0.path(percentEncoded: false).localizedStandardCompare(
                 $1.path(percentEncoded: false)

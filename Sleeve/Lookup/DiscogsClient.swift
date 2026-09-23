@@ -2,6 +2,21 @@
 //  DiscogsClient.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import Foundation
 
@@ -30,8 +45,8 @@ actor DiscogsClient {
         }
     }
 
-    /// Ohne eigenen User-Agent antwortet Discogs mit 403 — nachgeprüft, nicht
-    /// nur behauptet (Spec §4.6).
+    /// Without its own User-Agent, Discogs answers with 403 — verified, not
+    /// just claimed (spec §4.6).
     static let userAgent = "Sleeve/1.0 +https://github.com/NeonRost/Sleeve"
 
     private static let baseURL = URL(string: "https://api.discogs.com")!
@@ -54,9 +69,9 @@ actor DiscogsClient {
 
     var hasToken: Bool { token != nil }
 
-    // MARK: - Endpunkte
+    // MARK: - Endpoints
 
-    /// Die Suche verlangt zwingend ein Token.
+    /// The search strictly requires a token.
     func search(_ query: SearchQuery, limit: Int = 25) async throws -> [DiscogsSearchResult] {
         guard token != nil else { throw ClientError.missingToken }
 
@@ -78,7 +93,8 @@ actor DiscogsClient {
         return (response.results ?? []).filter(\.isRelease)
     }
 
-    /// Release-Details. Geht auch ohne Token, dann mit strengerem Limit.
+    /// Release details. Also works without a token, then with a stricter
+    /// limit.
     func release(id: Int) async throws -> DiscogsRelease {
         try await get("/releases/\(id)", items: [])
     }
@@ -118,8 +134,8 @@ actor DiscogsClient {
         }
 
         do {
-            // Erst begradigen: Discogs schickt rohe Steuerzeichen in
-            // Freitextfeldern, an denen JSONDecoder sonst scheitert.
+            // Straighten first: Discogs sends raw control characters in free-text
+            // fields, on which JSONDecoder would otherwise fail.
             return try JSONDecoder().decode(
                 T.self, from: JSONSanitizer.escapingControlCharactersInStrings(data))
         } catch {

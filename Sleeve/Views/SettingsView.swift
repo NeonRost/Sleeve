@@ -2,11 +2,25 @@
 //  SettingsView.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import SwiftUI
 
-/// Coverskalierung (§4.5). Discogs-Token (§4.6) und ffmpeg-Pfad (§2.2)
-/// ziehen später hier ein.
+/// Cover scaling (§4.5) and the Discogs token (§4.6).
 struct SettingsView: View {
     @Environment(AppState.self) private var state
 
@@ -23,8 +37,8 @@ struct SettingsView: View {
 
 // MARK: - Discogs
 
-/// Personal Access Token, kein OAuth — für eine Desktop-App ohne Server
-/// unnötig kompliziert (Spec §4.6). Der Token landet im Schlüsselbund.
+/// Personal access token, no OAuth — needlessly complicated for a desktop app
+/// without a server (spec §4.6). The token goes into the keychain.
 private struct DiscogsSection: View {
     @Environment(AppState.self) private var state
     @State private var entered = ""
@@ -52,9 +66,9 @@ private struct DiscogsSection: View {
                     HStack {
                         SecureField("", text: $entered, prompt: Text("Paste your token"))
                             .textFieldStyle(.roundedBorder)
-                        // Eigener Schlüssel, sonst kollidiert er mit dem
-                        // Speichern-Knopf in der Toolbar: derselbe englische
-                        // Text, aber zwei verschiedene deutsche Wörter.
+                        // Its own key, or it collides with the Save button in the
+                        // toolbar: the same English text, but two different German
+                        // words.
                         Button("Save Token") {
                             Task {
                                 await state.updateDiscogsToken(entered)

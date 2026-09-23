@@ -2,20 +2,35 @@
 //  SplitWindow.swift
 //  Sleeve
 //
-//  Track Splitter (Spec §7).
+//  Copyright (C) 2026 NeonRost
 //
-//  Aufbau, von oben nach unten:
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//  1. Datei und Erkennung — je eine Zeile, weil man sie selten anfasst.
-//  2. **Übersicht** über die ganze Datei. Fest, scrollt nie weg.
-//  3. Links die Trackliste, rechts der **Bearbeiter** für den gewählten Track
-//     mit zwei Lupen auf Anfang und Ende.
-//  4. Ausgabe und Aufteilen.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
 //
-//  Der erste Anlauf war ein langes Formular: die Hüllkurve oben, die Tracks
-//  weit darunter. Sobald man zu den Tracks scrollte, war sie weg — und über
-//  45 Minuten ist ein Bildpunkt rund zwei Sekunden, zu grob für einen Schnitt.
-//  Die Lupen zeigen je 20 Sekunden: rund 30 Millisekunden je Bildpunkt.
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Track Splitter (spec §7).
+//
+//  Layout, from top to bottom:
+//
+//  1. File and detection — one row each, because they are rarely touched.
+//  2. **Overview** of the whole file. Fixed, never scrolls away.
+//  3. The track list on the left, on the right the **editor** for the
+//     selected track with two magnifiers on start and end.
+//  4. Output and splitting.
+//
+//  The first attempt was a long form: the envelope at the top, the tracks
+//  far below. As soon as one scrolled to the tracks it was gone — and over
+//  45 minutes one pixel is about two seconds, too coarse for a cut. The
+//  magnifiers show 20 seconds each: about 30 milliseconds per pixel.
 //
 
 import SwiftUI
@@ -73,7 +88,7 @@ struct SplitWindow: View {
     }
 }
 
-// MARK: - Datei
+// MARK: - File
 
 private struct SourceBar: View {
     @Environment(AppState.self) private var state
@@ -146,7 +161,7 @@ private struct NoTracksPlaceholder: View {
     }
 }
 
-// MARK: - Erkennung
+// MARK: - Detection
 
 private struct DetectionBar: View {
     @Environment(AppState.self) private var state
@@ -158,7 +173,7 @@ private struct DetectionBar: View {
                     caption: "\(Int(state.splitThresholdDB).formatted()) dB",
                     help: "How quiet counts as silence")
             compact("Min. silence", value: $state.splitMinimumSilence, range: 0.1...5, step: 0.1,
-                    // Nach Sprache formatiert: „0,5 s", nicht „0.5 s".
+                    // Formatted per language: "0,5 s" in German, not "0.5 s".
                     caption: "\(state.splitMinimumSilence.formatted(.number.precision(.fractionLength(1)))) s",
                     help: "How long a silence must last to become a cut")
             compact("Shortest track", value: $state.splitMinimumTrackLength, range: 0...60, step: 1,
@@ -197,7 +212,7 @@ private struct DetectionBar: View {
     }
 }
 
-// MARK: - Übersicht
+// MARK: - Overview
 
 private struct OverviewStrip: View {
     @Environment(AppState.self) private var state
@@ -213,8 +228,8 @@ private struct OverviewStrip: View {
                     mark: state.splitMarkPosition,
                     playhead: state.splitPreview.position,
                     onClick: { seconds in
-                        // In der Übersicht wählt ein Klick den Track, der dort
-                        // liegt, und setzt die Marke an die Stelle.
+                        // In the overview a click selects the track that lies there
+                        // and puts the mark at that position.
                         if let track = state.splitTracks.first(where: {
                             seconds >= $0.range.start && seconds <= $0.range.end
                         }) {
@@ -238,7 +253,7 @@ private struct OverviewStrip: View {
     }
 }
 
-// MARK: - Trackliste
+// MARK: - Track list
 
 private struct TrackList: View {
     @Environment(AppState.self) private var state
@@ -254,8 +269,8 @@ private struct TrackList: View {
                     }
                 }
             }
-            // Wird ein Track über die Übersicht gewählt, soll seine Zeile
-            // sichtbar werden — sonst wählt man etwas, das man nicht sieht.
+            // When a track is selected via the overview, its row should
+            // become visible — otherwise one selects something one cannot see.
             .onChange(of: state.splitSelectionID) { _, id in
                 guard let id else { return }
                 withAnimation { proxy.scrollTo(id, anchor: .center) }
@@ -303,7 +318,7 @@ private struct TrackRow: View {
             }
             .frame(width: 58, alignment: .trailing)
 
-            // Von Hand verändert — sichtbar, damit man nichts vergisst.
+            // Changed by hand — visible, so that nothing is forgotten.
             Circle()
                 .fill(track.isAdjusted ? Color.accentColor : .clear)
                 .frame(width: 6, height: 6)
@@ -319,13 +334,13 @@ private struct TrackRow: View {
     }
 }
 
-// MARK: - Bearbeiter
+// MARK: - Editor
 
 private struct Editor: View {
     @Environment(AppState.self) private var state
 
-    /// Wie weit eine Lupe nach beiden Seiten reicht. 20 Sekunden auf rund
-    /// 300 Bildpunkte ergeben etwa 30 ms je Bildpunkt.
+    /// How far a magnifier reaches to each side. 20 seconds on about 300
+    /// pixels makes roughly 30 ms per pixel.
     static let lensHalfWidth: Double = 10
 
     var body: some View {
@@ -358,7 +373,7 @@ private struct Editor: View {
         }
     }
 
-    // MARK: Lupen
+    // MARK: Magnifiers
 
     @ViewBuilder
     private func lenses(_ track: SplitTrack) -> some View {
@@ -405,7 +420,7 @@ private struct Editor: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: Abspielen
+    // MARK: Playback
 
     private var transport: some View {
         @Bindable var preview = state.splitPreview
@@ -445,7 +460,7 @@ private struct Editor: View {
         .disabled(state.splitPreview.unplayableReason != nil)
     }
 
-    // MARK: Grenzen setzen
+    // MARK: Setting boundaries
 
     private func actions(_ track: SplitTrack, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -472,7 +487,8 @@ private struct Editor: View {
     }
 }
 
-/// Zeitfeld mit Stepper für Zehntelsekunden — der genaue Weg neben dem Ziehen.
+/// Time field with a stepper for tenths of a second — the exact route next
+/// to dragging.
 private struct TimeField: View {
     @Environment(AppState.self) private var state
     let track: SplitTrack
@@ -494,8 +510,8 @@ private struct TimeField: View {
         }
     }
 
-    /// Getippte Zeit übernehmen. Unlesbares wird verworfen: das Feld zeigt
-    /// danach wieder den gültigen Wert.
+    /// Takes over a typed time. Anything unreadable is discarded: the field
+    /// then shows the valid value again.
     private func apply() {
         let text = edge == .start ? track.startText : track.endText
         if let seconds = Timecode.parse(text) { move(to: seconds) }
@@ -513,7 +529,7 @@ private struct TimeField: View {
     }
 }
 
-// MARK: - Ausgabe
+// MARK: - Output
 
 private struct OutputBar: View {
     @Environment(AppState.self) private var state
@@ -585,7 +601,7 @@ private struct OutputBar: View {
     }
 }
 
-// MARK: - Fußzeile
+// MARK: - Footer
 
 private struct Footer: View {
     @Environment(AppState.self) private var state
@@ -607,8 +623,8 @@ private struct Footer: View {
         .padding(.horizontal, 14).padding(.vertical, 10)
     }
 
-    /// Fortschritt, Ergebnis oder Fehler — immer hier, nie im scrollenden
-    /// Teil. Eine Meldung, die man erst suchen muss, ist keine.
+    /// Progress, result or error — always here, never in the scrolling
+    /// part. A message one has to go looking for is no message.
     @ViewBuilder
     private var status: some View {
         if case let .cutting(done, total) = state.splitStage {

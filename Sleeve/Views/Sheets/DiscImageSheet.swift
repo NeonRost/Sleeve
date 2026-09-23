@@ -2,13 +2,28 @@
 //  DiscImageSheet.swift
 //  Sleeve
 //
-//  Ein Blatt, kein eigenes Fenster: der Vorgang hängt an der eingelegten
-//  Scheibe, die das Hauptfenster ohnehin zeigt. Ein frei schwebendes Fenster
-//  würde diesen Bezug verlieren.
+//  Copyright (C) 2026 NeonRost
 //
-//  Die Leseeinstellungen sind an dieselben Werte gebunden wie der Rip-Bereich.
-//  Zwei Sätze davon wären eine sichere Fehlerquelle — dass ein Regler an zwei
-//  Stellen auftaucht, ist dagegen üblich.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  A sheet, not a window of its own: the process depends on the inserted
+//  disc, which the main window shows anyway. A free-floating window would
+//  lose that connection.
+//
+//  The read settings are bound to the same values as the Rip section. Two
+//  sets of them would be a sure source of errors — a control appearing in
+//  two places, on the other hand, is common.
 //
 
 import SwiftUI
@@ -23,10 +38,10 @@ struct DiscImageSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
-            // Ergebnis und Fehler stehen **über** dem Formular, nicht darin.
-            // Im Formular landen sie unter „Lesen" und damit im scrollenden
-            // Teil — fertig gemeldet, aber ungesehen. Derselbe Fehler wie
-            // beim Rip-Fortschritt, der deshalb in der Fußzeile steht.
+            // Result and errors sit **above** the form, not in it. In the
+            // form they end up under "Reading" and thus in the scrolling
+            // part — reported as done, but unseen. The same mistake as with
+            // the rip progress, which is why that one sits in the footer.
             if state.imageResult != nil || state.imageError != nil {
                 Divider()
                 banner
@@ -109,7 +124,7 @@ struct DiscImageSheet: View {
         .frame(width: 460, height: 560)
     }
 
-    // MARK: - Kopf und Fuß
+    // MARK: - Header and footer
 
     @ViewBuilder
     private var banner: some View {
@@ -146,10 +161,11 @@ struct DiscImageSheet: View {
     }
 
     private var header: some View {
-        // Mehr Luft unter der Überschrift: der Erklärsatz klebte daran.
+        // More room below the heading: the explanation stuck to it.
         VStack(alignment: .leading, spacing: 7) {
             Text("Create Disc Image").font(.headline)
-            // Die Frage kommt sonst sofort — also gleich beantworten.
+            // The question comes up right away otherwise — so answer it
+            // right away.
             Text("Not an ISO: an audio CD has no file system. Sleeve writes the audio in one piece plus a cue sheet with the track boundaries.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

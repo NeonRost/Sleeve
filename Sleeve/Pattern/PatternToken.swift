@@ -2,11 +2,26 @@
 //  PatternToken.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import Foundation
 
-/// Die Platzhalter der Pattern-Engine. Dieselbe Syntax in beide Richtungen:
-/// Tags → Dateiname und Dateiname → Tags (Spec §4.4).
+/// The placeholders of the pattern engine. The same syntax in both
+/// directions: tags → file name and file name → tags (spec §4.4).
 enum PatternToken: String, CaseIterable, Identifiable, Sendable {
     case artist
     case albumartist
@@ -22,12 +37,12 @@ enum PatternToken: String, CaseIterable, Identifiable, Sendable {
 
     var placeholder: String { "%\(rawValue)%" }
 
-    /// Hängt den Platzhalter an ein Muster an und setzt dabei ein
-    /// Trennzeichen, wenn keines da ist.
+    /// Appends the placeholder to a pattern, inserting a separator if there
+    /// is none.
     ///
-    /// Ohne das entsteht beim Zusammenklicken `%title%%artist%` — zwei
-    /// Angaben ohne Lücke, was praktisch nie gemeint ist und im fertigen
-    /// Dateinamen erst auffällt, wenn man genau hinsieht.
+    /// Without it, clicking placeholders together yields `%title%%artist%` —
+    /// two values without a gap, which is practically never intended and only
+    /// shows in the finished file name if one looks closely.
     func appended(to pattern: String) -> String {
         guard !pattern.isEmpty else { return placeholder }
         let separators: Set<Character> = [" ", "-", "_", ".", ",", "/", "(", "["]
@@ -51,8 +66,8 @@ enum PatternToken: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Numerische Token werden beim Rendern mit führenden Nullen aufgefüllt
-    /// und beim Parsen nur auf Ziffern gematcht.
+    /// Numeric tokens are padded with leading zeros when rendering and only
+    /// match digits when parsing.
     var isNumeric: Bool {
         switch self {
         case .track, .disc, .year: true
@@ -60,7 +75,7 @@ enum PatternToken: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Jahreszahlen bekommen keine führenden Nullen.
+    /// Years get no leading zeros.
     var padding: Int {
         switch self {
         case .track, .disc: 2
@@ -69,7 +84,7 @@ enum PatternToken: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// Ein Pattern zerfällt in Literale und Token.
+/// A pattern breaks down into literals and tokens.
 enum PatternElement: Equatable, Sendable {
     case literal(String)
     case token(PatternToken)
@@ -77,8 +92,8 @@ enum PatternElement: Equatable, Sendable {
 
 enum PatternSyntax {
 
-    /// Zerlegt `%track% - %title%` in Literale und Token.
-    /// Ein `%%` steht für ein wörtliches Prozentzeichen.
+    /// Splits `%track% - %title%` into literals and tokens.
+    /// A `%%` stands for a literal percent sign.
     static func parse(_ pattern: String) -> [PatternElement] {
         var elements: [PatternElement] = []
         var literal = ""
@@ -88,7 +103,7 @@ enum PatternSyntax {
             literal += rest[rest.startIndex..<start]
             let afterStart = rest.index(after: start)
 
-            // "%%" → wörtliches Prozentzeichen
+            // "%%" → literal percent sign
             if afterStart < rest.endIndex, rest[afterStart] == "%" {
                 literal += "%"
                 rest = rest[rest.index(after: afterStart)...]
@@ -98,7 +113,7 @@ enum PatternSyntax {
             guard let end = rest[afterStart...].firstIndex(of: "%"),
                   let token = PatternToken(rawValue: String(rest[afterStart..<end]).lowercased())
             else {
-                // Kein gültiges Token — das Prozentzeichen bleibt Literal.
+                // Not a valid token — the percent sign stays a literal.
                 literal += "%"
                 rest = rest[afterStart...]
                 continue
@@ -117,8 +132,8 @@ enum PatternSyntax {
         return elements
     }
 
-    /// Prüft, ob überhaupt ein Token vorkommt — ein Pattern ohne Token würde
-    /// alle Dateien gleich benennen.
+    /// Checks whether there is any token at all — a pattern without tokens
+    /// would give every file the same name.
     static func containsToken(_ pattern: String) -> Bool {
         parse(pattern).contains { if case .token = $0 { true } else { false } }
     }

@@ -2,11 +2,26 @@
 //  WAVWriter.swift
 //  Sleeve
 //
-//  Gerippte Spuren landen zunächst als WAV. Von dort übernimmt die bestehende
-//  Konverter-Pipeline (Spec §5) — der Ripper muss keine Codecs kennen.
+//  Copyright (C) 2026 NeonRost
 //
-//  CDDA ist 16 Bit, 44100 Hz, Stereo, little-endian. Genau das schreibt ein
-//  kanonischer 44-Byte-WAV-Kopf, ohne jede Sonderbehandlung.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Ripped tracks land as WAV first. From there the existing converter
+//  pipeline takes over (spec §5) — the ripper needs to know no codecs.
+//
+//  CDDA is 16 bit, 44100 Hz, stereo, little-endian. That is exactly what a
+//  canonical 44-byte WAV header describes, without any special handling.
 //
 
 import Foundation
@@ -29,8 +44,8 @@ enum WAVWriter {
         u32(36 + byteCount)
         ascii("WAVE")
         ascii("fmt ")
-        u32(16)              // Länge des Formatblocks
-        u16(1)               // 1 = unkomprimiertes PCM
+        u32(16)              // Length of the format chunk
+        u16(1)               // 1 = uncompressed PCM
         u16(channels)
         u32(sampleRate)
         u32(byteRate)
@@ -41,8 +56,8 @@ enum WAVWriter {
         return data
     }
 
-    /// Schreibt die Datei in einem Zug. Eine CD-Spur ist selten größer als
-    /// 100 MB, das rechtfertigt kein stückweises Schreiben.
+    /// Writes the file in one go. A CD track is rarely larger than 100 MB,
+    /// which does not justify writing it piecewise.
     static func write(pcm: Data, to url: URL) throws {
         var file = header(forPCMByteCount: pcm.count)
         file.append(pcm)

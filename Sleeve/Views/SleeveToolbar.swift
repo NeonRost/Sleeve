@@ -2,15 +2,30 @@
 //  SleeveToolbar.swift
 //  Sleeve
 //
-//  Toolbar nach Tagr-Vorbild: „Auf Platte speichern" ganz links und prominent,
-//  daneben die Stapelverarbeitungen als beschriftete Symbole, jede mit einem
-//  kleinen Popover.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Toolbar modelled on Tagr: "Save to disk" at the far left and prominent,
+//  next to it the batch operations as labelled icons, each with a small
+//  popover.
 //
 
 import AppKit
 import SwiftUI
 
-/// Ein Toolbar-Knopf, der ein Popover öffnet.
+/// A toolbar button that opens a popover.
 struct ToolbarPopoverButton<Content: View>: View {
     let titleKey: LocalizedStringKey
     let systemImage: String
@@ -32,16 +47,16 @@ struct ToolbarPopoverButton<Content: View>: View {
     }
 }
 
-/// Setzt den Anzeigemodus der NSToolbar auf Symbol **und** Beschriftung.
-/// SwiftUI zeigt in der macOS-Toolbar sonst nur Symbole, und dann ist nicht zu
-/// erkennen, was die Knöpfe tun.
+/// Sets the NSToolbar display mode to icon **and** label. Otherwise
+/// SwiftUI shows only icons in the macOS toolbar, and then it is impossible
+/// to tell what the buttons do.
 struct ToolbarConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
         DispatchQueue.main.async {
-            // Nur den Anzeigemodus anfassen. `allowsUserCustomization` wirft an
-            // einer SwiftUI-verwalteten Toolbar eine Assertion und beendet die
-            // App — die Anpassbarkeit gehört SwiftUI.
+            // Only touch the display mode. `allowsUserCustomization` triggers an
+            // assertion on a SwiftUI-managed toolbar and terminates the app —
+            // customization belongs to SwiftUI.
             view.window?.toolbar?.displayMode = .iconAndLabel
         }
         return view
@@ -50,28 +65,29 @@ struct ToolbarConfigurator: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-/// Der Inhalt der Toolbar.
+/// The content of the toolbar.
 ///
-/// **Modusabhängig**, wie es das Diagramm in Spec §1.1 vorgibt: Nummerierung,
-/// Schreibweise und die Pattern-Engine gehören zum Taggen und haben im
-/// Konvertieren-Modus nichts verloren. Über alle Modi hinweg bleiben nur das
-/// Speichern und der Umschalter.
+/// **Mode-dependent**, as the diagram in spec §1.1 prescribes: numbering,
+/// capitalization and the pattern engine belong to tagging and have no
+/// place in the Convert mode. Across all modes, only Save and the switcher
+/// remain.
 ///
-/// Der Umschalter sitzt links neben dem Fenstertitel statt mittig — zentriert
-/// verbraucht er die Mitte und drängt die übrigen Knöpfe ins Überlaufmenü.
+/// The switcher sits to the left of the window title instead of in the
+/// middle — centred, it takes up the middle and pushes the other buttons
+/// into the overflow menu.
 struct SleeveToolbar: ToolbarContent {
     let state: AppState
 
     var body: some ToolbarContent {
-        // Ganz links der Umschalter, direkt daneben das Speichern. Beide
-        // gehören zur Grundbedienung und sind in jedem Modus da; alles
-        // Modusspezifische sammelt sich am rechten Rand.
+        // The switcher at the far left, Save right next to it. Both are
+        // basic controls and present in every mode; everything
+        // mode-specific gathers at the right edge.
         ToolbarItem(placement: .navigation) {
             ModeSwitcher()
         }
 
-        // Die hervorgehobene Stelle links gehört dem, was der Modus gerade
-        // tun soll: Tags schreiben — oder eben rippen.
+        // The prominent spot on the left belongs to what the mode is
+        // meant to do right now: write tags — or rip.
         ToolbarItem(placement: .navigation) {
             if state.activeMode == .rip {
                 RipActionButton()
@@ -95,7 +111,7 @@ struct SleeveToolbar: ToolbarContent {
         }
     }
 
-    // MARK: - Rippen
+    // MARK: - Rip
 
     @ViewBuilder
     private var ripItems: some View {
@@ -116,7 +132,7 @@ struct SleeveToolbar: ToolbarContent {
         .help("Eject the disc")
     }
 
-    // MARK: - Taggen
+    // MARK: - Tag
 
     @ViewBuilder
     private var tagItems: some View {
@@ -169,7 +185,7 @@ struct SleeveToolbar: ToolbarContent {
         .help("Look the selected tracks up on MusicBrainz or Discogs")
     }
 
-    // MARK: - Konvertieren
+    // MARK: - Convert
 
     @ViewBuilder
     private var convertItems: some View {
@@ -192,8 +208,8 @@ struct SleeveToolbar: ToolbarContent {
 }
 
 
-/// Startet und stoppt den Rip. Steht an derselben Stelle wie „Speichern",
-/// weil es im Rip-Modus dieselbe Rolle hat.
+/// Starts and stops the rip. Sits in the same place as "Save" because it
+/// plays the same role in Rip mode.
 private struct RipActionButton: View {
     @Environment(AppState.self) private var state
 

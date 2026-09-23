@@ -2,34 +2,49 @@
 //  DiscogsModels.swift
 //  Sleeve
 //
-//  Die Antwortstrukturen von api.discogs.com, plus die Aufbereitung ihrer
-//  Eigenheiten (Spec §4.6).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The response structures of api.discogs.com, plus the handling of their
+//  quirks (spec §4.6).
 //
 
 import Foundation
 
-// MARK: - Künstler
+// MARK: - Artists
 
 struct DiscogsArtist: Decodable, Sendable, Hashable {
     var name: String
-    /// „Artist Name Variation" — die Schreibweise auf genau dieser Pressung.
+    /// "Artist Name Variation" — the spelling on exactly this pressing.
     var anv: String?
-    /// Verbindet diesen Künstler mit dem **nächsten**: "&", "Feat.", "," …
+    /// Joins this artist to the **next** one: "&", "Feat.", "," …
     var join: String?
 
     var displayName: String {
         let raw = (anv?.isEmpty == false ? anv! : name)
-        // Discogs hängt an mehrfach vergebene Künstlernamen eine laufende
-        // Nummer: `Nirvana (2)`. Die gehört nicht ins Tag.
+        // Discogs appends a running number to artist names used more than
+        // once: `Nirvana (2)`. It does not belong in the tag.
         //
-        // Das Literal steht bewusst hier und nicht als statische Konstante:
-        // `Regex` ist nicht `Sendable` und als `static let` unter Swift 6
-        // nicht erlaubt.
+        // The literal stands here on purpose and not as a static constant:
+        // `Regex` is not `Sendable` and not allowed as a `static let` under
+        // Swift 6.
         return raw.replacing(/\s\(\d+\)$/, with: "")
     }
 
-    /// Setzt mehrere Künstler nach den `join`-Feldern zusammen. Nur den ersten
-    /// zu nehmen wäre bei Kollaborationen schlicht falsch (Spec §4.6).
+    /// Joins several artists according to the `join` fields. Taking only the
+    /// first would simply be wrong for collaborations (spec §4.6).
     static func combined(_ artists: [DiscogsArtist]?) -> String? {
         guard let artists, !artists.isEmpty else { return nil }
 
@@ -53,14 +68,14 @@ struct DiscogsArtist: Decodable, Sendable, Hashable {
 
 struct DiscogsTrack: Decodable, Sendable, Hashable {
     var position: String?
-    /// "track", "heading", "index" — nur das erste ist ein echtes Stück.
+    /// "track", "heading", "index" — only the first is a real piece.
     var type_: String?
     var title: String?
     var duration: String?
     var artists: [DiscogsArtist]?
 
-    /// Tracklisten enthalten Überschriften und Index-Einträge ohne Position.
-    /// Die müssen vor dem Zuordnen raus (Spec §4.6).
+    /// Track lists contain headings and index entries without a position.
+    /// Those have to go before matching (spec §4.6).
     var isPlayable: Bool {
         let hasPosition = !(position ?? "").trimmingCharacters(in: .whitespaces).isEmpty
         let kind = (type_ ?? "track").lowercased()
@@ -70,11 +85,11 @@ struct DiscogsTrack: Decodable, Sendable, Hashable {
     var artistName: String? { DiscogsArtist.combined(artists) }
 }
 
-/// Zerlegt Positionsangaben in Disc und Nummer.
+/// Splits position strings into disc and number.
 ///
-/// Discogs kennt viele Schreibweisen: "7", "A1" (Vinylseite), "1-3" und
-/// "CD2-4" (Mehrfachtonträger), "2.4". Vinylseiten ergeben keine Discnummer —
-/// dort zählt die Reihenfolge.
+/// Discogs knows many spellings: "7", "A1" (vinyl side), "1-3" and
+/// "CD2-4" (multiple media), "2.4". Vinyl sides yield no disc number —
+/// there the order is what counts.
 struct TrackPosition: Equatable, Sendable {
     var disc: Int?
     var number: Int?
@@ -87,11 +102,11 @@ struct TrackPosition: Equatable, Sendable {
         if let match = text.firstMatch(of: /^(?:[A-Za-z]*)(\d+)[-.](\d+)$/) {
             return TrackPosition(disc: Int(match.1), number: Int(match.2))
         }
-        // Reine Zahl
+        // Plain number
         if let match = text.firstMatch(of: /^(\d+)$/) {
             return TrackPosition(disc: nil, number: Int(match.1))
         }
-        // Vinylseite wie "A", "B2", "AA"
+        // Vinyl side such as "A", "B2", "AA"
         return TrackPosition()
     }
 }
@@ -130,7 +145,7 @@ struct DiscogsRelease: Decodable, Sendable {
 
     var albumArtist: String? { DiscogsArtist.combined(artists) }
 
-    /// Nur die echten Stücke, in Reihenfolge.
+    /// Only the real pieces, in order.
     var playableTracks: [DiscogsTrack] { (tracklist ?? []).filter(\.isPlayable) }
 
     var labelSummary: String? {
@@ -140,14 +155,14 @@ struct DiscogsRelease: Decodable, Sendable {
 
     var formatSummary: String? { formats?.first?.summary }
 
-    /// Wie viele Tonträger die Tracklist erkennen lässt.
+    /// How many media the track list reveals.
     var discCount: Int {
         let discs = playableTracks.compactMap { TrackPosition.parse($0.position).disc }
         return Set(discs).count
     }
 }
 
-// MARK: - Suche
+// MARK: - Search
 
 struct DiscogsSearchResponse: Decodable, Sendable {
     var results: [DiscogsSearchResult]?
@@ -173,7 +188,7 @@ struct DiscogsSearchResult: Decodable, Sendable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Übersetzung ins gemeinsame Modell
+// MARK: - Translation into the common model
 
 extension DiscogsTrack {
     func asLookupTrack() -> LookupTrack {

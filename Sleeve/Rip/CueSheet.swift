@@ -2,12 +2,27 @@
 //  CueSheet.swift
 //  Sleeve
 //
-//  Ein Cue Sheet lesen — die Gegenrichtung zu `RipReport.cueSheet`.
+//  Copyright (C) 2026 NeonRost
 //
-//  Gebraucht wird es vom Brennen: das Abbild selbst sagt nicht, wo ein Track
-//  anfängt. Dieselbe Auswertung trägt später das Einlesen eines Abbilds in die
-//  Trackliste (Spec §9.1) — deshalb steht sie hier für sich und nicht im
-//  Brenner.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Reading a cue sheet — the opposite direction of `RipReport.cueSheet`.
+//
+//  Burning needs it: the image itself does not say where a track starts.
+//  The same parsing will later carry opening an image into the track list
+//  (spec §9.1) — which is why it stands on its own here and not inside the
+//  burner.
 //
 
 import Foundation
@@ -16,7 +31,7 @@ struct CueSheet: Equatable, Sendable {
 
     struct Track: Equatable, Sendable, Identifiable {
         var number: Int
-        /// Startsektor ab Beginn der Datei, aus `INDEX 01`.
+        /// Start sector from the beginning of the file, from `INDEX 01`.
         var startLBA: Int
         var title: String?
         var performer: String?
@@ -35,14 +50,14 @@ struct CueSheet: Equatable, Sendable {
     }
 
     var audioFileName: String
-    /// `BINARY` für den rohen Strom, `WAVE` für alles mit Kopf.
+    /// `BINARY` for the raw stream, `WAVE` for anything with a header.
     var fileType: String
     var albumTitle: String?
     var albumPerformer: String?
     var catalog: String?
     var tracks: [Track]
 
-    // MARK: - Auswerten
+    // MARK: - Parsing
 
     init?(text: String) {
         var fileName: String?
@@ -51,8 +66,8 @@ struct CueSheet: Equatable, Sendable {
         var performer: String?
         var catalog: String?
         var parsed: [Track] = []
-        /// Vor der ersten `TRACK`-Zeile gehören TITLE und PERFORMER zum Album,
-        /// danach zur jeweiligen Spur.
+        /// Before the first `TRACK` line, TITLE and PERFORMER belong to the
+        /// album, after it to the respective track.
         var current: Track?
 
         for rawLine in text.components(separatedBy: .newlines) {
@@ -62,7 +77,7 @@ struct CueSheet: Equatable, Sendable {
 
             switch keyword {
             case "FILE":
-                // FILE "name mit leerzeichen.bin" BINARY
+                // FILE "name with spaces.bin" BINARY
                 if let quoted = Self.quoted(rest) {
                     fileName = quoted.value
                     let tail = quoted.remainder.trimmingCharacters(in: .whitespaces)
@@ -77,7 +92,7 @@ struct CueSheet: Equatable, Sendable {
                 if let track = current { parsed.append(track) }
                 let parts = rest.split(separator: " ")
                 let number = parts.first.flatMap { Int($0) } ?? (parsed.count + 1)
-                // Datenspuren tauchen im Cue auf, gebrannt werden sie hier nicht.
+                // Data tracks appear in the cue, but they are not burned here.
                 let mode = parts.count > 1 ? String(parts[1]).uppercased() : "AUDIO"
                 current = mode == "AUDIO" ? Track(number: number, startLBA: 0) : nil
 
@@ -96,8 +111,8 @@ struct CueSheet: Equatable, Sendable {
                 catalog = rest
 
             case "INDEX":
-                // Nur INDEX 01 ist der Beginn der hörbaren Spur; INDEX 00
-                // markiert die Pause davor und gehört noch zum Vorgänger.
+                // Only INDEX 01 is the start of the audible track; INDEX 00
+                // marks the pause before it and still belongs to the previous one.
                 let parts = rest.split(separator: " ")
                 guard parts.count >= 2, parts[0] == "01",
                       let lba = Self.lba(fromMSF: String(parts[1])) else { break }
@@ -118,8 +133,8 @@ struct CueSheet: Equatable, Sendable {
         self.tracks = parsed.sorted { $0.number < $1.number }
     }
 
-    /// Wie viele Sektoren jede Spur umfasst — ergibt sich erst aus dem Beginn
-    /// der nächsten, die letzte reicht bis zum Ende der Datei.
+    /// How many sectors each track spans — only follows from the start of the
+    /// next one; the last one runs to the end of the file.
     func sectorCounts(totalSectors: Int) -> [Int: Int] {
         var counts: [Int: Int] = [:]
         for (index, track) in tracks.enumerated() {
@@ -129,7 +144,7 @@ struct CueSheet: Equatable, Sendable {
         return counts
     }
 
-    // MARK: - Kleinteile
+    // MARK: - Helpers
 
     private static func split(_ line: String) -> (String, String) {
         guard let space = line.firstIndex(of: " ") else { return (line.uppercased(), "") }
@@ -137,8 +152,8 @@ struct CueSheet: Equatable, Sendable {
                 String(line[line.index(after: space)...]).trimmingCharacters(in: .whitespaces))
     }
 
-    /// Holt den Inhalt der ersten Anführungszeichen heraus und gibt zurück,
-    /// was danach noch kommt.
+    /// Extracts the content of the first quotation marks and returns what
+    /// comes after them.
     private static func quoted(_ text: String) -> (value: String, remainder: String)? {
         guard let open = text.firstIndex(of: "\""),
               let close = text[text.index(after: open)...].firstIndex(of: "\"")
@@ -147,7 +162,7 @@ struct CueSheet: Equatable, Sendable {
                 String(text[text.index(after: close)...]))
     }
 
-    /// `mm:ss:ff` — Minuten, Sekunden, Frames zu 1/75 Sekunde.
+    /// `mm:ss:ff` — minutes, seconds, frames of 1/75 second.
     static func lba(fromMSF text: String) -> Int? {
         let parts = text.split(separator: ":")
         guard parts.count == 3,

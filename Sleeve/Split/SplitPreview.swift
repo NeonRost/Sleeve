@@ -2,16 +2,30 @@
 //  SplitPreview.swift
 //  Sleeve
 //
-//  Kurz in eine Trackgrenze hineinhören (Spec §7.8).
+//  Copyright (C) 2026 NeonRost
 //
-//  **Kein Audioplayer.** Kein Scrubbing, keine Lautstärke, keine Wiedergabe-
-//  liste. Die einzige Frage, die sich beim Aufteilen stellt, ist „sitzt diese
-//  Grenze richtig", und die beantwortet man, indem man ein paar Sekunden
-//  **über** den Schnitt hinweg hört: das Ende des vorigen Stücks, die Stille,
-//  den Anfang des nächsten.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//  Deshalb spielt ein Druck auf den Knopf nicht ab Trackbeginn, sondern ein
-//  Stück davor.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Listening briefly across a track boundary (spec §7.8).
+//
+//  **Not an audio player.** No scrubbing, no volume, no playlist. The only
+//  question that comes up when splitting is "is this boundary in the right
+//  place", and one answers it by listening a few seconds **across** the
+//  cut: the end of the previous piece, the silence, the start of the next.
+//
+//  That is why pressing the button does not play from the start of the
+//  track but from a little before it.
 //
 
 import AVFoundation
@@ -21,14 +35,14 @@ import Foundation
 @Observable
 final class SplitPreview {
 
-    /// Wie lang die Hörprobe insgesamt ist. Einstellbar, weil sieben
-    /// Sekunden zu knapp waren, um einen Übergang wirklich zu beurteilen.
+    /// How long the preview is in total. Adjustable, because seven seconds
+    /// were too short to really judge a transition.
     var length: Double = 14 {
         didSet { UserDefaults.standard.set(length, forKey: "split.previewLength") }
     }
 
-    /// Ein Drittel davon liegt **vor** der Grenze. Man will den Ausklang des
-    /// vorigen Stücks hören, aber vor allem, wie sauber das neue anfängt.
+    /// A third of it lies **before** the boundary. One wants to hear the
+    /// previous piece fade out, but above all how cleanly the new one starts.
     static let leadShare: Double = 1.0 / 3.0
 
     var lead: Double { length * Self.leadShare }
@@ -39,34 +53,34 @@ final class SplitPreview {
         if stored >= 6, stored <= 60 { length = stored }
     }
 
-    /// Welche Zeile gerade klingt — die Oberfläche macht daraus den
-    /// Stop-Knopf.
+    /// Which row is currently playing — the UI turns that into the stop
+    /// button.
     private(set) var playingID: UUID?
 
-    /// Wo der Abspielkopf gerade steht, absolut in Sekunden. `nil` heißt: es
-    /// läuft nichts.
+    /// Where the playhead currently is, in absolute seconds. `nil` means
+    /// nothing is playing.
     ///
-    /// Nur zur Anzeige — die gesetzte Position der Laufleiste bleibt davon
-    /// unberührt. So wandert der Balken beim Hören mit, und ein zweiter Druck
-    /// auf Abspielen hört wieder **dieselbe** Stelle statt dort
-    /// weiterzumarschieren, wo es zufällig aufgehört hat.
+    /// For display only — the position set on the scrub bar stays untouched.
+    /// So the bar moves along while listening, and a second press on play
+    /// hears **the same** spot again instead of marching on from wherever it
+    /// happened to stop.
     private(set) var position: Double?
 
     private var player: AVPlayer?
     private var observer: Any?
     private var ticker: Any?
 
-    /// Manche Dateien lassen sich nicht abspielen, obwohl ffmpeg sie liest.
-    /// Das wird zur Laufzeit geprüft, nicht an der Endung geraten — eine
-    /// Endungsliste wäre sowohl ungenauer als auch ungeprüft.
+    /// Some files cannot be played even though ffmpeg reads them. That is
+    /// checked at runtime, not guessed from the extension — a list of
+    /// extensions would be both less accurate and unverified.
     private(set) var unplayableReason: String?
 
-    /// Hört **ab** einer Stelle, ohne Vorlauf.
+    /// Plays **from** a position, without lead-in.
     ///
-    /// Für die Laufleiste: wer ans Trackende geschoben hat, will von dort
-    /// hören — und zwar **über das Ende hinaus**, sonst lässt sich gar nicht
-    /// beurteilen, ob die Grenze richtig sitzt. Deshalb begrenzt nur die
-    /// Dateilänge, nicht das Trackende.
+    /// For the scrub bar: whoever dragged it to the end of a track wants to
+    /// listen from there — and **past the end**, otherwise there is no way to
+    /// judge whether the boundary sits right. So only the file length limits
+    /// playback, not the end of the track.
     func playFrom(id: UUID, url: URL, position: Double, fileDuration: Double) {
         playRaw(id: id, url: url, from: max(0, position), fileDuration: fileDuration)
     }
@@ -83,8 +97,8 @@ final class SplitPreview {
         playingID = id
         position = from
 
-        // Zehnmal je Sekunde reicht für einen Balken, der nicht ruckelt, und
-        // belastet nichts.
+        // Ten times a second is enough for a bar that does not stutter, and it
+        // costs nothing.
         ticker = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main
         ) { [weak self] time in
@@ -94,7 +108,7 @@ final class SplitPreview {
             }
         }
 
-        // Selbst anhalten, sonst liefe die ganze Datei weiter.
+        // Stop by ourselves, or the whole file would keep playing.
         let end = CMTime(seconds: until, preferredTimescale: 600)
         observer = player.addBoundaryTimeObserver(
             forTimes: [NSValue(time: end)], queue: .main
@@ -120,13 +134,13 @@ final class SplitPreview {
         position = nil
     }
 
-    /// Prüft beim Laden einer Datei, ob sich überhaupt hineinhören lässt.
+    /// Checks when a file is loaded whether it can be previewed at all.
     func check(_ url: URL) async {
         unplayableReason = nil
         let asset = AVURLAsset(url: url)
         do {
-            // `isPlayable` wirft bei manchen Behältern, statt sauber `false`
-            // zurückzugeben — deshalb der volle `do`/`catch` statt `try?`.
+            // `isPlayable` throws for some containers instead of cleanly returning
+            // `false` — hence the full `do`/`catch` rather than `try?`.
             guard try await asset.load(.isPlayable) else {
                 unplayableReason = String(localized: "This file cannot be previewed — splitting still works.")
                 return

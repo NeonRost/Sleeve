@@ -2,11 +2,26 @@
 //  AppState+DiscImage.swift
 //  Sleeve
 //
-//  Ein Abbild der ganzen Scheibe (Spec §9.1).
+//  Copyright (C) 2026 NeonRost
 //
-//  Steht bewusst nicht im Rip-Bereich: dort wählt man Spuren aus, und ein
-//  Abbild ist immer die ganze Scheibe — die beiden schließen sich aus. Der
-//  Weg führt über die Ablage.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  An image of the whole disc (spec §6.9).
+//
+//  Deliberately not in the Rip section: there one picks tracks, and an
+//  image is always the whole disc — the two exclude each other. The way in
+//  is the File menu.
 //
 
 import AppKit
@@ -22,8 +37,8 @@ enum DiscImageStage: Sendable, Equatable {
 
 extension AppState {
 
-    /// Der Name ohne Endung. Leer heißt: derselbe Vorschlag wie beim
-    /// Albumordner, damit Abbild und Ordner zusammenpassen.
+    /// The name without extension. Empty means: the same suggestion as for
+    /// the album folder, so that image and folder match.
     var suggestedImageName: String { suggestedAlbumFolderName }
 
     var effectiveImageName: String {
@@ -31,7 +46,7 @@ extension AppState {
         return custom.isEmpty ? suggestedImageName : PatternRenderer().sanitize(custom)
     }
 
-    /// Was das Erzeugen gerade verhindert.
+    /// What currently prevents creating the image.
     var imageBlocker: String? {
         guard disc != nil else { return String(localized: "No audio CD in the drive.") }
         guard disc?.toc.hasDataTrack != true else {
@@ -45,7 +60,7 @@ extension AppState {
         return nil
     }
 
-    /// Wie groß das Abbild wird. Bei FLAC nur zu schätzen, deshalb als Spanne.
+    /// How large the image will be. For FLAC only an estimate, hence a range.
     var estimatedImageSize: String {
         guard let toc = disc?.toc else { return "—" }
         let bytes = Int64(toc.leadOutLBA * CDGeometry.bytesPerSector)
@@ -53,7 +68,7 @@ extension AppState {
         case .bin, .wav:
             return bytes.formatted(.byteCount(style: .file))
         case .flac:
-            // Verlustfrei gepackte Musik landet erfahrungsgemäß bei 55–70 %.
+            // Losslessly compressed music typically ends up at 55–70 %.
             let low = Int64(Double(bytes) * 0.55), high = Int64(Double(bytes) * 0.70)
             return "\(low.formatted(.byteCount(style: .file)))–\(high.formatted(.byteCount(style: .file)))"
         }
@@ -65,8 +80,8 @@ extension AppState {
         imageStage = .idle
         imageProgress = 0
         isShowingImageSheet = true
-        // Der Bereich wurde vielleicht nie geöffnet — dann kennen wir die
-        // Scheibe noch nicht.
+        // The section may never have been opened — then we do not know the
+        // disc yet.
         if disc == nil { Task { await refreshDisc() } }
     }
 

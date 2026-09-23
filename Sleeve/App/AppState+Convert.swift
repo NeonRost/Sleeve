@@ -2,7 +2,22 @@
 //  AppState+Convert.swift
 //  Sleeve
 //
-//  Modus „Konvertieren" (Spec §5).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The Convert mode (spec §5).
 //
 
 import AppKit
@@ -10,10 +25,10 @@ import Foundation
 
 extension AppState {
 
-    // MARK: - ffmpeg finden
+    // MARK: - Finding ffmpeg
 
-    /// Sucht ffmpeg nach der Reihenfolge aus Spec §2.2 und erfasst dabei
-    /// gleich, welche Encoder dieser Build mitbringt.
+    /// Looks for ffmpeg in the order of spec §2.2 and records right away
+    /// which encoders this build has.
     func locateFFmpeg() async {
         guard !isLocatingFFmpeg else { return }
         isLocatingFFmpeg = true
@@ -23,15 +38,15 @@ extension AppState {
         ffmpeg = await ffmpegLocator.locate(preferred: preferred)
         homebrew = await ffmpegLocator.locateHomebrew()
 
-        // Ein Format, das dieses ffmpeg nicht kann, darf nicht ausgewählt
-        // bleiben — sonst scheitert der Batch erst beim Start.
+        // A format this ffmpeg cannot do must not stay selected — otherwise
+        // the batch only fails at the start.
         if let ffmpeg, !ffmpeg.supports(conversionSettings.format),
            let fallback = ffmpeg.availableFormats.first {
             conversionSettings.format = fallback
         }
     }
 
-    /// „Manuell auswählen…" aus der Erklärkarte.
+    /// "Choose Manually…" from the explanation card.
     func chooseFFmpegManually() async {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -59,7 +74,7 @@ extension AppState {
         await locateFFmpeg()
     }
 
-    // MARK: - Zielordner
+    // MARK: - Target folder
 
     func chooseDestinationFolder() {
         let panel = NSOpenPanel()
@@ -72,9 +87,10 @@ extension AppState {
         conversionSettings.destinationFolder = url
     }
 
-    // MARK: - Umwandeln
+    // MARK: - Converting
 
-    /// Fehlt ein Encoder, muss die App das **vor** dem Batch sagen (Spec §2.2).
+    /// If an encoder is missing, the app has to say so **before** the batch
+    /// (spec §2.2).
     var conversionBlocker: String? {
         guard let ffmpeg else {
             return String(localized: "ffmpeg was not found.")
@@ -112,16 +128,16 @@ extension AppState {
         isBusy = true
         progress = 0
         progressLabel = "Converting…"
-        showsProgress = true      // hier immer, ein Lauf dauert spürbar lange
+        showsProgress = true      // always here, a run takes noticeably long
         failures.removeAll()
         defer {
             finishWork()
             conversionTask = nil
         }
 
-        // Beim Stapel-Konvertieren wird nicht nachgefragt, also wird auch
-        // nichts verändert: das Coverbild wandert unangetastet in die neue
-        // Datei. Wer es kleiner will, macht das im Tag-Modus je Bild.
+        // Batch conversion does not ask, so nothing gets changed either: the
+        // cover picture moves into the new file untouched. Whoever wants it
+        // smaller does that per picture in tag mode.
         let queue = ConversionQueue(planner: planner, artworkOptions: .passthrough)
         var done = 0
 
@@ -145,7 +161,7 @@ extension AppState {
         conversionTask = nil
     }
 
-    /// Ein fertiges Ergebnis in die Liste einarbeiten.
+    /// Works a finished result into the list.
     private func absorb(_ outcome: ConversionQueue.Outcome) async {
         guard let track = trackList.track(id: outcome.trackID) else { return }
 
@@ -157,8 +173,8 @@ extension AppState {
             return
         }
 
-        // Die Liste folgt der Konvertierung: derselbe Track, neue Datei.
-        // Neu eingelesen, damit Dauer und Bitrate stimmen.
+        // The list follows the conversion: the same track, a new file.
+        // Read again so that duration and bitrate are right.
         if let info = try? await engine.read(destination) {
             track.replaceFile(url: destination, info: info)
         } else {

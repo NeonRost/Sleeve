@@ -2,7 +2,22 @@
 //  TrackTableView.swift
 //  Sleeve
 //
-//  Modusübergreifend — dieselbe Liste in jedem Modus (Spec §1.1).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Shared by all modes — the same list in every mode (spec §1.1).
 //
 
 import SwiftUI
@@ -23,16 +38,16 @@ struct TrackTableView: View {
         }
         .textFieldStyle(.plain)
         .tableStyle(.inset(alternatesRowBackgrounds: true))
-        // Drag & Drop von Dateien und Ordnern, rekursiv aufgelöst (Spec §4.1).
+        // Drag and drop of files and folders, resolved recursively (spec §4.1).
         .dropDestination(for: URL.self) { urls, _ in
             Task { await state.addFiles(urls) }
             return true
         } isTargeted: { isTargetedByDrop = $0 }
         .overlay { overlays }
-        // `TableColumn` nimmt als Kopfzeile nur Text, keine eigene View.
-        // Das Menü liegt deshalb über der Kopfzeile, bündig rechts — dort,
-        // wo man es sucht. Den Rechtsklick auf die Kopfzeile bietet macOS
-        // ohnehin zusätzlich an.
+        // `TableColumn` only takes text as its header, no custom view. The
+        // menu therefore sits above the header, flush right — where one
+        // looks for it. macOS additionally offers the right-click on the
+        // header anyway.
         .overlay(alignment: .topTrailing) {
             ColumnMenu()
                 .padding(.trailing, 7)
@@ -40,8 +55,8 @@ struct TrackTableView: View {
         }
     }
 
-    /// Eigene Property mit explizitem Ergebnistyp — als Literal im
-    /// `Table`-Aufruf braucht der Type-Checker dafür unzumutbar lange.
+    /// A property of its own with an explicit result type — as a literal
+    /// in the `Table` call the type checker takes unreasonably long.
     @TableColumnBuilder<TrackFile, KeyPathComparator<TrackFile>>
     private var columns: some TableColumnContent<TrackFile, KeyPathComparator<TrackFile>> {
         defaultColumns
@@ -49,7 +64,7 @@ struct TrackTableView: View {
         statusColumn
     }
 
-    // MARK: - Immer sichtbar
+    // MARK: - Always visible
 
     @TableColumnBuilder<TrackFile, KeyPathComparator<TrackFile>>
     private var defaultColumns: some TableColumnContent<TrackFile, KeyPathComparator<TrackFile>> {
@@ -97,11 +112,11 @@ struct TrackTableView: View {
         .customizationID("filename")
     }
 
-    // MARK: - Zuschaltbar
+    // MARK: - Optional
     //
-    // Standardmäßig versteckt. Ein- und ausblenden über das Menü rechts in
-    // der Kopfzeile — oder über den Rechtsklick, den macOS von sich aus
-    // anbietet. Die Auswahl überlebt den Programmstart.
+    // Hidden by default. Shown and hidden via the menu at the right of the
+    // header — or via the right-click macOS offers by itself. The choice
+    // survives a relaunch.
 
     @TableColumnBuilder<TrackFile, KeyPathComparator<TrackFile>>
     private var optionalColumns: some TableColumnContent<TrackFile, KeyPathComparator<TrackFile>> {
@@ -182,14 +197,14 @@ struct TrackTableView: View {
         .defaultVisibility(.hidden)
     }
 
-    // MARK: - Statusspalte mit dem Spaltenmenü
+    // MARK: - Status column with the column menu
 
     @TableColumnBuilder<TrackFile, KeyPathComparator<TrackFile>>
     private var statusColumn: some TableColumnContent<TrackFile, KeyPathComparator<TrackFile>> {
         TableColumn("", value: \TrackFile.statusSortKey) { track in
             StatusIndicator(track: track)
         }
-        // Etwas breiter als nötig: rechts darüber liegt das Spaltenmenü.
+        // A bit wider than necessary: the column menu sits above it on the right.
         .width(46)
         .customizationID("status")
         .disabledCustomizationBehavior(.visibility)
@@ -208,7 +223,7 @@ struct TrackTableView: View {
     }
 }
 
-// MARK: - Spaltenmenü
+// MARK: - Column menu
 
 private struct ColumnMenu: View {
     @Environment(AppState.self) private var state
@@ -252,15 +267,15 @@ private struct ColumnMenu: View {
     }
 }
 
-// MARK: - Zellen
+// MARK: - Cells
 
-/// Inline editierbar. Der Setter läuft über `TrackFile.set`, markiert das Feld
-/// also als berührt — Tippen in der Tabelle und Tippen im Inspector sind
-/// derselbe Vorgang.
+/// Editable inline. The setter goes through `TrackFile.set` and thus marks
+/// the field as touched — typing in the table and typing in the inspector
+/// are the same operation.
 ///
-/// Ein nacktes `TextField` in einer Tabellenzelle sieht aus wie Text. Damit
-/// erkennbar ist, dass hier etwas einzutragen geht, hebt sich die Zelle unter
-/// dem Mauszeiger ab und leere Felder zeigen einen Gedankenstrich.
+/// A bare `TextField` in a table cell looks like text. To make it
+/// recognizable that something can be entered here, the cell under the
+/// mouse pointer stands out and empty fields show a dash.
 private struct EditableCell: View {
     let track: TrackFile
     let field: TagField
@@ -288,7 +303,7 @@ private struct EditableCell: View {
     }
 }
 
-/// Nur-lesende Werte wie Dauer, Bitrate oder Dateigröße.
+/// Read-only values such as duration, bitrate or file size.
 private struct PlainCell: View {
     let text: String
     var alignment: Alignment = .leading
@@ -331,7 +346,7 @@ private struct StatusIndicator: View {
     }
 }
 
-// MARK: - Leere Liste
+// MARK: - Empty list
 
 private struct EmptyListHint: View {
     let isTargeted: Bool

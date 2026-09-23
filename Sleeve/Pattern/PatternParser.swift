@@ -2,8 +2,24 @@
 //  PatternParser.swift
 //  Sleeve
 //
-//  Dateiname → Tags (Spec §4.4). Dasselbe Pattern rückwärts: jedes `%token%`
-//  wird zur benannten Capture-Group, alles dazwischen literal escaped.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  File name → tags (spec §4.4). The same pattern backwards: every
+//  `%token%` becomes a named capture group, everything in between is
+//  escaped literally.
 //
 
 import Foundation
@@ -23,7 +39,7 @@ struct PatternParser: Sendable {
     let pattern: String
     private let regex: NSRegularExpression
     private let tokens: [PatternToken]
-    /// Bezieht der Pattern Ordnernamen ein (`%artist%/%album%/…`)?
+    /// Does the pattern include folder names (`%artist%/%album%/…`)?
     private let usesFolders: Bool
 
     init(pattern: String) throws {
@@ -40,8 +56,8 @@ struct PatternParser: Sendable {
                 expression += NSRegularExpression.escapedPattern(for: text)
             case .token(let token):
                 tokens.append(token)
-                // Kommt dasselbe Token zweimal vor, darf die Gruppe nicht
-                // zweimal denselben Namen tragen.
+                // If the same token occurs twice, the group must not carry the
+                // same name twice.
                 let name = seen.insert(token).inserted
                     ? token.rawValue
                     : "\(token.rawValue)_\(tokens.count)"
@@ -53,8 +69,8 @@ struct PatternParser: Sendable {
         self.tokens = tokens
         self.usesFolders = pattern.contains("/")
 
-        // Am Anfang und Ende verankern, sonst matcht der Pattern irgendwo
-        // mittendrin und liefert Unsinn.
+        // Anchor at start and end, or the pattern matches somewhere in the
+        // middle and yields nonsense.
         do {
             self.regex = try NSRegularExpression(pattern: "^" + expression + "$")
         } catch {
@@ -62,9 +78,9 @@ struct PatternParser: Sendable {
         }
     }
 
-    /// Der Text, gegen den gematcht wird: Dateiname ohne Endung, bei
-    /// Ordner-Patterns mit so vielen übergeordneten Ordnern davor, wie der
-    /// Pattern Ebenen hat.
+    /// The text matched against: the file name without extension, and for
+    /// folder patterns with as many parent folders in front as the pattern
+    /// has levels.
     func subject(for url: URL) -> String {
         let base = url.deletingPathExtension().lastPathComponent
         guard usesFolders else { return base }
@@ -101,7 +117,7 @@ struct PatternParser: Sendable {
                 .trimmingCharacters(in: .whitespaces)
             guard !value.isEmpty else { continue }
 
-            // Führende Nullen fallen weg — im Tag steht eine Zahl.
+            // Leading zeros are dropped — the tag holds a number.
             match.values[token.field] = token.isNumeric
                 ? String(Int(value) ?? 0)
                 : value
@@ -109,7 +125,7 @@ struct PatternParser: Sendable {
         return match.isEmpty ? nil : match
     }
 
-    /// Fertige Vorlagen aus der Spec §4.4.
+    /// Ready-made patterns from spec §4.4.
     static let presets: [String] = [
         "%track% - %title%",
         "%artist% - %title%",

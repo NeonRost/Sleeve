@@ -2,34 +2,50 @@
 //  DiscTOC.swift
 //  Sleeve
 //
-//  Das Inhaltsverzeichnis der CD und alles, was sich allein daraus ergibt:
-//  Tracklängen, MusicBrainz Disc ID, FreeDB-ID, Cue Sheet.
+//  Copyright (C) 2026 NeonRost
 //
-//  Reine Rechnerei ohne Gerätezugriff — deshalb vollständig testbar, ohne
-//  dass eine Scheibe im Laufwerk liegen muss.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The disc's table of contents and everything that follows from it alone:
+//  track lengths, MusicBrainz disc ID, FreeDB ID, cue sheet.
+//
+//  Pure computation without device access — hence fully testable without a
+//  disc in the drive.
 //
 
 import CryptoKit
 import Foundation
 
-/// Ein Sektor einer Audio-CD fasst 588 Stereo-Samples zu je 4 Byte.
+/// A sector of an audio CD holds 588 stereo samples of 4 bytes each.
 enum CDGeometry {
     static let bytesPerSector = 2352
     static let samplesPerSector = 588
     static let bytesPerSample = 4
     static let sectorsPerSecond = 75
-    /// CDs zählen ab 00:02:00, nicht ab null. Der Versatz von 150 Sektoren
-    /// steckt in jeder Adressumrechnung.
+    /// CDs count from 00:02:00, not from zero. The offset of 150 sectors is
+    /// part of every address conversion.
     static let leadInSectors = 150
 }
 
 struct DiscTrack: Equatable, Sendable, Identifiable {
     var number: Int
-    /// Startsektor, gemessen ab Track 1 = 0 (also ohne die 150 Lead-In-Sektoren).
+    /// Start sector, counted from track 1 = 0 (i.e. without the 150 lead-in
+    /// sectors).
     var startLBA: Int
     var sectorCount: Int
     var isData: Bool
-    /// Aus dem Subchannel gelesen, falls vorhanden.
+    /// Read from the subchannel, if present.
     var isrc: String?
 
     var id: Int { number }
@@ -43,7 +59,7 @@ struct DiscTrack: Equatable, Sendable, Identifiable {
 struct DiscTOC: Equatable, Sendable {
     var firstTrack: Int
     var lastTrack: Int
-    /// Startsektor des Lead-Out, also das Ende der letzten Spur.
+    /// Start sector of the lead-out, i.e. the end of the last track.
     var leadOutLBA: Int
     var tracks: [DiscTrack]
     var mcn: String?
@@ -55,18 +71,18 @@ struct DiscTOC: Equatable, Sendable {
         .seconds(Double(leadOutLBA) / Double(CDGeometry.sectorsPerSecond))
     }
 
-    // MARK: - Rohe TOC aus IOKit auswerten
+    // MARK: - Parsing the raw TOC from IOKit
 
-    /// Wertet die `TOC`-Eigenschaft eines `IOCDMedia`-Objekts aus. Das ist ein
-    /// `CDTOC`: vier Byte Kopf, dann 11-Byte-Deskriptoren.
+    /// Parses the `TOC` property of an `IOCDMedia` object. That is a `CDTOC`:
+    /// four bytes of header, then 11-byte descriptors.
     ///
-    /// Interessant sind die Sonderpunkte 0xA0 (erster Track), 0xA1 (letzter)
-    /// und 0xA2 (Lead-Out) sowie die Punkte 1…99 für die Spuren selbst.
+    /// Of interest are the special points 0xA0 (first track), 0xA1 (last) and
+    /// 0xA2 (lead-out), plus points 1…99 for the tracks themselves.
     init?(rawTOC data: Data) {
         let bytes = [UInt8](data)
         guard bytes.count >= 4 else { return nil }
 
-        // Das Längenfeld zählt ab hinter sich selbst.
+        // The length field counts from behind itself.
         let declared = (Int(bytes[0]) << 8 | Int(bytes[1])) + 2
         let limit = min(declared, bytes.count)
 
@@ -80,8 +96,8 @@ struct DiscTOC: Equatable, Sendable {
 
             let control = d[1] & 0x0F
             let point = d[3]
-            // Die P-Adresse steht als Minute/Sekunde/Frame in den letzten
-            // drei Byte des Deskriptors.
+            // The P address is stored as minute/second/frame in the last
+            // three bytes of the descriptor.
             let pLBA = (Int(d[8]) * 60 + Int(d[9])) * CDGeometry.sectorsPerSecond
                 + Int(d[10]) - CDGeometry.leadInSectors
 
@@ -90,7 +106,7 @@ struct DiscTOC: Equatable, Sendable {
             case 0xA1: last = Int(d[8])
             case 0xA2: leadOut = pLBA
             case 1...99:
-                // Bit 2 des Control-Nibbles unterscheidet Daten von Audio.
+                // Bit 2 of the control nibble tells data from audio.
                 starts[Int(point)] = (pLBA, control & 0x04 != 0)
             default: break
             }
@@ -98,7 +114,7 @@ struct DiscTOC: Equatable, Sendable {
 
         guard first > 0, last >= first, leadOut > 0, !starts.isEmpty else { return nil }
 
-        // Die Länge einer Spur ergibt sich erst aus dem Anfang der nächsten.
+        // A track's length only follows from the start of the next one.
         var built: [DiscTrack] = []
         for number in first...last {
             guard let entry = starts[number] else { continue }
@@ -117,7 +133,7 @@ struct DiscTOC: Equatable, Sendable {
         self.mcn = nil
     }
 
-    /// Direkter Weg für Tests.
+    /// Direct route for tests.
     init(firstTrack: Int, lastTrack: Int, leadOutLBA: Int,
          tracks: [DiscTrack], mcn: String? = nil) {
         self.firstTrack = firstTrack
@@ -127,14 +143,14 @@ struct DiscTOC: Equatable, Sendable {
         self.mcn = mcn
     }
 
-    // MARK: - Kennungen
+    // MARK: - Identifiers
 
-    /// MusicBrainz Disc ID: SHA-1 über erste und letzte Tracknummer, den
-    /// Lead-Out und 99 Trackoffsets, alle als Hex in Großbuchstaben. Das
-    /// Ergebnis wandert in Base64, wobei `+/=` durch `._-` ersetzt werden,
-    /// damit die Kennung in eine URL passt.
+    /// MusicBrainz disc ID: SHA-1 over first and last track number, the
+    /// lead-out and 99 track offsets, all as uppercase hex. The result is
+    /// Base64-encoded, with `+/=` replaced by `._-` so that the identifier
+    /// fits into a URL.
     ///
-    /// Geprüft gegen das Rechenbeispiel aus der MusicBrainz-Dokumentation.
+    /// Checked against the worked example in the MusicBrainz documentation.
     var musicBrainzDiscID: String {
         var input = String(format: "%02X%02X", firstTrack, lastTrack)
         input += String(format: "%08X", leadOutLBA + CDGeometry.leadInSectors)
@@ -154,8 +170,8 @@ struct DiscTOC: Equatable, Sendable {
             .replacingOccurrences(of: "=", with: "-")
     }
 
-    /// Die alte FreeDB-Kennung. MusicBrainz nimmt sie als zweiten Suchweg an,
-    /// und XLD führt sie im Log mit.
+    /// The old FreeDB identifier. MusicBrainz accepts it as a second way to
+    /// search, and XLD lists it in its log.
     var freeDBID: String {
         var checksum = 0
         for track in tracks {
@@ -172,8 +188,8 @@ struct DiscTOC: Equatable, Sendable {
         return String(format: "%08x", value)
     }
 
-    /// Für die MusicBrainz-Suche, wenn die Disc ID nicht eingetragen ist:
-    /// `erster letzter leadout offset1 offset2 …`
+    /// For the MusicBrainz search when the disc ID is not registered:
+    /// `first last leadout offset1 offset2 …`
     var musicBrainzTOCParameter: String {
         var parts = [String(firstTrack), String(lastTrack),
                      String(leadOutLBA + CDGeometry.leadInSectors)]

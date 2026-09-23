@@ -2,12 +2,27 @@
 //  Artwork.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import Foundation
 
-/// Bildtyp nach ID3v2-APIC-Konvention. TagLib verwendet dieselbe Nummerierung
-/// für alle Formate und reicht sie als Klartext-String durch die
-/// Complex-Property-API durch.
+/// Picture type following the ID3v2 APIC convention. TagLib uses the same
+/// numbering for all formats and passes it through the complex property API
+/// as a plain-text string.
 enum PictureType: UInt8, CaseIterable, Sendable, Hashable {
     case other              = 0x00
     case fileIcon           = 0x01
@@ -31,9 +46,9 @@ enum PictureType: UInt8, CaseIterable, Sendable, Hashable {
     case bandLogo           = 0x13
     case publisherLogo      = 0x14
 
-    /// Exakt die Schreibweise, die `TagLib::Utils::pictureTypeToString` liefert
-    /// und `pictureTypeFromString` wieder akzeptiert. Nicht frei formulieren —
-    /// TagLib matcht auf Gleichheit und fällt sonst stumm auf `Other` zurück.
+    /// Exactly the spelling `TagLib::Utils::pictureTypeToString` produces and
+    /// `pictureTypeFromString` accepts again. Do not rephrase — TagLib matches
+    /// on equality and otherwise silently falls back to `Other`.
     var taglibName: String {
         switch self {
         case .other:              "Other"
@@ -64,9 +79,9 @@ enum PictureType: UInt8, CaseIterable, Sendable, Hashable {
         self = PictureType.allCases.first { $0.taglibName == taglibName } ?? .other
     }
 
-    /// Was in einer Musiksammlung tatsächlich vorkommt. Die vollständige
-    /// Liste aus 21 Einträgen — samt „Coloured Fish" — wäre in einem Menü
-    /// nur im Weg.
+    /// What actually occurs in a music collection. The complete list of 21
+    /// entries — "Coloured Fish" included — would only get in the way in a
+    /// menu.
     static let commonCases: [PictureType] = [
         .frontCover, .backCover, .leafletPage, .media,
         .artist, .band, .composer, .illustration, .other,
@@ -108,9 +123,10 @@ struct Artwork: Equatable, Sendable, Identifiable {
         self.description = description
     }
 
-    /// Zwei Bilder sind gleich, wenn ihr Inhalt gleich ist — die `id` ist nur
-    /// zur Identifikation in der Liste da und darf den Vergleich nicht stören.
-    /// Sonst gälte bei Mehrfachauswahl jedes Cover als „verschieden".
+    /// Two pictures are equal if their content is equal — the `id` only
+    /// identifies them in the list and must not affect the comparison.
+    /// Otherwise every cover would count as "different" with several tracks
+    /// selected.
     static func == (lhs: Artwork, rhs: Artwork) -> Bool {
         lhs.data == rhs.data
             && lhs.mimeType == rhs.mimeType
@@ -118,15 +134,15 @@ struct Artwork: Equatable, Sendable, Identifiable {
             && lhs.description == rhs.description
     }
 
-    /// Bringt die Vorderseite an die erste Stelle.
+    /// Moves the front cover to the first position.
     ///
-    /// Abspielprogramme greifen sich in der Regel das **erste** eingebettete
-    /// Bild; nur ein Teil von ihnen wertet den Bildtyp aus. Wer nachträglich
-    /// eine neue Vorderseite einfügt, bekäme sie sonst hinter der
-    /// Booklet-Seite einsortiert — und im Player das Booklet als Cover.
+    /// Players usually take the **first** embedded picture; only some of
+    /// them look at the picture type. Whoever adds a new front cover later
+    /// would otherwise get it sorted behind the booklet page — and the
+    /// booklet as the cover in the player.
     ///
-    /// Alles außer der Vorderseite behält seine Reihenfolge: Booklet-Seiten
-    /// nach Bildtyp umzusortieren würde ihre Abfolge zerstören.
+    /// Everything except the front cover keeps its order: re-sorting booklet
+    /// pages by picture type would destroy their sequence.
     static func sortedForEmbedding(_ artwork: [Artwork]) -> [Artwork] {
         artwork.enumerated()
             .sorted { left, right in
@@ -139,8 +155,8 @@ struct Artwork: Equatable, Sendable, Identifiable {
             .map(\.element)
     }
 
-    /// MIME-Typ aus den ersten Bytes ableiten — verlässlicher als die
-    /// Dateiendung, gerade bei Drag & Drop aus dem Browser.
+    /// Derives the MIME type from the first bytes — more reliable than the
+    /// file extension, especially with drag and drop from the browser.
     static func detectMimeType(of data: Data) -> String {
         let prefix = [UInt8](data.prefix(12))
         switch prefix {

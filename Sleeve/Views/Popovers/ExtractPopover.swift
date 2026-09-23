@@ -2,7 +2,22 @@
 //  ExtractPopover.swift
 //  Sleeve
 //
-//  Dateiname → Tags (Spec §4.4). Derselbe Pattern rückwärts.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  File name → tags (spec §4.4). The same pattern read backwards.
 //
 
 import SwiftUI
@@ -47,7 +62,7 @@ struct ExtractPopover: View {
                     .foregroundStyle(matchCount == rows.count ? Color.secondary : Color.orange)
             }
 
-            // Nicht-matchende Zeilen rot und übersprungen (Spec §4.4).
+            // Non-matching lines in red and skipped (spec §4.4).
             ScrollView {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(rows.prefix(14)) { row in

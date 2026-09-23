@@ -2,11 +2,26 @@
 //  ReleaseMatcher.swift
 //  Sleeve
 //
-//  Ordnet lokale Dateien den Discogs-Tracks zu (Spec §4.6).
+//  Copyright (C) 2026 NeonRost
 //
-//  Automatik trifft es bei Live-Alben, Bonustracks und Doppel-CDs regelmäßig
-//  nicht. Deshalb ist das hier ausdrücklich nur ein **Vorschlag** — die
-//  Oberfläche lässt ihn korrigieren.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Matches local files to the release's tracks (spec §4.6).
+//
+//  The automatic matching regularly misses on live albums, bonus tracks and
+//  double CDs. That is why this is explicitly only a **proposal** — the UI
+//  lets the user correct it.
 //
 
 import Foundation
@@ -17,10 +32,11 @@ enum ReleaseMatcher {
         var id: UUID
         var title: String?
         var filename: String
-        /// Spielzeit in Sekunden — zum Vergleich mit der Länge im Album.
+        /// Playing time in seconds — to compare with the length in the album.
         var duration: Double? = nil
 
-        /// Womit verglichen wird: der Titel, sonst der Dateiname ohne Endung.
+        /// What gets compared: the title, otherwise the file name without
+        /// extension.
         var comparisonText: String {
             if let title, !title.trimmingCharacters(in: .whitespaces).isEmpty { return title }
             return (filename as NSString).deletingPathExtension
@@ -31,10 +47,10 @@ enum ReleaseMatcher {
         }
     }
 
-    /// Je lokalem Track der Index im Discogs-Tracklisting, oder `nil`.
+    /// Per local track the index in the release's track list, or `nil`.
     typealias Pairing = [Int?]
 
-    // MARK: - Vorschlag
+    // MARK: - Proposal
 
     static func suggest(local: [LocalTrack], remote: [LookupTrack]) -> Pairing {
         guard !local.isEmpty, !remote.isEmpty else {
@@ -43,14 +59,14 @@ enum ReleaseMatcher {
 
         let byOrder: Pairing = (0..<local.count).map { $0 < remote.count ? $0 : nil }
 
-        // Ohne lokale Titel gibt es nichts zu vergleichen — Reihenfolge ist
-        // dann die einzige sinnvolle Annahme.
+        // Without local titles there is nothing to compare — order is then
+        // the only sensible assumption.
         guard local.contains(where: \.hasTitle) else { return byOrder }
 
         let byTitle = greedyByTitle(local: local, remote: remote)
-        // Die Reihenfolge bleibt der Standard; nur wenn der Titelabgleich
-        // spürbar besser passt, gewinnt er. Sonst würden zwei ähnlich
-        // benannte Stücke die ganze Liste verschieben.
+        // Order stays the default; the title match only wins if it fits
+        // noticeably better. Otherwise two similarly named pieces would
+        // shift the whole list.
         return score(byTitle, local: local, remote: remote)
             > score(byOrder, local: local, remote: remote) + 0.08
             ? byTitle
@@ -89,9 +105,9 @@ enum ReleaseMatcher {
         return total / Double(local.count)
     }
 
-    // MARK: - Ähnlichkeit
+    // MARK: - Similarity
 
-    /// 0 bis 1, auf Basis der Levenshtein-Distanz über normalisierten Text.
+    /// 0 to 1, based on the Levenshtein distance over normalized text.
     static func similarity(_ a: String, _ b: String) -> Double {
         let x = normalize(a), y = normalize(b)
         if x.isEmpty || y.isEmpty { return 0 }
@@ -100,8 +116,8 @@ enum ReleaseMatcher {
         return 1 - Double(distance) / Double(max(x.count, y.count))
     }
 
-    /// Kleinschreibung, Satzzeichen raus, Leerraum zusammengezogen. Eine
-    /// führende Tracknummer aus dem Dateinamen stört den Vergleich, also weg.
+    /// Lowercase, punctuation out, whitespace collapsed. A leading track
+    /// number from the file name disturbs the comparison, so it goes.
     static func normalize(_ text: String) -> String {
         var value = text.lowercased()
         value = value.replacing(/^\s*\d{1,3}\s*[-._)]?\s+/, with: "")
@@ -128,17 +144,17 @@ enum ReleaseMatcher {
         return previous[b.count]
     }
 
-    // MARK: - Vorgeschlagene Tags
+    // MARK: - Proposed tags
 
     struct Proposal: Sendable, Identifiable {
         var id: UUID { trackID }
         var trackID: UUID
-        /// Nur die Felder, für die Discogs etwas hergibt.
+        /// Only the fields for which the source has something.
         var values: [TagField: String]
         var remoteTitle: String?
     }
 
-    /// Baut aus Release und Zuordnung die Feldwerte je lokalem Track.
+    /// Builds the field values per local track from release and matching.
     static func proposals(
         release: LookupRelease,
         local: [LocalTrack],
@@ -169,11 +185,11 @@ enum ReleaseMatcher {
                    !title.isEmpty {
                     values[.title] = title
                 }
-                // Track-eigener Künstler hat Vorrang — bei Samplern steht auf
-                // jedem Stück ein anderer.
+                // The track's own artist takes precedence — on a compilation
+                // every piece has a different one.
                 values[.artist] = remoteTrack.artistName ?? albumArtist
 
-                // Nummer aus der Quelle, sonst die laufende Nummer der Liste.
+                // Number from the source, otherwise the list's running number.
                 values[.trackNumber] = String(remoteTrack.number ?? (remoteIndex + 1))
                 values[.trackTotal] = String(perDiscTotals[remoteTrack.disc ?? 1] ?? remote.count)
                 if let disc = remoteTrack.disc {
@@ -188,8 +204,8 @@ enum ReleaseMatcher {
         }
     }
 
-    /// Release-Titel bei Discogs lautet oft „Künstler - Album". Für das
-    /// Album-Feld ist nur der hintere Teil gemeint.
+    /// At Discogs the release title often reads "Artist - Album". For the
+    /// album field only the latter part is meant.
     static func normalizedTitle(_ title: String) -> String? {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         return trimmed.isEmpty ? nil : trimmed

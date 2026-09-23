@@ -1,11 +1,26 @@
 //
 //  BurnTests.swift
 //
-//  Zurückbrennen (§6.10). Der Brennvorgang selbst ist ungeprüft — dafür fehlt
-//  der Rohling. Geprüft ist alles davor, und das ist der riskantere Teil:
-//  die Adressrechnung des Producers, der Spurenaufbau und die Auswertung des
-//  Cue Sheets. Ein Fehler um einen Sektor erzeugt eine Scheibe, auf der jede
-//  Spur versetzt beginnt, und das merkt man erst beim Anhören.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Burning back (§6.10). The burn itself is untested — the blank is missing
+//  for that. Everything before it is tested, and that is the riskier part:
+//  the producer's address arithmetic, the track layout and parsing the cue
+//  sheet. An error of one sector produces a disc on which every track starts
+//  shifted, and one only notices when listening.
 //
 
 import DiscRecording
@@ -27,7 +42,7 @@ enum BurnTests {
     }
 
     static func equal<T: Equatable>(_ actual: T, _ expected: T, _ label: String) {
-        check(actual == expected, label, detail: "ist \(actual), erwartet \(expected)")
+        check(actual == expected, label, detail: "is \(actual), expected \(expected)")
     }
 
     static func run() throws -> Int32 {
@@ -37,18 +52,18 @@ enum BurnTests {
         mediaNames()
         liveDevice()
 
-        print("\n  \(checks) Prüfungen, \(failures) Fehler")
+        print("\n  \(checks) checks, \(failures) failures")
         return failures == 0 ? 0 : 1
     }
 
-    // MARK: - Cue Sheet lesen
+    // MARK: - Reading a cue sheet
 
     static func cueParsing() {
-        print("\n— Cue Sheet auswerten —")
+        print("\n— Parsing a cue sheet —")
 
-        // Der beste Test ist der Rundlauf: schreiben, lesen, vergleichen.
+        // The best test is the round trip: write, read, compare.
         guard let toc = DiscTOC(rawTOC: RipTests.hexData(RipTests.realTOC)) else {
-            check(false, "TOC verfügbar"); return
+            check(false, "TOC available"); return
         }
         let report = RipReport(drive: CDDriveInfo(bsdName: "disk9", vendor: "ASUS",
                                                  product: "BW-16D1X-U", revision: "A105"),
@@ -61,42 +76,42 @@ enum BurnTests {
                                    titles: [1: "Intro: Malte und Mezzo", 7: "Der Großvater"])
 
         guard let cue = CueSheet(text: text) else {
-            check(false, "eigenes Cue Sheet lässt sich wieder lesen"); return
+            check(false, "our own cue sheet can be read back"); return
         }
-        check(true, "eigenes Cue Sheet lässt sich wieder lesen")
-        equal(cue.audioFileName, "Peter und der Wolf.bin", "Dateiname mit Leerzeichen")
-        equal(cue.fileType, "BINARY", "Dateityp")
-        equal(cue.albumTitle, "Peter und der Wolf", "Albumtitel")
-        equal(cue.albumPerformer, "Malte Arkona, Dresdner Philharmonie", "Albuminterpret")
-        equal(cue.tracks.count, 14, "vierzehn Spuren")
-        equal(cue.tracks[0].title, "Intro: Malte und Mezzo", "Tracktitel")
-        equal(cue.tracks[6].title, "Der Großvater", "Umlaut im Tracktitel")
-        check(cue.tracks[1].title == nil, "Spur ohne Titel bleibt ohne")
+        check(true, "our own cue sheet can be read back")
+        equal(cue.audioFileName, "Peter und der Wolf.bin", "file name with spaces")
+        equal(cue.fileType, "BINARY", "file type")
+        equal(cue.albumTitle, "Peter und der Wolf", "album title")
+        equal(cue.albumPerformer, "Malte Arkona, Dresdner Philharmonie", "album artist")
+        equal(cue.tracks.count, 14, "fourteen tracks")
+        equal(cue.tracks[0].title, "Intro: Malte und Mezzo", "track title")
+        equal(cue.tracks[6].title, "Der Großvater", "umlaut in the track title")
+        check(cue.tracks[1].title == nil, "a track without a title stays without")
 
-        // Das Entscheidende: die Startsektoren müssen exakt der TOC entsprechen.
+        // The decisive part: the start sectors have to match the TOC exactly.
         for track in toc.audioTracks {
             guard let parsed = cue.tracks.first(where: { $0.number == track.number }) else {
-                check(false, "Spur \(track.number) im Cue Sheet"); continue
+                check(false, "track \(track.number) in the cue sheet"); continue
             }
-            equal(parsed.startLBA, track.startLBA, "Startsektor Spur \(track.number)")
+            equal(parsed.startLBA, track.startLBA, "start sector of track \(track.number)")
         }
 
         let counts = cue.sectorCounts(totalSectors: toc.leadOutLBA)
         for track in toc.audioTracks {
-            equal(counts[track.number], track.sectorCount, "Länge Spur \(track.number)")
+            equal(counts[track.number], track.sectorCount, "length of track \(track.number)")
         }
 
-        print("\n— Cue Sheet: Randfälle —")
-        equal(CueSheet.lba(fromMSF: "00:00:00"), 0, "MSF null")
-        equal(CueSheet.lba(fromMSF: "03:04:51"), 13851, "MSF der zweiten Spur")
-        equal(CueSheet.lba(fromMSF: "40:37:21"), 182796, "MSF der letzten Spur")
-        check(CueSheet.lba(fromMSF: "00:60:00") == nil, "60 Sekunden gibt es nicht")
-        check(CueSheet.lba(fromMSF: "00:00:75") == nil, "75 Frames gibt es nicht")
-        check(CueSheet.lba(fromMSF: "kaputt") == nil, "Unsinn wird abgelehnt")
-        check(CueSheet(text: "") == nil, "leeres Cue Sheet wird abgelehnt")
-        check(CueSheet(text: "FILE \"a.bin\" BINARY") == nil, "Cue ohne Spuren wird abgelehnt")
+        print("\n— Cue sheet: edge cases —")
+        equal(CueSheet.lba(fromMSF: "00:00:00"), 0, "MSF zero")
+        equal(CueSheet.lba(fromMSF: "03:04:51"), 13851, "MSF of the second track")
+        equal(CueSheet.lba(fromMSF: "40:37:21"), 182796, "MSF of the last track")
+        check(CueSheet.lba(fromMSF: "00:60:00") == nil, "there are no 60 seconds")
+        check(CueSheet.lba(fromMSF: "00:00:75") == nil, "there are no 75 frames")
+        check(CueSheet.lba(fromMSF: "broken") == nil, "nonsense is rejected")
+        check(CueSheet(text: "") == nil, "an empty cue sheet is rejected")
+        check(CueSheet(text: "FILE \"a.bin\" BINARY") == nil, "a cue without tracks is rejected")
 
-        // INDEX 00 markiert die Pause und darf den Start nicht verschieben.
+        // INDEX 00 marks the pause and must not move the start.
         let withPregap = CueSheet(text: """
         FILE "x.wav" WAVE
           TRACK 01 AUDIO
@@ -105,10 +120,10 @@ enum BurnTests {
             INDEX 00 03:02:00
             INDEX 01 03:04:51
         """)
-        equal(withPregap?.tracks.count, 2, "zwei Spuren trotz INDEX 00")
-        equal(withPregap?.tracks[1].startLBA, 13851, "INDEX 00 verschiebt den Start nicht")
+        equal(withPregap?.tracks.count, 2, "two tracks despite INDEX 00")
+        equal(withPregap?.tracks[1].startLBA, 13851, "INDEX 00 does not move the start")
 
-        // Datenspuren gehören nicht auf eine Audio-CD.
+        // Data tracks do not belong on an audio CD.
         let mixed = CueSheet(text: """
         FILE "x.bin" BINARY
           TRACK 01 AUDIO
@@ -116,15 +131,15 @@ enum BurnTests {
           TRACK 02 MODE1/2352
             INDEX 01 05:00:00
         """)
-        equal(mixed?.tracks.count, 1, "Datenspur wird übergangen")
+        equal(mixed?.tracks.count, 1, "data track is skipped")
     }
 
-    // MARK: - Die Adressrechnung
+    // MARK: - The address arithmetic
 
     static func producerArithmetic() throws {
-        print("\n— Producer: welche Bytes an welcher Adresse —")
+        print("\n— Producer: which bytes at which address —")
 
-        // Ein Abbild aus erkennbaren Sektoren: Sektor N ist mit N gefüllt.
+        // An image of recognizable sectors: sector N is filled with N.
         let sectors = 40
         var image = Data()
         for index in 0..<sectors {
@@ -135,18 +150,18 @@ enum BurnTests {
         try image.write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        // BIN: kein Kopf. Spur 2 beginnt bei Sektor 10.
+        // BIN: no header. Track 2 starts at sector 10.
         let bin = ImageTrackProducer(url: url, headerBytes: 0, startSector: 10, sectorCount: 12)
-        equal(bin.byteOffset(forAddress: 0), 10 * 2352, "Adresse 0 zeigt auf den Spuranfang")
-        equal(bin.byteOffset(forAddress: 1), 11 * 2352, "Adresse 1 einen Sektor weiter")
-        equal(bin.byteOffset(forAddress: 11), 21 * 2352, "letzter Sektor der Spur")
+        equal(bin.byteOffset(forAddress: 0), 10 * 2352, "address 0 points to the start of the track")
+        equal(bin.byteOffset(forAddress: 1), 11 * 2352, "address 1 one sector further")
+        equal(bin.byteOffset(forAddress: 11), 21 * 2352, "last sector of the track")
 
-        // WAV: 44 Byte Kopf, alles verschiebt sich.
+        // WAV: 44 bytes of header, everything shifts.
         let wav = ImageTrackProducer(url: url, headerBytes: 44, startSector: 10, sectorCount: 12)
-        equal(wav.byteOffset(forAddress: 0), 44 + 10 * 2352, "WAV-Kopf wird übersprungen")
-        equal(wav.byteOffset(forAddress: 5), 44 + 15 * 2352, "und bleibt übersprungen")
+        equal(wav.byteOffset(forAddress: 0), 44 + 10 * 2352, "the WAV header is skipped")
+        equal(wav.byteOffset(forAddress: 5), 44 + 15 * 2352, "and stays skipped")
 
-        // Und jetzt wirklich lesen: kommen die Bytes heraus, die dort stehen?
+        // And now really read: do the bytes come out that are stored there?
         _ = bin.prepare(nil, for: nil, toMedia: nil)
         defer { bin.cleanupTrack(afterBurn: nil) }
 
@@ -158,24 +173,24 @@ enum BurnTests {
                                    length: UInt32(raw.count), atAddress: 0,
                                    blockSize: 2352, ioFlags: &flags)
         }
-        equal(Int(produced), 2352 * blocks, "voller Puffer geliefert")
+        equal(Int(produced), 2352 * blocks, "full buffer delivered")
         let bytes = buffer.map { UInt8(bitPattern: $0) }
-        equal(bytes[0], 10, "erster Sektor der Spur ist Sektor 10")
-        equal(bytes[2352], 11, "danach Sektor 11")
-        equal(bytes[2 * 2352], 12, "danach Sektor 12")
-        check(bytes[0..<2352].allSatisfy { $0 == 10 }, "der ganze erste Sektor stimmt")
+        equal(bytes[0], 10, "the first sector of the track is sector 10")
+        equal(bytes[2352], 11, "then sector 11")
+        equal(bytes[2 * 2352], 12, "then sector 12")
+        check(bytes[0..<2352].allSatisfy { $0 == 10 }, "the whole first sector is right")
 
-        // Ab Adresse 5 muss Sektor 15 kommen.
+        // From address 5 on, sector 15 has to come.
         let second = buffer.withUnsafeMutableBufferPointer { raw -> UInt32 in
             var flags: UInt32 = 0
             return bin.produceData(for: nil, intoBuffer: raw.baseAddress,
                                    length: 2352, atAddress: 5,
                                    blockSize: 2352, ioFlags: &flags)
         }
-        equal(Int(second), 2352, "ein Sektor geliefert")
-        equal(UInt8(bitPattern: buffer[0]), 15, "Adresse 5 der Spur ist Sektor 15")
+        equal(Int(second), 2352, "one sector delivered")
+        equal(UInt8(bitPattern: buffer[0]), 15, "address 5 of the track is sector 15")
 
-        // Am Dateiende darf nichts Zufälliges herauskommen.
+        // At the end of the file nothing random may come out.
         let tail = ImageTrackProducer(url: url, headerBytes: 0, startSector: 38, sectorCount: 2)
         _ = tail.prepare(nil, for: nil, toMedia: nil)
         var tailBuffer = [CChar](repeating: 0x7F, count: 2352 * 4)
@@ -185,14 +200,14 @@ enum BurnTests {
                                     length: UInt32(raw.count), atAddress: 0,
                                     blockSize: 2352, ioFlags: &flags)
         }
-        equal(Int(tailProduced), 2352 * 2, "über das Dateiende hinaus wird nichts erfunden")
+        equal(Int(tailProduced), 2352 * 2, "nothing is invented beyond the end of the file")
         tail.cleanupTrack(afterBurn: nil)
     }
 
-    // MARK: - Spurenaufbau
+    // MARK: - Track layout
 
     static func trackLayout() {
-        print("\n— Spurenaufbau —")
+        print("\n— Track layout —")
         guard let toc = DiscTOC(rawTOC: RipTests.hexData(RipTests.realTOC)) else { return }
         let tracks = toc.audioTracks.map {
             CueSheet.Track(number: $0.number, startLBA: $0.startLBA)
@@ -202,98 +217,98 @@ enum BurnTests {
 
         let layout = CDBurner.Layout(imageURL: URL(fileURLWithPath: "/tmp/none.bin"),
                                      headerBytes: 0, tracks: tracks, sectorCounts: counts)
-        equal(layout.totalSectors, toc.leadOutLBA, "Spurlängen ergeben die ganze Scheibe")
+        equal(layout.totalSectors, toc.leadOutLBA, "track lengths add up to the whole disc")
 
         let drTracks = CDBurner.makeTracks(layout)
-        equal(drTracks.count, 14, "vierzehn DRTracks")
+        equal(drTracks.count, 14, "fourteen DRTracks")
 
-        // `frames()` ist der Frame-*Anteil* einer Zeitangabe (0–74), nicht
-        // die Gesamtzahl — dafür ist `sectors()` da. Beim ersten Anlauf stand
-        // hier `frames()`, und die Summe über vierzehn Spuren ergab 493
-        // statt 236218. Die Prüfung hat den Irrtum gefunden, bevor er in den
-        // Brennercode wandern konnte.
+        // `frames()` is the frame *component* of a time value (0–74), not the
+        // total — that is what `sectors()` is for. The first attempt used
+        // `frames()` here, and the sum over fourteen tracks came to 493
+        // instead of 236218. The check found the mistake before it could make
+        // its way into the burner code.
         var total = 0
         for (index, drTrack) in drTracks.enumerated() {
             guard let length = drTrack.properties()[DRTrackLengthKey] as? DRMSF else {
-                check(false, "Länge an Spur \(index + 1)"); continue
+                check(false, "length on track \(index + 1)"); continue
             }
             total += Int(length.sectors())
         }
-        equal(total, toc.leadOutLBA, "Summe der DRTrack-Längen deckt sich mit der TOC")
+        equal(total, toc.leadOutLBA, "the sum of the DRTrack lengths matches the TOC")
 
         if let first = drTracks.first?.properties() {
             equal(first[DRBlockSizeKey] as? Int, Int(kDRBlockSizeAudio),
-                  "Blockgröße ist 2352 — dieselbe wie beim Lesen")
-            equal(first[DRTrackModeKey] as? Int, Int(kDRTrackModeAudio), "Audiospur")
+                  "block size is 2352 — the same as for reading")
+            equal(first[DRTrackModeKey] as? Int, Int(kDRTrackModeAudio), "audio track")
             if let pregap = first[DRPreGapLengthKey] as? DRMSF {
-                equal(Int(pregap.sectors()), 150, "Spur 1 bekommt die übliche Pause")
+                equal(Int(pregap.sectors()), 150, "track 1 gets the usual pause")
             }
         }
         if drTracks.count > 1, let second = drTracks[1].properties(),
            let pregap = second[DRPreGapLengthKey] as? DRMSF {
             equal(Int(pregap.sectors()), 0,
-                  "zwischen den Spuren keine zusätzliche Pause — sie steckt im Abbild")
+                  "no extra pause between the tracks — it is in the image")
         }
 
-        // Eine Spur der Länge null darf nicht entstehen.
+        // A track of length zero must not come about.
         var broken = counts
         broken[5] = 0
         let filtered = CDBurner.makeTracks(CDBurner.Layout(
             imageURL: URL(fileURLWithPath: "/tmp/none.bin"),
             headerBytes: 0, tracks: tracks, sectorCounts: broken))
-        equal(filtered.count, 13, "Spur ohne Länge wird ausgelassen")
+        equal(filtered.count, 13, "a track without length is left out")
     }
 
-    // MARK: - Am echten Laufwerk
+    // MARK: - On the real drive
 
-    /// Die Zuordnung Medientyp → Name, unabhängig davon, was gerade im
-    /// Laufwerk liegt.
+    /// The mapping media type → name, regardless of what is currently in
+    /// the drive.
     static func mediaNames() {
-        print("\n— Medien beim Namen nennen —")
+        print("\n— Naming the media —")
         equal(CDBurner.mediaName(kDRDeviceMediaTypeCDR as String), "CD-R", "CD-R")
         equal(CDBurner.mediaName(kDRDeviceMediaTypeCDRW as String), "CD-RW", "CD-RW")
         equal(CDBurner.mediaName(kDRDeviceMediaTypeCDROM as String), "CD-ROM", "CD-ROM")
         equal(CDBurner.mediaName(kDRDeviceMediaTypeDVDR as String), "DVD-R", "DVD-R")
         equal(CDBurner.mediaName(kDRDeviceMediaTypeDVDPlusR as String), "DVD+R", "DVD+R")
         equal(CDBurner.mediaName(kDRDeviceMediaTypeBDR as String), "BD-R", "BD-R")
-        check(!CDBurner.mediaName("irgendwas").isEmpty,
-              "Unbekanntes bekommt trotzdem einen Namen")
+        check(!CDBurner.mediaName("whatever").isEmpty,
+              "something unknown still gets a name")
 
-        // Der Fall, der in der Praxis vorkommt: ein leerer Rohling, nur vom
-        // falschen Typ. Die Meldung muss den Typ nennen — „kein
-        // beschreibbarer Rohling" wäre bei 4,38 GiB freiem Platz verwirrend.
+        // The case that occurs in practice: an empty blank, only of the wrong
+        // type. The message has to name the type — "no writable blank" would
+        // be confusing with 4.38 GiB of free space.
         check(CDBurner.mediaName(kDRDeviceMediaTypeDVDR as String) != "CD-R",
-              "DVD-R wird nicht für eine CD-R gehalten")
+              "a DVD-R is not taken for a CD-R")
     }
 
     static func liveDevice() {
-        print("\n— Laufwerk und Medium —")
+        print("\n— Drive and medium —")
         guard let device = CDBurner.firstDevice() else {
-            print("  … übersprungen, kein optisches Laufwerk")
+            print("  … skipped, no optical drive")
             return
         }
         let info = CDBurner.info(of: device)
-        check(!info.displayName.isEmpty, "Laufwerk gefunden", detail: info.displayName)
+        check(!info.displayName.isEmpty, "drive found", detail: info.displayName)
 
-        // Der Unterschied, den man sich nicht ausdenken kann: „Unsupported"
-        // heißt laut Apples Header „wird trotzdem versucht", nur „None" heißt
-        // „geht nicht".
-        check(info.isUsable, "Laufwerk ist benutzbar", detail: info.supportLevel)
+        // The difference nobody would think up: according to Apple's header,
+        // "Unsupported" means "will be tried anyway"; only "None" means "does
+        // not work".
+        check(info.isUsable, "drive is usable", detail: info.supportLevel)
 
         let state = CDBurner.mediaState(of: device)
         switch state {
         case .blank(let sectors):
-            check(sectors > 0, "Rohling erkannt", detail: "\(sectors) Sektoren frei")
+            check(sectors > 0, "blank recognized", detail: "\(sectors) sectors free")
         case .unusable(let reason):
-            check(true, "eingelegte Scheibe wird als nicht brennbar erkannt")
-            print("      → „\(reason)\"")
-            check(!CDBurner.describe(state).isEmpty, "mit verständlicher Begründung")
+            check(true, "the inserted disc is recognized as not burnable")
+            print("      → \"\(reason)\"")
+            check(!CDBurner.describe(state).isEmpty, "with an understandable reason")
         case .noDisc:
-            check(true, "leeres Laufwerk wird erkannt")
+            check(true, "an empty drive is recognized")
         case .noDrive:
-            check(false, "Laufwerk verschwunden")
+            check(false, "drive disappeared")
         }
         check(!state.isReady || { if case .blank = state { true } else { false } }(),
-              "nur ein Rohling gilt als bereit")
+              "only a blank counts as ready")
     }
 }

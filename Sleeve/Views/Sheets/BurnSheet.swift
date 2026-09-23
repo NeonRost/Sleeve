@@ -2,18 +2,32 @@
 //  BurnSheet.swift
 //  Sleeve
 //
-//  Zurückbrennen (Spec §6.10).
+//  Copyright (C) 2026 NeonRost
 //
-//  Zwei Dinge unterscheiden dieses Blatt von allen anderen:
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//  1. Der **Probelauf** ist der hervorgehobene Knopf, nicht der echte Brand.
-//     Er läuft mit abgeschaltetem Laser durch und lässt den Rohling
-//     unbeschrieben.
-//  2. Der echte Brand fragt nach. Er ist die einzige Funktion in Sleeve, die
-//     etwas Materielles unwiderruflich verbraucht.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
 //
-//  Dazu der Hinweis, dass dieser Teil als einziger nie an echter Hardware
-//  lief — das gehört sichtbar in die Oberfläche, nicht nur in die Spec.
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Burning back to disc (spec §6.10).
+//
+//  Two things set this sheet apart from all others:
+//
+//  1. The **test run** is the prominent button, not the real burn. It runs
+//     through with the laser switched off and leaves the blank unwritten.
+//  2. The real burn asks for confirmation. It is the only function in
+//     Sleeve that irrevocably uses up something physical.
+//
+//  Plus the note that this part alone has never run on real hardware —
+//  that belongs visibly in the UI, not just in the spec.
 //
 
 import SwiftUI

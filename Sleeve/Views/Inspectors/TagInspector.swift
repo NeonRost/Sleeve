@@ -2,6 +2,21 @@
 //  TagInspector.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import SwiftUI
 
@@ -43,8 +58,8 @@ struct TagInspector: View {
                     }
 
                     Section {
-                        // Beide wachsen beim Tippen mit, statt von vornherein
-                        // einen halben Bildschirm zu belegen.
+                        // Both grow while typing, instead of taking up half the
+                        // screen from the start.
                         field(.comment, "Comment", axis: .vertical)
                         field(.lyrics, "Lyrics", axis: .vertical)
                     }
@@ -61,7 +76,7 @@ struct TagInspector: View {
         }
     }
 
-    // MARK: - Felder
+    // MARK: - Fields
 
     @ViewBuilder
     private func field(
@@ -79,8 +94,8 @@ struct TagInspector: View {
                     axis: axis
                 )
                 .labelsHidden()
-                // Ohne Rahmen ist im Formular nicht zu sehen, dass die Zeile
-                // ein Eingabefeld ist.
+                // Without a border, the form does not show that the row is
+                // an input field.
                 .textFieldStyle(.roundedBorder)
                 .frame(width: width, alignment: .leading)
                 .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
@@ -93,8 +108,8 @@ struct TagInspector: View {
         }
     }
 
-    /// `TRACKNUMBER` und `DISCNUMBER` sind im Tag ein Wert ("3/12"), im
-    /// Editor zwei Felder.
+    /// `TRACKNUMBER` and `DISCNUMBER` are one value in the tag ("3/12"), two
+    /// fields in the editor.
     @ViewBuilder
     private func numberPair(
         _ number: TagField,
@@ -143,9 +158,9 @@ struct TagInspector: View {
         }
     }
 
-    // MARK: - Mehrfachauswahl
+    // MARK: - Multiple selection
 
-    /// Gemeinsamer Wert der Auswahl, oder `nil` wenn die Werte auseinandergehen.
+    /// The common value of the selection, or `nil` if the values differ.
     private func commonValue(_ field: TagField) -> String?? {
         guard let first = tracks.first else { return .some(nil) }
         let value = first.edited.stringValue(for: field)
@@ -157,9 +172,9 @@ struct TagInspector: View {
         commonValue(field) == nil
     }
 
-    /// Bei unterschiedlichen Werten bleibt das Feld leer und zeigt
-    /// `<Multiple values>` als Platzhalter — **nicht** einfach leer, sonst
-    /// sieht es aus wie „kein Wert" (Spec §4.1).
+    /// With differing values the field stays empty and shows
+    /// `<Multiple values>` as placeholder — **not** simply empty, or it
+    /// looks like "no value" (spec §4.1).
     private func prompt(for field: TagField) -> Text? {
         isMixed(field) ? Text("<Multiple values>") : nil
     }
@@ -171,8 +186,8 @@ struct TagInspector: View {
                 return common ?? ""
             },
             set: { newValue in
-                // Schreibt auf alle ausgewählten Tracks und merkt das Feld
-                // bei jedem als berührt vor.
+                // Writes to all selected tracks and marks the field as touched on
+                // each of them.
                 tracks.forEach { $0.set(newValue, for: field) }
             }
         )
@@ -182,23 +197,23 @@ struct TagInspector: View {
         tracks.contains { $0.touchedFields.contains(field) }
     }
 
-    /// Hat überhaupt einer der ausgewählten Tracks hier etwas stehen?
+    /// Does any of the selected tracks have something here at all?
     private func hasValue(_ field: TagField) -> Bool {
         tracks.contains { ($0.edited.stringValue(for: field)?.isEmpty == false) }
     }
 
-    /// Feld bei **allen** ausgewählten Tracks leeren.
+    /// Clears the field on **all** selected tracks.
     ///
-    /// Das ist ausdrücklich eine Änderung, kein Nichtstun: das Feld gilt danach
-    /// als berührt und wird beim Speichern geleert. Genau dafür ist der Knopf
-    /// da — etwa für die Werbe-Adresse, die in heruntergeladenen MP3s im
-    /// Kommentar steht.
+    /// This is explicitly a change, not doing nothing: afterwards the field
+    /// counts as touched and is cleared on save. That is exactly what the
+    /// button is for — for the advertising address in the comment of
+    /// downloaded MP3s, say.
     private func clear(_ field: TagField) {
         tracks.forEach { $0.set(nil, for: field) }
     }
 }
 
-// MARK: - Kopfzeile
+// MARK: - Header row
 
 private struct SelectionHeader: View {
     let count: Int
@@ -216,8 +231,8 @@ private struct SelectionHeader: View {
     }
 }
 
-/// Leert ein Feld bei der gesamten Auswahl. Klein und zurückhaltend, aber
-/// immer an derselben Stelle — bei ausgegrautem Zustand ist nichts zu leeren.
+/// Clears a field across the whole selection. Small and unobtrusive, but
+/// always in the same place — when greyed out there is nothing to clear.
 private struct ClearButton: View {
     let isEnabled: Bool
     let action: () -> Void
@@ -238,9 +253,9 @@ private struct ClearButton: View {
     }
 }
 
-/// Macht sichtbar, was tatsächlich geschrieben wird. Ohne diesen Punkt ist
-/// für den Nutzer nicht erkennbar, ob ein leeres Feld „unberührt" oder
-/// „absichtlich geleert" bedeutet.
+/// Makes visible what will actually be written. Without this dot the user
+/// cannot tell whether an empty field means "untouched" or "deliberately
+/// cleared".
 private struct TouchedDot: View {
     let isTouched: Bool
 

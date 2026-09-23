@@ -2,17 +2,33 @@
 //  AboutWindow.swift
 //  Sleeve
 //
-//  „Über Sleeve" und die Lizenzen. Eigenes Fenster statt des Standardfelds:
-//  das zeigt die Build-Nummer in Klammern hinter der Version („1.0 (1)") und
-//  hat keinen Platz für den Lizenztext, den die GPL mitzuliefern verlangt.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  "About Sleeve" and the licenses. A window of its own instead of the
+//  standard panel: that one shows the build number in parentheses after the
+//  version ("1.0 (1)") and has no room for the license text the GPL requires
+//  to be supplied.
 //
 
 import AppKit
 import SwiftUI
 
-/// Die Lizenzen, die im Programm stecken: die eigene und die der Bibliotheken,
-/// die hineinkompiliert sind. ffmpeg gehört nicht dazu — Sleeve liefert es
-/// nicht mit, der Nutzer installiert es selbst.
+/// The licenses of what is inside the program: its own and those of the
+/// libraries compiled into it. ffmpeg is not among them — Sleeve does not
+/// ship it, the user installs it.
 enum BundledLicense: String, CaseIterable, Identifiable {
     case sleeve, taglib, utfcpp
 
@@ -21,10 +37,10 @@ enum BundledLicense: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .sleeve: "Sleeve (GPL v3)"
-        // TagLib steht unter LGPL 2.1 oder MPL 1.1 zur Wahl. Mit der GPL
-        // verträglich ist nur die LGPL — also gilt die.
+        // TagLib can be used under LGPL 2.1 or MPL 1.1. Only the LGPL is
+        // compatible with the GPL — so that one applies.
         case .taglib: "TagLib (LGPL 2.1)"
-        // Steckt in TagLib (Umwandlung UTF-8 ↔ UTF-16).
+        // Part of TagLib (UTF-8 ↔ UTF-16 conversion).
         case .utfcpp: "utfcpp (Boost 1.0)"
         }
     }
@@ -106,7 +122,7 @@ struct LicensesView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(20)
             }
-            // Beim Wechsel oben anfangen, nicht mitten im vorigen Text.
+            // Start at the top when switching, not in the middle of the previous text.
             .id(selection)
         }
         .frame(minWidth: 640, minHeight: 400)

@@ -2,15 +2,31 @@
 //  CDDrive.swift
 //  Sleeve
 //
-//  Der einzige Ort mit Gerätezugriff. Alles darüber arbeitet mit Werten.
+//  Copyright (C) 2026 NeonRost
 //
-//  macOS erlaubt den Rohzugriff auf Audio-CDs ohne Sonderrechte: der
-//  Geräteknoten gehört dem angemeldeten Benutzer.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//      cr--r-----  1 <benutzer>  operator  /dev/rdisk4
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
 //
-//  Kein root, kein Helfer-Dienst, keine Entitlements. Der Sandkasten ist für
-//  Sleeve ohnehin aus (Spec §2.2).
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The only place with device access. Everything above it works with
+//  values.
+//
+//  macOS allows raw access to audio CDs without special privileges: the
+//  device node belongs to the logged-in user.
+//
+//      cr--r-----  1 <user>  operator  /dev/rdisk4
+//
+//  No root, no helper service, no entitlements. The sandbox is off for
+//  Sleeve anyway (spec §2.2).
 //
 
 import CDShim
@@ -23,12 +39,12 @@ struct CDDriveInfo: Equatable, Sendable, Identifiable {
     var vendor: String
     var product: String
     var revision: String
-    /// Rohe TOC, wie IOKit sie als Eigenschaft führt.
+    /// Raw TOC, as IOKit keeps it as a property.
     var rawTOC: Data?
 
     var id: String { bsdName }
-    /// Zeichengerät, nicht Blockgerät: gepuffert würde uns der Cache
-    /// wiederholte Leseversuche beantworten, statt die Scheibe zu fragen.
+    /// Character device, not block device: buffered, the cache would
+    /// answer repeated read attempts instead of asking the disc.
     var devicePath: String { "/dev/r\(bsdName)" }
     var displayName: String {
         [vendor, product].filter { !$0.isEmpty }.joined(separator: " ")
@@ -46,10 +62,10 @@ enum CDDriveError: Error, Equatable, Sendable {
     case dataTrack
 }
 
-// MARK: - Suchen
+// MARK: - Discovery
 
 enum CDDriveFinder {
-    /// Alle Laufwerke mit eingelegter Audio-CD.
+    /// All drives with an audio CD inserted.
     static func availableDrives() -> [CDDriveInfo] {
         var iterator: io_iterator_t = 0
         guard IOServiceGetMatchingServices(kIOMainPortDefault,
@@ -85,9 +101,9 @@ enum CDDriveFinder {
         return value.takeRetainedValue() as? Data
     }
 
-    /// Hersteller und Modell hängen nicht am Medium, sondern am Laufwerk —
-    /// also weiter oben im Registry-Baum. Sie zu kennen ist die Voraussetzung
-    /// dafür, den Leseversatz je Modell zu merken.
+    /// Vendor and model do not hang off the medium but off the drive —
+    /// i.e. further up in the registry tree. Knowing them is the
+    /// precondition for remembering the read offset per model.
     private static func deviceCharacteristics(of media: io_registry_entry_t) -> [String: String] {
         var entry = media
         var owned = false
@@ -110,12 +126,12 @@ enum CDDriveFinder {
     }
 }
 
-// MARK: - Öffnen und lesen
+// MARK: - Opening and reading
 
-/// Hält einen offenen Dateideskriptor. Bewusst **nicht** `Sendable`: das
-/// Gerät verträgt keine gleichzeitigen Zugriffe, und ein Deskriptor, der
-/// zwischen Aufgaben wandert, wäre genau der Fehler, den Swift 6 hier
-/// verhindern soll. Gehalten wird er ausschließlich von `RipEngine`.
+/// Holds an open file descriptor. Deliberately **not** `Sendable`: the
+/// device does not tolerate concurrent access, and a descriptor wandering
+/// between tasks would be exactly the mistake Swift 6 is meant to prevent
+/// here. Only `RipEngine` ever holds it.
 final class CDDrive {
     let info: CDDriveInfo
     private let descriptor: Int32
@@ -131,38 +147,37 @@ final class CDDrive {
 
     deinit { close(descriptor) }
 
-    // MARK: Kennungen von der Scheibe
+    // MARK: Identifiers from the disc
 
-    /// Der Barcode des Albums, sofern eingebrannt.
+    /// The album's barcode, if burned in.
     func readMCN() -> String? {
         var request = dk_cd_read_mcn_t()
         guard ioctl(descriptor, kSleeveIOCDReadMCN, &request) == 0 else { return nil }
         return Self.text(of: request.mcn)
     }
 
-    /// Die ISRCs **aller** Spuren auf einmal — einzeln abgefragt wären sie
-    /// nicht zu verantworten.
+    /// The ISRCs of **all** tracks at once — queried one by one they could
+    /// not be trusted.
     ///
-    /// Gemessen am Testlaufwerk (ASUS BW-16D1X-U): `DKIOCCDREADISRC` liefert
-    /// für Spur 2 mal deren eigene Kennung, mal die von Spur 1. Der veraltete
-    /// Wert kommt dabei *stabil* zurück — zweimal zu lesen und auf
-    /// Übereinstimmung zu warten hilft also nicht, beide Antworten sind dann
-    /// gleich falsch. Auch das Anfahren der Spur, wechselnde Lesepositionen und
-    /// das Zwischenschalten einer anderen Spur haben es nicht behoben. Der
-    /// Q-Subchannel wäre die saubere Quelle, aber dasselbe Laufwerk liefert
-    /// auf `kCDSectorAreaSubChannelQ` Audiodaten statt Subchannel.
+    /// Measured on the test drive (ASUS BW-16D1X-U): `DKIOCCDREADISRC`
+    /// returns for track 2 sometimes its own code, sometimes track 1's. The
+    /// stale value comes back *consistently* — reading twice and waiting for
+    /// agreement does not help, both answers are then equally wrong. Seeking
+    /// to the track, varying read positions and reading another track in
+    /// between did not fix it either. The Q subchannel would be the clean
+    /// source, but the same drive returns audio data for
+    /// `kCDSectorAreaSubChannelQ` instead of subchannel.
     ///
-    /// Der Fehler hat aber eine verlässliche Signatur: eine Spur bekommt die
-    /// Kennung ihrer Vorgängerin, im Satz steht also ein Wert doppelt. Und
-    /// welcher der beiden der falsche ist, lässt sich nicht entscheiden.
-    /// Deshalb wird der ganze Satz verworfen und neu gelesen; bleibt es
-    /// dabei, gibt es keine ISRCs. Eine falsche Kennung im Tag fällt
-    /// niemandem auf — eine fehlende schon.
+    /// The error does have a reliable signature, though: a track gets its
+    /// predecessor's code, so one value appears twice in the set. And which
+    /// of the two is wrong cannot be decided. So the whole set is discarded
+    /// and read again; if that does not help, there are no ISRCs. A wrong
+    /// code in the tag goes unnoticed — a missing one does not.
     func readISRCs(for tracks: [DiscTrack], attempts: Int = 4) -> [Int: String] {
         for _ in 0..<attempts {
             var found: [Int: String] = [:]
             for track in tracks where !track.isData {
-                // Den Kopf auf die Spur bringen, bevor gefragt wird.
+                // Bring the head to the track before asking.
                 _ = try? read(lba: track.startLBA + 10, count: 1, withC2: false)
 
                 var request = dk_cd_read_isrc_t()
@@ -179,7 +194,7 @@ final class CDDrive {
     }
 
     func readCDText() -> CDText? {
-        // Großzügig bemessen: CD-TEXT läuft über bis zu acht Blöcke.
+        // Generously sized: CD-TEXT runs across up to eight blocks.
         var buffer = [UInt8](repeating: 0, count: 4 + 18 * 2048)
         var request = dk_cd_read_toc_t()
         request.format = 5
@@ -196,36 +211,36 @@ final class CDDrive {
         return text.isEmpty ? nil : text
     }
 
-    // MARK: Geschwindigkeit
+    // MARK: Speed
 
-    /// In kB/s. 176,4 kB/s sind einfache Geschwindigkeit.
+    /// In kB/s. 176.4 kB/s is single speed.
     func currentSpeed() -> Int? {
         var speed: UInt16 = 0
         guard ioctl(descriptor, kSleeveIOCDGetSpeed, &speed) == 0 else { return nil }
         return Int(speed)
     }
 
-    /// Langsamer zu lesen bringt bei zerkratzten Scheiben oft mehr als jede
-    /// Wiederholung. `nil` überlässt dem Laufwerk die Wahl.
+    /// Reading more slowly often helps scratched discs more than any
+    /// retry. `nil` leaves the choice to the drive.
     @discardableResult
     func setSpeed(multiplier: Int?) -> Bool {
         var value = UInt16(clamping: multiplier.map { $0 * 176 } ?? 0xFFFF)
         return ioctl(descriptor, kSleeveIOCDSetSpeed, &value) == 0
     }
 
-    // MARK: Rohlesen
+    // MARK: Raw reading
 
     struct SectorRead {
         var audio: Data
-        /// Je Sektor 294 Byte Fehlerzeiger, ein Bit je Audio-Byte. Leer, wenn
-        /// ohne C2 gelesen wurde.
+        /// 294 bytes of error pointers per sector, one bit per audio byte. Empty
+        /// when reading without C2.
         var c2: Data
     }
 
-    /// Liest `count` Sektoren ab `lba` als rohes CDDA.
+    /// Reads `count` sectors from `lba` as raw CDDA.
     ///
-    /// Wichtig: `offset` im ioctl zählt in Byte über die **Sektorgröße 2352**,
-    /// nicht über die 2048 der Dateisystemsicht.
+    /// Important: `offset` in the ioctl counts bytes over the **sector size
+    /// 2352**, not over the 2048 of the file system view.
     func read(lba: Int, count: Int, withC2: Bool) throws -> SectorRead {
         precondition(count > 0)
         let c2Size = withC2 ? Self.c2BytesPerSector : 0
@@ -248,11 +263,11 @@ final class CDDrive {
             throw CDDriveError.readFailed(lba: lba, reason: String(cString: strerror(failure)))
         }
 
-        // `bufferLength` sagt beim Rücksprung, wie viel wirklich ankam. Das
-        // ist keine Formalie: fordert man Nutzdaten und C2-Zeiger zusammen
-        // an, meldet mindestens ein Laufwerk Erfolg und füllt trotzdem nur
-        // ein Achtel des Puffers. Wer den Wert nicht prüft, schreibt den
-        // uninitialisierten Rest als Audio in die Datei.
+        // On return, `bufferLength` says how much actually arrived. That is
+        // no formality: when requesting payload and C2 pointers together,
+        // at least one drive reports success and still fills only an
+        // eighth of the buffer. Whoever does not check the value writes the
+        // uninitialized rest into the file as audio.
         guard Int(request.bufferLength) == buffer.count else {
             throw CDDriveError.shortRead(lba: lba,
                                          expected: buffer.count,
@@ -261,7 +276,7 @@ final class CDDrive {
 
         guard withC2 else { return SectorRead(audio: Data(buffer), c2: Data()) }
 
-        // Audio und Fehlerzeiger kommen verschränkt zurück, Sektor für Sektor.
+        // Audio and error pointers come back interleaved, sector by sector.
         var audio = Data(capacity: CDGeometry.bytesPerSector * count)
         var c2 = Data(capacity: c2Size * count)
         for index in 0..<count {
@@ -272,16 +287,15 @@ final class CDDrive {
         return SectorRead(audio: audio, c2: c2)
     }
 
-    /// Ob das Laufwerk C2-Fehlerzeiger tatsächlich herausgibt.
+    /// Whether the drive actually delivers C2 error pointers.
     ///
-    /// Nicht zu erfragen, nur auszuprobieren — und zwar so, dass ein Laufwerk
-    /// nicht durchrutscht, das Erfolg meldet und nichts liefert. Geprüft wird
-    /// deshalb beides: kommt die volle Menge zurück, und stimmt der
-    /// Audioanteil mit einem gewöhnlichen Lesen überein.
-    /// An mehreren Stellen und mit verschiedenen Blockgrößen — ein Laufwerk
-    /// hier hat die Prüfung an einer Stelle bestanden und ist an einer
-    /// anderen ausgestiegen. Verlässlich ist das trotzdem nicht, deshalb
-    /// gibt `CDReader` im Betrieb zusätzlich nach.
+    /// Cannot be queried, only tried — and in a way that does not let a
+    /// drive slip through that reports success and delivers nothing. So both
+    /// are checked: does the full amount come back, and does the audio part
+    /// match an ordinary read. At several positions and with different block
+    /// sizes — one drive here passed the check at one position and failed at
+    /// another. Even so this is not reliable, which is why `CDReader` also
+    /// gives way during operation.
     func supportsC2(probeLBA lba: Int) -> Bool {
         for (offset, count) in [(0, 2), (1000, 8), (5000, 27)] {
             guard let plain = try? read(lba: lba + offset, count: count, withC2: false),
@@ -295,7 +309,7 @@ final class CDDrive {
 
     static let c2BytesPerSector = 294
 
-    // MARK: Intern
+    // MARK: Internal
 
     private static func text<T>(of tuple: T) -> String? {
         var copy = tuple

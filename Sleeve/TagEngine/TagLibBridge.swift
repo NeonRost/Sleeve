@@ -2,35 +2,51 @@
 //  TagLibBridge.swift
 //  Sleeve
 //
-//  Die einzige Stelle im Projekt, an der `unsafe` und C-Zeiger vorkommen.
-//  Nach außen gibt es nur `AudioFileInfo` rein und raus.
+//  Copyright (C) 2026 NeonRost
 //
-//  Grundsatz (Spec §2.1.1): gelesen und geschrieben wird ausschließlich über
-//  die PropertyMap. Die Legacy-Tag-API fällt bei fehlendem ID3v2-Frame stumm
-//  auf den Latin-1-ID3v1-Anhang zurück und liefert dann Buchstabensalat.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The only place in the project where `unsafe` and C pointers occur. To
+//  the outside only `AudioFileInfo` goes in and out.
+//
+//  Principle (spec §2.1.1): reading and writing go exclusively through the
+//  PropertyMap. When an ID3v2 frame is missing, the legacy tag API silently
+//  falls back to the Latin-1 ID3v1 appendix and then returns garbled
+//  letters.
 //
 
 import Foundation
 import CTagLib
 
 enum TagError: Error, Equatable, Sendable {
-    /// TagLib konnte die Datei nicht öffnen oder erkennt das Format nicht.
+    /// TagLib could not open the file or does not recognize the format.
     case cannotOpen(URL)
-    /// Datei ist geöffnet, aber TagLib hält sie für unbrauchbar.
+    /// The file is open, but TagLib considers it unusable.
     case invalidFile(URL)
-    /// `taglib_file_save` hat FALSE geliefert — meist fehlende Schreibrechte.
+    /// `taglib_file_save` returned FALSE — usually missing write permission.
     case saveFailed(URL)
-    /// Umbenennen fehlgeschlagen (Rechte, Zielname belegt).
+    /// Renaming failed (permissions, target name taken).
     case renameFailed(URL)
 }
 
 enum TagLibBridge {
 
-    /// `TagLib_File` ist in `tag_c.h` ein vollständiger Struct-Typ, Swift
-    /// importiert Zeiger darauf deshalb nicht als `OpaquePointer`.
+    /// In `tag_c.h`, `TagLib_File` is a complete struct type, so Swift does not
+    /// import pointers to it as `OpaquePointer`.
     typealias FileRef = UnsafeMutablePointer<TagLib_File>
 
-    // MARK: - Lesen
+    // MARK: - Reading
 
     static func read(from url: URL) throws -> AudioFileInfo {
         try withFile(at: url) { file in
@@ -52,8 +68,8 @@ enum TagLibBridge {
         let track = NumberPair(parsing: first(PropertyKeys.trackNumber) ?? "")
         let disc = NumberPair(parsing: first(PropertyKeys.discNumber) ?? "")
 
-        // Vorbis-Comments kennen zusätzlich eigene Schlüssel für die
-        // Gesamtzahl. Die haben Vorrang, wenn vorhanden.
+        // Vorbis comments additionally have keys of their own for the
+        // total. Those take precedence when present.
         let trackTotal = first("TRACKTOTAL").flatMap(Int.init) ?? track.total
         let discTotal = first("DISCTOTAL").flatMap(Int.init) ?? disc.total
 
@@ -78,8 +94,8 @@ enum TagLibBridge {
         )
     }
 
-    /// Die vollständige PropertyMap — auch als Rohdaten für einen späteren
-    /// „Alle Tags anzeigen"-Inspektor nützlich.
+    /// The complete PropertyMap — useful as raw data for a later "show all
+    /// tags" inspector as well.
     static func readPropertyMap(from file: FileRef) -> [String: [String]] {
         guard let keys = taglib_property_keys(file) else { return [:] }
         defer { taglib_property_free(keys) }
@@ -107,10 +123,9 @@ enum TagLibBridge {
         )
     }
 
-    /// Liest **alle** eingebetteten Bilder. `taglib_picture_from_complex_property`
-    /// liefert nur das erste — deshalb wird das äußere Array hier selbst
-    /// durchlaufen. Dateien mit mehreren APIC-Frames sind der Normalfall, nicht
-    /// die Ausnahme.
+    /// Reads **all** embedded pictures. `taglib_picture_from_complex_property`
+    /// only returns the first — so the outer array is walked here by hand.
+    /// Files with several APIC frames are the normal case, not the exception.
     private static func readArtwork(from file: FileRef) -> [Artwork] {
         guard let pictures = taglib_complex_property_get(file, PropertyKeys.picture) else {
             return []
@@ -163,7 +178,7 @@ enum TagLibBridge {
         guard let data, !data.isEmpty else { return nil }
         return Artwork(
             data: data,
-            // Manche Dateien lassen den MIME-Typ leer — dann aus den Bytes raten.
+            // Some files leave the MIME type empty — then guess it from the bytes.
             mimeType: mimeType.flatMap { $0.isEmpty ? nil : $0 }
                 ?? Artwork.detectMimeType(of: data),
             pictureType: pictureType,
@@ -171,14 +186,13 @@ enum TagLibBridge {
         )
     }
 
-    // MARK: - Schreiben
+    // MARK: - Writing
 
-    /// Schreibt **nur** die Felder aus `fields`.
+    /// Writes **only** the fields in `fields`.
     ///
-    /// Das ist der Kern der Spec §4.1: ein Feld, das der Nutzer nicht angefasst
-    /// hat, wird nicht angerührt — auch dann nicht, wenn sein Wert leer
-    /// aussieht. Entschieden wird ausschließlich über diese Menge, nie über
-    /// einen Wertvergleich.
+    /// That is the core of spec §4.1: a field the user did not touch is left
+    /// alone — even when its value looks empty. The decision is made
+    /// exclusively via this set, never via a value comparison.
     static func write(_ tags: AudioTags, fields: Set<TagField>, to url: URL) throws {
         guard !fields.isEmpty else { return }
 
@@ -207,14 +221,14 @@ enum TagLibBridge {
         case .lyrics:      set(PropertyKeys.lyrics, tags.lyrics, on: file)
         case .year:        set(PropertyKeys.date, tags.year.map(String.init), on: file)
 
-        // Nummer und Gesamtzahl teilen sich eine Property. Berührt der Nutzer
-        // nur eine Hälfte, muss die andere aus dem aktuellen Zustand
-        // mitgeschrieben werden — sonst fiele sie weg.
+        // Number and total share one property. If the user touches only
+        // one half, the other has to be written along from the current
+        // state — otherwise it would be lost.
         case .trackNumber, .trackTotal:
             let pair = NumberPair(number: tags.trackNumber, total: tags.trackTotal)
             set(PropertyKeys.trackNumber, pair.formatted, on: file)
-            // Eigene Vorbis-Schlüssel aufräumen, damit sie der kombinierten
-            // Schreibweise nicht widersprechen.
+            // Clean up the separate Vorbis keys so that they do not contradict
+            // the combined notation.
             set("TRACKTOTAL", nil, on: file)
 
         case .discNumber, .discTotal:
@@ -223,16 +237,16 @@ enum TagLibBridge {
             set("DISCTOTAL", nil, on: file)
 
         case .isCompilation:
-            // Bei `false` die Property entfernen statt "0" zu schreiben —
-            // so halten es Music.app und die gängigen Tagger.
+            // For `false`, remove the property instead of writing "0" —
+            // which is what the Music app and common taggers do.
             set(PropertyKeys.compilation, tags.isCompilation ? "1" : nil, on: file)
 
         case .artwork:
-            break   // separat, siehe writeArtwork
+            break   // separately, see writeArtwork
         }
     }
 
-    /// `value == nil` entfernt die Property.
+    /// `value == nil` removes the property.
     private static func set(_ key: String, _ value: String?, on file: FileRef) {
         if let value, !value.isEmpty {
             taglib_property_set(file, key, value)
@@ -241,9 +255,9 @@ enum TagLibBridge {
         }
     }
 
-    /// Das C-Makro `TAGLIB_COMPLEX_PROPERTY_PICTURE` ist aus Swift nicht
-    /// erreichbar, das Attribut-Array wird daher von Hand gebaut. Alle
-    /// Puffer müssen bis nach dem `set`-Aufruf leben — dafür sorgt `Arena`.
+    /// The C macro `TAGLIB_COMPLEX_PROPERTY_PICTURE` cannot be reached from
+    /// Swift, so the attribute array is built by hand. All buffers have to
+    /// live until after the `set` call — `Arena` takes care of that.
     private static func writeArtwork(_ artwork: [Artwork], to file: FileRef) {
         guard !artwork.isEmpty else {
             taglib_complex_property_set(file, PropertyKeys.picture, nil)
@@ -263,7 +277,7 @@ enum TagLibBridge {
         }
     }
 
-    // MARK: - C-Infrastruktur
+    // MARK: - C infrastructure
 
     private static func withFile<T>(
         at url: URL,
@@ -271,10 +285,10 @@ enum TagLibBridge {
     ) throws -> T {
         let path = url.path(percentEncoded: false)
 
-        // `taglib_file_new` liefert auch für eine gar nicht vorhandene Datei
-        // einen gültigen Handle und meldet erst über `is_valid` einen Fehler.
-        // Ohne diese Prüfung wären „Datei fehlt" und „Datei ist beschädigt"
-        // für den Nutzer nicht zu unterscheiden.
+        // `taglib_file_new` returns a valid handle even for a file that does not
+        // exist and only reports an error via `is_valid`. Without this check,
+        // "file missing" and "file damaged" would be indistinguishable for the
+        // user.
         guard FileManager.default.isReadableFile(atPath: path) else {
             throw TagError.cannotOpen(url)
         }
@@ -296,7 +310,7 @@ enum TagLibBridge {
         return String(cString: pointer)
     }
 
-    /// NULL-terminiertes `char**` in ein Swift-Array kopieren.
+    /// Copy a NULL-terminated `char**` into a Swift array.
     private static func stringList(from list: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>) -> [String] {
         var result: [String] = []
         var cursor = list
@@ -310,8 +324,8 @@ enum TagLibBridge {
 
 // MARK: - Arena
 
-/// Hält die C-Puffer für einen `taglib_complex_property_set`-Aufruf am Leben
-/// und gibt sie danach in einem Rutsch frei.
+/// Keeps the C buffers alive for one `taglib_complex_property_set` call and
+/// frees them all at once afterwards.
 private final class Arena {
     private var byteBuffers: [UnsafeMutablePointer<CChar>] = []
     private var attributeBlocks: [UnsafeMutablePointer<TagLib_Complex_Property_Attribute>] = []
@@ -349,7 +363,7 @@ private final class Arena {
         return buffer
     }
 
-    /// Baut das NULL-terminierte Attribut-Array für ein Bild.
+    /// Builds the NULL-terminated attribute array for a picture.
     func pictureAttributes(
         for artwork: Artwork
     ) -> UnsafeMutablePointer<UnsafePointer<TagLib_Complex_Property_Attribute>?> {

@@ -2,31 +2,46 @@
 //  Numbering.swift
 //  Sleeve
 //
-//  Nummerierung (Spec §4.2).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Numbering (spec §4.2).
 //
 
 import Foundation
 
 struct NumberingOptions: Equatable, Sendable {
-    /// Gesamtanzahl mitschreiben (03/12).
+    /// Also write the total (03/12).
     var writesTotal = true
-    /// Pro Disc neu bei 1 beginnen statt disc-übergreifend durchzuzählen.
+    /// Start again at 1 on every disc instead of counting across discs.
     var restartsPerDisc = false
-    /// Führende Nullen im Dateinamen (01 statt 1).
+    /// Leading zeros in the file name (01 instead of 1).
     var padsNumbers = true
     var startsAt = 1
 }
 
 enum Numbering {
 
-    /// Nummeriert in der übergebenen Reihenfolge durch — die ist die aktuelle
-    /// Sortierung der Tabelle, nicht die Ladereihenfolge.
+    /// Numbers in the order given — which is the table's current sort order,
+    /// not the order the files were loaded in.
     @MainActor
     static func apply(_ options: NumberingOptions, to tracks: [TrackFile]) {
         guard !tracks.isEmpty else { return }
 
         if options.restartsPerDisc {
-            // Nach Disc gruppieren, Reihenfolge innerhalb der Gruppe erhalten.
+            // Group by disc, keep the order within each group.
             var groups: [Int: [TrackFile]] = [:]
             for track in tracks {
                 groups[track.edited.discNumber ?? 1, default: []].append(track)

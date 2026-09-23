@@ -2,6 +2,21 @@
 //  ContentView.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import SwiftUI
 
@@ -13,8 +28,8 @@ struct ContentView: View {
         @Bindable var state = state
 
         NavigationSplitView {
-            // Inspector links, je Modus eine andere View. Die Trackliste
-            // rechts bleibt beim Moduswechsel unberührt (Spec §1.1).
+            // Inspector on the left, a different view per mode. The track list
+            // on the right stays untouched when the mode changes (spec §1.1).
             Group {
                 switch state.activeMode {
                 case .tag:     TagInspector()
@@ -30,19 +45,19 @@ struct ContentView: View {
                 StatusBar()
             }
         }
-        // Ohne Fenstertitel. „Sleeve" steht schon in der Menüleiste, und in
-        // der Toolbar kostet es rund 90 Punkte, die den Knöpfen fehlen.
+        // No window title. "Sleeve" is already in the menu bar, and in
+        // the toolbar it costs about 90 points that the buttons lack.
         .navigationTitle("")
         .toolbar {
             SleeveToolbar(state: state)
         }
-        // Sorgt dafür, dass die Toolbar Symbole MIT Beschriftung zeigt.
+        // Makes the toolbar show icons WITH labels.
         .background(ToolbarConfigurator())
         .sheet(isPresented: $state.isShowingFailureSheet) {
             FailureSheet()
         }
-        // ffmpeg einmal beim Start suchen — erst danach steht fest, ob der
-        // Konvertieren-Modus überhaupt wählbar ist.
+        // Look for ffmpeg once at launch — only then is it clear whether
+        // the Convert mode can be chosen at all.
         .task {
             state.trackList.restoreColumnLayout()
             await state.locateFFmpeg()
@@ -67,7 +82,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Statusleiste
+// MARK: - Status bar
 
 private struct StatusBar: View {
     @Environment(AppState.self) private var state
@@ -107,12 +122,12 @@ private struct StatusBar: View {
 
             Spacer()
 
-            // Fortschritt erst ab 20 Dateien (Spec §4.1) — bei fünf Dateien
-            // flackert eine Leiste nur.
+            // Progress only from 20 files on (spec §4.1) — with five files
+            // a bar only flickers.
             if state.isRipping {
-                // Der Ripper meldet sich hier und nicht im Formular: dort
-                // scrollt der Fortschritt weg, sobald man die Trackliste
-                // durchsieht — genau dann, wenn man ihn sehen will.
+                // The ripper reports here and not in the form: there the
+                // progress scrolls away as soon as one looks through the track
+                // list — exactly when one wants to see it.
                 ProgressView(value: state.ripOverallProgress)
                     .progressViewStyle(.linear)
                     .frame(width: 160)
@@ -158,10 +173,10 @@ private struct StatusBar: View {
     }
 }
 
-// MARK: - Fehlerzusammenfassung
+// MARK: - Error summary
 
-/// Fehler brechen den Batch nicht ab, sondern werden gesammelt und am Ende
-/// in einem Sheet gezeigt (Spec §4.1).
+/// Errors do not abort the batch; they are collected and shown in a
+/// sheet at the end (spec §4.1).
 private struct FailureSheet: View {
     @Environment(AppState.self) private var state
     @Environment(\.dismiss) private var dismiss

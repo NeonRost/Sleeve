@@ -1,9 +1,24 @@
 //
 //  AppStateTests.swift
 //
-//  Prüft die Schichten über der Bridge: Ordner einlesen, Mehrfachbearbeitung,
-//  Speichern mit Fehlersammlung, Undo. Schritte 4–7 der Spec §8.
-//  Was hier nicht geprüft wird, ist das SwiftUI-Rendering selbst.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Checks the layers above the bridge: reading folders, editing several
+//  tracks, saving with error collection, undo. What is not checked here is
+//  the SwiftUI rendering itself.
 //
 
 import Foundation
@@ -25,16 +40,16 @@ enum AppStateTests {
     }
 
     static func equal<T: Equatable>(_ actual: T, _ expected: T, _ label: String) {
-        check(actual == expected, label, detail: "ist \(actual), erwartet \(expected)")
+        check(actual == expected, label, detail: "is \(actual), expected \(expected)")
     }
 
     static func section(_ title: String) { print("\n━━ \(title)") }
 
-    /// Dateinamen und Tags eines Rips kommen aus derselben Quelle — sonst
-    /// heißt die Datei anders, als in ihr steht.
+    /// File names and tags of a rip come from the same source — otherwise
+    /// the file is named differently from what it contains.
     @MainActor
     static func ripNaming() {
-        print("\n━━ Rippen — Dateinamen aus dem Muster")
+        print("\n━━ Rip — file names from the pattern")
         let state = AppState()
         state.discAlbum = "Peter und der Wolf"
         state.discArtist = "Malte Arkona, Dresdner Philharmonie"
@@ -44,99 +59,99 @@ enum AppStateTests {
         state.ripSettings.filenamePattern = "%track% - %title%"
         state.ripSettings.format = .flac
         equal(state.previewFilename(forTrack: 3), "03 - Andantino.flac",
-              "Tracknummer wird zweistellig, Titel angehängt")
+              "track number gets two digits, title appended")
         equal(state.previewFilename(forTrack: 7), "07 - Der Großvater.flac",
-              "Umlaute bleiben im Dateinamen")
+              "umlauts stay in the file name")
 
         state.ripSettings.format = .mp3
         equal(state.previewFilename(forTrack: 3), "03 - Andantino.mp3",
-              "Endung folgt dem Zielformat")
+              "extension follows the target format")
 
-        // Ohne Titel bliebe vom Muster nur ein Trennzeichen übrig.
+        // Without a title only a separator would be left of the pattern.
         equal(state.previewFilename(forTrack: 9), "09.mp3",
-              "ohne Titel bleibt die Tracknummer")
+              "without a title the track number remains")
 
         state.ripSettings.filenamePattern = ""
         equal(state.previewFilename(forTrack: 3), "03.mp3",
-              "leeres Muster heißt: nur die Tracknummer")
+              "an empty pattern means: just the track number")
 
         state.ripSettings.filenamePattern = "%artist% - %album% - %title%"
         equal(state.previewFilename(forTrack: 3),
               "Malte Arkona, Dresdner Philharmonie - Peter und der Wolf - Andantino.mp3",
-              "mehrere Platzhalter")
+              "several placeholders")
 
-        // Die Tags müssen zum Namen passen.
+        // The tags have to match the name.
         let tags = state.tags(forTrack: 3)
-        equal(tags.title, "Andantino", "Titel im Tag")
-        equal(tags.album, "Peter und der Wolf", "Album im Tag")
-        equal(tags.trackNumber, 3, "Tracknummer im Tag")
+        equal(tags.title, "Andantino", "title in the tag")
+        equal(tags.album, "Peter und der Wolf", "album in the tag")
+        equal(tags.trackNumber, 3, "track number in the tag")
 
-        print("\n━━ Rippen — Jahr, Genre, Komponist, Mehrfachausgabe")
+        print("\n━━ Rip — year, genre, composer, multi-disc set")
         state.discYear = "2021"
-        state.discGenre = "Klassik"
+        state.discGenre = "Classical"
         state.discComposer = "Sergej Prokofjew"
         let full = state.tags(forTrack: 3)
-        equal(full.year, 2021, "Jahr landet im Tag")
-        equal(full.genre, "Klassik", "Genre landet im Tag")
-        equal(full.composer, "Sergej Prokofjew", "Komponist landet im Tag")
-        check(full.discNumber == nil, "Einzel-CD bekommt keine CD-Nummer")
+        equal(full.year, 2021, "year ends up in the tag")
+        equal(full.genre, "Classical", "genre ends up in the tag")
+        equal(full.composer, "Sergej Prokofjew", "composer ends up in the tag")
+        check(full.discNumber == nil, "a single CD gets no disc number")
 
         state.discTotal = 2
         state.discNumber = 2
         let set = state.tags(forTrack: 3)
-        equal(set.discNumber, 2, "bei Mehrfachausgabe steht die CD-Nummer drin")
-        equal(set.discTotal, 2, "und die Gesamtzahl")
+        equal(set.discNumber, 2, "in a multi-disc set the disc number is in there")
+        equal(set.discTotal, 2, "and the total")
         state.discTotal = 1
 
-        // Die Platzhalter müssen jetzt alle etwas ergeben — ein Muster, das
-        // ins Leere läuft, ist schlimmer als keins.
+        // The placeholders now all have to produce something — a pattern
+        // that leads nowhere is worse than none.
         state.ripSettings.format = .flac
         state.ripSettings.filenamePattern = "%year% %genre% %composer% %track% %title%"
         equal(state.previewFilename(forTrack: 3),
-              "2021 Klassik Sergej Prokofjew 03 Andantino.flac",
-              "Jahr, Genre und Komponist füllen ihre Platzhalter")
+              "2021 Classical Sergej Prokofjew 03 Andantino.flac",
+              "year, genre and composer fill their placeholders")
 
-        print("\n━━ Rippen — abweichender Interpret je Track")
+        print("\n━━ Rip — a different artist per track")
         state.discTrackArtists = [7: "Peter Schreier, Walter Olberz"]
         equal(state.tags(forTrack: 7).artist, "Peter Schreier, Walter Olberz",
-              "Track mit eigenem Interpreten behält ihn")
+              "a track with an artist of its own keeps it")
         equal(state.tags(forTrack: 7).albumArtist, "Malte Arkona, Dresdner Philharmonie",
-              "der Album-Interpret bleibt davon unberührt")
+              "the album artist stays unaffected")
         equal(state.tags(forTrack: 3).artist, "Malte Arkona, Dresdner Philharmonie",
-              "Track ohne eigenen Interpreten erbt den des Albums")
+              "a track without an artist of its own inherits the album's")
         state.discTrackArtists = [:]
         state.ripSettings.filenamePattern = "%track% - %title%"
 
-        print("\n━━ Rippen — Albumordner")
+        print("\n━━ Rip — album folder")
         state.ripFolderName = ""
         equal(state.sanitizedAlbumFolderName,
               "Malte Arkona, Dresdner Philharmonie - Peter und der Wolf",
-              "ohne eigenen Eintrag aus Interpret und Album")
+              "without an entry of one's own, from artist and album")
         equal(state.suggestedAlbumFolderName, state.sanitizedAlbumFolderName,
-              "der Vorschlag ist genau das, was sonst genommen wird")
+              "the suggestion is exactly what would be used otherwise")
         state.ripFolderName = "Prokofjew — Peter und der Wolf"
         equal(state.sanitizedAlbumFolderName, "Prokofjew — Peter und der Wolf",
-              "eigener Eintrag sticht den Vorschlag")
-        state.ripFolderName = "  Mit/Schrägstrich  "
-        equal(state.sanitizedAlbumFolderName, "Mit_Schrägstrich",
-              "eigener Eintrag wird für das Dateisystem entschärft")
+              "an entry of one's own beats the suggestion")
+        state.ripFolderName = "  With/Slash  "
+        equal(state.sanitizedAlbumFolderName, "With_Slash",
+              "an entry of one's own is made safe for the file system")
         state.ripFolderName = ""
 
-        print("\n━━ Rippen — Standardmuster und Zurücksetzen")
+        print("\n━━ Rip — default pattern and reset")
         equal(RipSettings.defaultFilenamePattern, "%track% - %title%",
-              "der Standard ist knapp")
+              "the default is short")
         var fresh = RipSettings()
         equal(fresh.filenamePattern, RipSettings.defaultFilenamePattern,
-              "ein frisches Einstellungsobjekt trägt den Standard")
+              "a fresh settings object carries the default")
         fresh.filenamePattern = "%artist%"
         check(fresh.filenamePattern != RipSettings.defaultFilenamePattern,
-              "und lässt sich ändern")
+              "and can be changed")
 
-        print("\n━━ Rippen — was das Starten verhindert")
+        print("\n━━ Rip — what prevents starting")
         state.disc = nil
-        check(state.ripBlocker != nil, "ohne Scheibe kein Rip")
+        check(state.ripBlocker != nil, "no disc, no rip")
         state.ripSettings.format = .wav
-        check(state.ripBlocker != nil, "auch mit WAV nicht ohne Scheibe")
+        check(state.ripBlocker != nil, "not even with WAV without a disc")
     }
 
     @MainActor
@@ -147,254 +162,254 @@ enum AppStateTests {
         try FileManager.default.createDirectory(atPath: nested, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: workDir) }
 
-        // Testmaterial in eine verschachtelte Ordnerstruktur kopieren,
-        // plus eine Datei, die gar kein Audio ist.
-        let quellen = ["01 - id3v2.3 - voll.mp3", "04 - vorbis.flac", "05 - mp4.m4a"]
-        for (index, name) in quellen.enumerated() {
-            let ziel = index == 0 ? workDir + "/Album" : nested
+        // Copy test material into a nested folder structure, plus a file
+        // that is not audio at all.
+        let sources = ["01 - id3v2.3 - full.mp3", "04 - vorbis.flac", "05 - mp4.m4a"]
+        for (index, name) in sources.enumerated() {
+            let target = index == 0 ? workDir + "/Album" : nested
             try FileManager.default.copyItem(
                 atPath: root + "/TestFiles/" + name,
-                toPath: ziel + "/" + name
+                toPath: target + "/" + name
             )
         }
-        try "kein audio".write(toFile: workDir + "/Album/liesmich.txt",
-                               atomically: true, encoding: .utf8)
+        try "not audio".write(toFile: workDir + "/Album/readme.txt",
+                              atomically: true, encoding: .utf8)
 
         let state = AppState()
 
-        // MARK: - Ordner rekursiv einlesen
+        // MARK: - Reading folders recursively
 
-        section("Dateien laden — Ordner rekursiv")
+        section("Loading files — folders recursively")
         await state.addFiles([URL(fileURLWithPath: workDir)])
-        equal(state.trackList.tracks.count, 3, "Drei Audiodateien gefunden")
+        equal(state.trackList.tracks.count, 3, "three audio files found")
         check(!state.trackList.tracks.contains { $0.filename.hasSuffix(".txt") },
-              "Nicht-Audio übersprungen")
-        equal(state.failures.count, 0, "Keine Fehler beim Import")
+              "non-audio skipped")
+        equal(state.failures.count, 0, "no errors while importing")
         check(state.trackList.tracks.allSatisfy { !$0.isDirty },
-              "Frisch geladene Dateien sind nicht geändert")
+              "freshly loaded files are not changed")
 
-        section("Dateien laden — dieselben Pfade erneut")
+        section("Loading files — the same paths again")
         await state.addFiles([URL(fileURLWithPath: workDir)])
-        equal(state.trackList.tracks.count, 3, "Keine Duplikate")
+        equal(state.trackList.tracks.count, 3, "no duplicates")
 
-        // MARK: - Mehrfachbearbeitung
+        // MARK: - Editing several tracks
 
-        section("Mehrfachauswahl — Album auf alle anwenden")
+        section("Multiple selection — album applied to all")
         state.trackList.selection = Set(state.trackList.tracks.map(\.id))
-        let auswahl = state.trackList.selectedTracks
-        equal(auswahl.count, 3, "Drei Tracks ausgewählt")
+        let selection = state.trackList.selectedTracks
+        equal(selection.count, 3, "three tracks selected")
 
-        auswahl.forEach { $0.set("Sleeve Sampler", for: .album) }
-        check(auswahl.allSatisfy { $0.edited.album == "Sleeve Sampler" },
-              "Album auf allen gesetzt")
-        check(auswahl.allSatisfy { $0.touchedFields == [.album] },
-              "Genau ein Feld als berührt vorgemerkt")
-        equal(state.trackList.changedCount, 3, "Drei geänderte Tracks")
+        selection.forEach { $0.set("Sleeve Sampler", for: .album) }
+        check(selection.allSatisfy { $0.edited.album == "Sleeve Sampler" },
+              "album set on all of them")
+        check(selection.allSatisfy { $0.touchedFields == [.album] },
+              "exactly one field marked as touched")
+        equal(state.trackList.changedCount, 3, "three changed tracks")
 
-        section("Berühren nur bei echter Änderung")
+        section("Touching only on a real change")
         let probe = state.trackList.tracks[0]
         probe.touchedFields.removeAll()
 
-        // Das macht SwiftUI beim bloßen Klick ins Feld: Setter mit dem
-        // unveränderten Text. Darf nichts vormerken.
+        // This is what SwiftUI does on a mere click into the field: the setter
+        // with the unchanged text. Must not mark anything.
         probe.set(probe.edited.title, for: .title)
-        check(probe.touchedFields.isEmpty, "Klick ohne Änderung merkt nichts vor")
+        check(probe.touchedFields.isEmpty, "a click without a change marks nothing")
 
         probe.set("  \(probe.edited.album ?? "")  ", for: .album)
-        check(probe.touchedFields.isEmpty, "Nur Leerraum drumherum zählt nicht als Änderung")
+        check(probe.touchedFields.isEmpty, "whitespace around it alone does not count as a change")
 
-        probe.set("Wirklich neu", for: .title)
-        equal(probe.touchedFields, [.title], "Echte Änderung wird vorgemerkt")
+        probe.set("Really new", for: .title)
+        equal(probe.touchedFields, [.title], "a real change is marked")
 
-        // Ein Feld absichtlich leeren ist eine Änderung, kein Nichtstun.
+        // Deliberately clearing a field is a change, not doing nothing.
         probe.set("", for: .comment)
-        let kommentarVorher = probe.original.comment
-        check(kommentarVorher == nil || probe.touchedFields.contains(.comment),
-              "Vorhandenes Feld leeren wird vorgemerkt")
+        let commentBefore = probe.original.comment
+        check(commentBefore == nil || probe.touchedFields.contains(.comment),
+              "clearing an existing field is marked")
         probe.revert()
-        equal(probe.touchedFields, [], "Verwerfen räumt auf")
+        equal(probe.touchedFields, [], "discarding cleans up")
 
-        // Die Auswahl wieder wie vorher herstellen.
-        auswahl.forEach { $0.set("Sleeve Sampler", for: .album) }
+        // Restore the selection as it was.
+        selection.forEach { $0.set("Sleeve Sampler", for: .album) }
 
-        // MARK: - Speichern
+        // MARK: - Saving
 
-        section("Speichern")
-        let vorherTitel = state.trackList.tracks.map(\.edited.title)
+        section("Saving")
+        let titlesBefore = state.trackList.tracks.map(\.edited.title)
         await state.save()
-        equal(state.failures.count, 0, "Keine Fehler beim Schreiben")
-        equal(state.trackList.changedCount, 0, "Nach dem Speichern nichts mehr offen")
+        equal(state.failures.count, 0, "no errors while writing")
+        equal(state.trackList.changedCount, 0, "nothing pending after saving")
         check(state.trackList.tracks.allSatisfy { $0.touchedFields.isEmpty },
-              "touchedFields geleert")
+              "touchedFields cleared")
 
-        // Gegen die Platte gegenprüfen, nicht gegen den Speicher.
+        // Check against the disk, not against memory.
         for track in state.trackList.tracks {
-            let aufPlatte = try TagLibBridge.read(from: track.url).tags
-            equal(aufPlatte.album, "Sleeve Sampler", "  \(track.filename): Album auf der Platte")
+            let onDisk = try TagLibBridge.read(from: track.url).tags
+            equal(onDisk.album, "Sleeve Sampler", "  \(track.filename): album on disk")
         }
-        equal(state.trackList.tracks.map(\.edited.title), vorherTitel,
-              "Titel unangetastet — nur Album war berührt")
+        equal(state.trackList.tracks.map(\.edited.title), titlesBefore,
+              "titles untouched — only the album was touched")
 
         // MARK: - Undo
 
-        section("Undo — letzter Schreibvorgang zurück")
-        check(state.canUndo, "Undo steht bereit")
+        section("Undo — last write undone")
+        check(state.canUndo, "undo is ready")
         await state.undoLastSave()
-        equal(state.failures.count, 0, "Undo ohne Fehler")
+        equal(state.failures.count, 0, "undo without errors")
         for track in state.trackList.tracks {
-            let aufPlatte = try TagLibBridge.read(from: track.url).tags
-            check(aufPlatte.album != "Sleeve Sampler",
-                  "  \(track.filename): Album zurückgesetzt",
-                  detail: aufPlatte.album ?? "—")
+            let onDisk = try TagLibBridge.read(from: track.url).tags
+            check(onDisk.album != "Sleeve Sampler",
+                  "  \(track.filename): album reset",
+                  detail: onDisk.album ?? "—")
         }
-        check(!state.canUndo, "Undo ist verbraucht")
+        check(!state.canUndo, "undo is used up")
 
-        // MARK: - Verwerfen
+        // MARK: - Discarding
 
-        section("Änderungen verwerfen")
-        let ersterTrack = state.trackList.tracks[0]
-        let originalTitel = ersterTrack.edited.title
-        ersterTrack.set("Wird verworfen", for: .title)
-        equal(state.trackList.changedCount, 1, "Eine Änderung offen")
+        section("Discarding changes")
+        let firstTrack = state.trackList.tracks[0]
+        let originalTitle = firstTrack.edited.title
+        firstTrack.set("Will be discarded", for: .title)
+        equal(state.trackList.changedCount, 1, "one change pending")
         state.trackList.selection = []
         state.revertSelection()
-        equal(ersterTrack.edited.title, originalTitel, "Titel zurückgesetzt")
-        equal(state.trackList.changedCount, 0, "Nichts mehr offen")
+        equal(firstTrack.edited.title, originalTitle, "title reset")
+        equal(state.trackList.changedCount, 0, "nothing pending any more")
 
-        section("Feld bei der ganzen Auswahl leeren")
-        // Der Ablauf aus der Praxis: heruntergeladene MP3s tragen im Kommentar
-        // die Adresse der Quelle. Alle markieren, Feld leeren, speichern.
+        section("Clearing a field across the whole selection")
+        // The real-world case: downloaded MP3s carry the source's address in
+        // the comment. Select all, clear the field, save.
         for (index, track) in state.trackList.tracks.enumerated() {
-            // Einer bleibt absichtlich leer — der darf nicht als berührt gelten.
+            // One stays empty on purpose — it must not count as touched.
             track.set(index == 0 ? nil : "https://getrockmusic.net", for: .comment)
         }
         await state.save()
         equal(state.trackList.tracks.compactMap(\.edited.comment).count, 2,
-              "Zwei Tracks haben einen Kommentar")
+              "two tracks have a comment")
 
-        let alle = state.trackList.tracks
-        alle.forEach { $0.set(nil, for: .comment) }
+        let all = state.trackList.tracks
+        all.forEach { $0.set(nil, for: .comment) }
 
-        let berührt = alle.filter { $0.touchedFields.contains(.comment) }
-        equal(berührt.count, 2, "Nur die beiden mit Inhalt gelten als berührt")
-        check(!alle[0].touchedFields.contains(.comment),
-              "Ein bereits leeres Feld wird nicht unnötig vorgemerkt")
+        let touched = all.filter { $0.touchedFields.contains(.comment) }
+        equal(touched.count, 2, "only the two with content count as touched")
+        check(!all[0].touchedFields.contains(.comment),
+              "an already empty field is not marked needlessly")
 
         await state.save()
-        for track in alle {
-            let aufPlatte = try TagLibBridge.read(from: track.url).tags
-            equal(aufPlatte.comment, nil, "  \(track.filename): Kommentar von der Platte weg")
+        for track in all {
+            let onDisk = try TagLibBridge.read(from: track.url).tags
+            equal(onDisk.comment, nil, "  \(track.filename): comment gone from disk")
         }
 
-        section("Mehrere Coverbilder")
-        let bild = try Data(contentsOf: URL(fileURLWithPath: root + "/TestFiles/cover.jpg"))
-        let vorne = ArtworkProcessor.prepare(bild, pictureType: .frontCover,
+        section("Several cover pictures")
+        let picture = try Data(contentsOf: URL(fileURLWithPath: root + "/TestFiles/cover.jpg"))
+        let front = ArtworkProcessor.prepare(picture, pictureType: .frontCover,
                                              options: .passthrough)!
-        let booklet = ArtworkProcessor.prepare(bild, pictureType: .leafletPage,
+        let booklet = ArtworkProcessor.prepare(picture, pictureType: .leafletPage,
                                                options: .passthrough)!
-        let hinten = ArtworkProcessor.prepare(bild, pictureType: .backCover,
-                                              options: .passthrough)!
+        let back = ArtworkProcessor.prepare(picture, pictureType: .backCover,
+                                            options: .passthrough)!
 
         state.trackList.selection = [state.trackList.tracks[0].id]
-        let einer = state.trackList.tracks[0]
+        let one = state.trackList.tracks[0]
 
-        state.applyArtwork(vorne, replacing: true)
-        equal(einer.edited.artwork.count, 1, "Erstes Bild gesetzt")
+        state.applyArtwork(front, replacing: true)
+        equal(one.edited.artwork.count, 1, "first picture set")
 
         state.applyArtwork(booklet, replacing: false)
-        equal(einer.edited.artwork.count, 2, "Zweites Bild kommt dazu, ersetzt nicht")
+        equal(one.edited.artwork.count, 2, "the second picture is added, does not replace")
 
-        state.applyArtwork(hinten, replacing: false)
-        equal(einer.edited.artwork.count, 3, "Drittes Bild kommt dazu")
-        equal(Set(einer.edited.artwork.map(\.pictureType)),
-              Set([.frontCover, .leafletPage, .backCover]), "Drei verschiedene Bildtypen")
+        state.applyArtwork(back, replacing: false)
+        equal(one.edited.artwork.count, 3, "the third picture is added")
+        equal(Set(one.edited.artwork.map(\.pictureType)),
+              Set([.frontCover, .leafletPage, .backCover]), "three different picture types")
 
-        // Derselbe Typ nochmal ersetzt nur diesen einen.
-        state.applyArtwork(vorne, replacing: false)
-        equal(einer.edited.artwork.count, 3, "Gleicher Bildtyp ersetzt statt zu häufen")
+        // The same type again replaces only that one.
+        state.applyArtwork(front, replacing: false)
+        equal(one.edited.artwork.count, 3, "the same picture type replaces instead of piling up")
 
-        // Die Vorderseite muss vorn stehen, auch wenn sie später kommt:
-        // Abspielprogramme nehmen meist schlicht das erste Bild.
-        equal(einer.edited.artwork.first?.pictureType, .frontCover,
-              "Vorderseite steht an erster Stelle")
+        // The front cover has to be in front, even if it comes later:
+        // players usually simply take the first picture.
+        equal(one.edited.artwork.first?.pictureType, .frontCover,
+              "the front cover is in first place")
 
         state.removeArtwork(at: 0)
-        equal(einer.edited.artwork.count, 2, "Vorderseite entfernt")
-        check(!einer.edited.artwork.contains { $0.pictureType == .frontCover },
-              "… und ist wirklich weg")
+        equal(one.edited.artwork.count, 2, "front cover removed")
+        check(!one.edited.artwork.contains { $0.pictureType == .frontCover },
+              "… and really gone")
 
-        state.applyArtwork(vorne, replacing: false)
-        equal(einer.edited.artwork.first?.pictureType, .frontCover,
-              "Nachträglich eingefügte Vorderseite rutscht wieder nach vorn")
-        equal(einer.edited.artwork.count, 3, "Die anderen bleiben erhalten")
-        equal(einer.edited.artwork.dropFirst().map(\.pictureType), [.leafletPage, .backCover],
-              "Reihenfolge der übrigen Bilder bleibt unangetastet")
+        state.applyArtwork(front, replacing: false)
+        equal(one.edited.artwork.first?.pictureType, .frontCover,
+              "a front cover added later moves to the front again")
+        equal(one.edited.artwork.count, 3, "the others are kept")
+        equal(one.edited.artwork.dropFirst().map(\.pictureType), [.leafletPage, .backCover],
+              "the order of the other pictures stays untouched")
 
         state.removeArtwork(at: 1)
-        equal(einer.edited.artwork.count, 2, "Einzelnes Bild entfernt")
+        equal(one.edited.artwork.count, 2, "a single picture removed")
 
-        state.applyArtwork(vorne, replacing: true)
-        equal(einer.edited.artwork.count, 1, "Ersetzen räumt die übrigen weg")
+        state.applyArtwork(front, replacing: true)
+        equal(one.edited.artwork.count, 1, "replacing clears away the others")
 
         state.removeArtwork()
-        equal(einer.edited.artwork.count, 0, "Alle entfernt")
+        equal(one.edited.artwork.count, 0, "all removed")
         state.trackList.selection = []
 
-        // MARK: - Fehler brechen den Batch nicht ab
+        // MARK: - Errors do not abort the batch
 
-        section("Fehlersammlung — eine schreibgeschützte Datei unter drei")
-        let gesperrt = state.trackList.tracks[1]
+        section("Error collection — one read-only file among three")
+        let locked = state.trackList.tracks[1]
         try FileManager.default.setAttributes([.posixPermissions: 0o444],
-                                              ofItemAtPath: gesperrt.url.path)
+                                              ofItemAtPath: locked.url.path)
         state.trackList.tracks.forEach { $0.set("Batch", for: .genre) }
         await state.save()
 
-        equal(state.failures.count, 1, "Genau ein Fehler gesammelt")
-        equal(state.failures.first?.filename, gesperrt.filename, "Richtige Datei gemeldet")
-        check(state.isShowingFailureSheet, "Fehler-Sheet wird gezeigt")
-        check(gesperrt.lastError != nil, "Fehler am Track vermerkt")
-        equal(gesperrt.status, .failed, "Status ist „fehlgeschlagen\"")
+        equal(state.failures.count, 1, "exactly one error collected")
+        equal(state.failures.first?.filename, locked.filename, "the right file reported")
+        check(state.isShowingFailureSheet, "error sheet is shown")
+        check(locked.lastError != nil, "error noted on the track")
+        equal(locked.status, .failed, "status is \"failed\"")
 
-        let andere = state.trackList.tracks.filter { $0.id != gesperrt.id }
-        check(andere.allSatisfy { !$0.isDirty }, "Die anderen beiden wurden geschrieben")
-        for track in andere {
-            let aufPlatte = try TagLibBridge.read(from: track.url).tags
-            equal(aufPlatte.genre, "Batch", "  \(track.filename): Genre auf der Platte")
+        let others = state.trackList.tracks.filter { $0.id != locked.id }
+        check(others.allSatisfy { !$0.isDirty }, "the other two were written")
+        for track in others {
+            let onDisk = try TagLibBridge.read(from: track.url).tags
+            equal(onDisk.genre, "Batch", "  \(track.filename): genre on disk")
         }
 
         try FileManager.default.setAttributes([.posixPermissions: 0o644],
-                                              ofItemAtPath: gesperrt.url.path)
+                                              ofItemAtPath: locked.url.path)
 
-        // MARK: - Modusverfügbarkeit
+        // MARK: - Mode availability
 
-        section("Modi")
-        check(state.availability(of: .tag).isAvailable, "Taggen ist verfügbar")
-        // Konvertieren ist auch ohne ffmpeg betretbar: die Anleitung, wie man
-        // ffmpeg installiert, steht in genau diesem Bereich. Den Modus dafür
-        // zu sperren wäre ein Zirkelschluss.
+        section("Modes")
+        check(state.availability(of: .tag).isAvailable, "Tag is available")
+        // Convert can be entered even without ffmpeg: the instructions for
+        // installing ffmpeg are in exactly this section. Locking the mode for
+        // that would be circular.
         check(state.availability(of: .convert).isAvailable,
-              "Konvertieren ist betretbar, auch ohne ffmpeg")
-        // Wie beim Konvertieren: betretbar, auch wenn keine Scheibe drin
-        // liegt. Woran es fehlt, sagt der Bereich selbst.
+              "Convert can be entered, even without ffmpeg")
+        // As with converting: enterable even when no disc is inserted. What is
+        // missing, the section says itself.
         check(state.availability(of: .rip).isAvailable,
-              "Rippen ist betretbar, auch ohne eingelegte CD")
-        equal(AppMode.allCases.count, 3, "Alle drei Modi sichtbar, keiner ausgeblendet")
+              "Rip can be entered, even without a CD inserted")
+        equal(AppMode.allCases.count, 3, "all three modes visible, none hidden")
 
-        // Am Starten hindert stattdessen der Blocker.
+        // The blocker prevents starting instead.
         state.ffmpeg = nil
-        check(state.conversionBlocker != nil, "Ohne ffmpeg meldet der Blocker das Hindernis",
+        check(state.conversionBlocker != nil, "without ffmpeg the blocker reports the obstacle",
               detail: state.conversionBlocker ?? "—")
 
-        // MARK: - Ergebnis
+        // MARK: - Result
 
         ripNaming()
 
-        print("\n\(checks - failures)/\(checks) Prüfungen bestanden")
+        print("\n\(checks - failures)/\(checks) checks passed")
         if failures > 0 {
-            print("✗ \(failures) fehlgeschlagen")
+            print("✗ \(failures) failed")
             return 1
         }
-        print("✓ Alles grün.")
+        print("✓ All green.")
         return 0
     }
 }

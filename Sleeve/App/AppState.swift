@@ -2,12 +2,28 @@
 //  AppState.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import Foundation
 import SwiftUI
 
-/// UI-Sprache ist Englisch (Basis), Deutsch und Spanisch kommen als
-/// String-Catalogs dazu. Kommentare bleiben deutsch.
+/// The UI language is English (base); German and Spanish come from the
+/// string catalog. Everything in the repository — code, comments, docs —
+/// is English.
 enum AppMode: String, CaseIterable, Identifiable {
     case tag, convert, rip
 
@@ -30,9 +46,8 @@ enum AppMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// Warum ein Modus nicht verfügbar ist. Modi werden **nicht ausgeblendet**,
-/// sondern deaktiviert und erklärt — ausgeblendete Funktionen wirken wie Bugs
-/// (Spec §1.1).
+/// Why a mode is unavailable. Modes are **not hidden** but disabled and
+/// explained — hidden features look like bugs (spec §1.1).
 enum ModeAvailability: Equatable {
     case available
     case unavailable(reason: LocalizedStringKey)
@@ -46,7 +61,7 @@ final class AppState {
 
     var activeMode: AppMode = .tag
 
-    /// Modusübergreifend — überlebt jeden Moduswechsel.
+    /// Shared by all modes — survives every mode switch.
     let trackList = TrackListModel()
 
     let engine = TagEngine()
@@ -54,7 +69,7 @@ final class AppState {
 
     // MARK: - Discogs (§4.6)
 
-    /// Liegt im Schlüsselbund, nicht in den Voreinstellungen.
+    /// Lives in the keychain, not in the preferences.
     var discogsToken: String?
     let discogs: DiscogsClient
     let lookup: LookupService
@@ -63,18 +78,18 @@ final class AppState {
     }
     var isShowingLookup = false
     #if DEBUG
-    /// Welcher Treffer in „Album nachschlagen" gleich gewählt wird.
+    /// Which result in "Look Up Album" gets picked right away.
     var lookupDebugPick: Int?
     #endif
 
-    // MARK: - Konvertieren (§5)
+    // MARK: - Convert (§5)
 
-    /// `nil` heißt: nicht gefunden. Der Modus ist dann gesperrt und der
-    /// Inspector erklärt, was zu tun ist.
+    /// `nil` means: not found. The mode is then locked and the inspector
+    /// explains what to do.
     var ffmpeg: FFmpegTool?
     var isLocatingFFmpeg = false
-    /// `nil` heißt: auch Homebrew fehlt — dann braucht die Erklärkarte einen
-    /// Schritt mehr.
+    /// `nil` means: Homebrew is missing too — then the explanation card needs
+    /// one more step.
     var homebrew: URL?
     var conversionTask: Task<Void, Never>?
 
@@ -86,18 +101,18 @@ final class AppState {
         didSet { persistConversionSettings() }
     }
 
-    // MARK: - Rippen (§6)
+    // MARK: - Rip (§6)
 
     let ripEngine = RipEngine()
     let discWatcher = DiscWatcher()
 
-    /// Was über die eingelegte Scheibe bekannt ist. `nil` heißt: keine drin.
+    /// What is known about the inserted disc. `nil` means: none inserted.
     var disc: DiscSnapshot?
     var discError: String?
     var isInspectingDisc = false
 
-    /// Die Metadaten, die gerippt werden sollen — aus CD-TEXT, aus
-    /// MusicBrainz oder von Hand geändert.
+    /// The metadata to rip with — from CD-TEXT, from MusicBrainz or edited
+    /// by hand.
     var discAlbum = ""
     var discArtist = ""
     var discYear = ""
@@ -105,12 +120,12 @@ final class AppState {
     var discComposer = ""
     var discNumber = 1
     var discTotal = 1
-    /// Leer heißt: aus Interpret und Album zusammensetzen. Wird beim
-    /// Scheibenwechsel geleert — er gehört zu dieser CD, nicht zur Einstellung.
+    /// Empty means: put it together from artist and album. Cleared when the
+    /// disc changes — it belongs to this CD, not to the settings.
     var ripFolderName = ""
     var discTitles: [Int: String] = [:]
-    /// Abweichender Interpret je Track. Klassik und Sampler haben das, und
-    /// CD-TEXT liefert es — es wegzuwerfen wäre schade.
+    /// A different artist per track. Classical music and compilations have
+    /// that, and CD-TEXT delivers it — throwing it away would be a pity.
     var discTrackArtists: [Int: String] = [:]
     var discMetadataSource: DiscMetadataSource?
     var discLookupCandidates: [LookupRelease] = []
@@ -133,13 +148,13 @@ final class AppState {
     var ripFailures: [SaveFailure] = []
     var ripTask: Task<Void, Never>?
 
-    // MARK: - Abbild (§9.1)
+    // MARK: - Disc image (§6.9)
 
     var isShowingImageSheet = false
     var imageFormat: DiscImageFormat = .flac {
         didSet { defaults.set(imageFormat.rawValue, forKey: Keys.imageFormat) }
     }
-    /// Leer heißt: derselbe Vorschlag wie beim Albumordner.
+    /// Empty means: the same suggestion as for the album folder.
     var imageBaseName = ""
     var imageStage: DiscImageStage = .idle
     var imageProgress: Double = 0
@@ -147,7 +162,7 @@ final class AppState {
     var imageError: String?
     var imageTask: Task<Void, Never>?
 
-    // MARK: - Zurückbrennen (§6.10)
+    // MARK: - Burning back (§6.10)
 
     var isShowingBurnSheet = false
     var burnCueURL: URL?
@@ -185,24 +200,24 @@ final class AppState {
     var splitSelectionID: UUID?
     var splitMark: Double?
     var splitCompleted: SplitResult?
-    /// Album, Interpret, Jahr und Genre aus einer übernommenen Trackliste —
-    /// landen beim Schneiden in den Tags.
+    /// Album, artist, year and genre from an applied track list — end up in
+    /// the tags when cutting.
     var splitMetadata: TrackListing?
     var isShowingSplitLookup = false
     var splitLookupMode: SplitLookupMode = .musicBrainz
     var splitPasteText = ""
-    /// Die Suche aus „Titel nachschlagen" — bleibt mit ihren Treffern
-    /// erhalten, bis eine andere Datei kommt.
+    /// The search from "Look Up Titles" — stays with its results until
+    /// another file comes.
     var splitSearch: ReleaseSearch?
     #if DEBUG
     var splitDebugPick: Int?
     #endif
     var isLoadingWaveform = false
 
-    // MARK: - Voreinstellungen
+    // MARK: - Preferences
 
-    /// Schlüssel in `UserDefaults`. Der Discogs-Token steht bewusst **nicht**
-    /// hier, sondern im Schlüsselbund.
+    /// Keys in `UserDefaults`. The Discogs token is deliberately **not**
+    /// here but in the keychain.
     private enum Keys {
         static let ffmpegPath = "ffmpeg.path"
         static let convertFormat = "convert.format"
@@ -261,16 +276,16 @@ final class AppState {
                      forKey: Keys.convertDestination)
     }
 
-    // MARK: - Laufende Arbeit
+    // MARK: - Work in progress
 
     var isBusy = false
     var progress: Double = 0
     var progressLabel: LocalizedStringKey = ""
-    /// Fortschrittsanzeige erst ab dieser Anzahl (Spec §4.1).
+    /// Progress only from this count on (spec §4.1).
     static let progressThreshold = 20
     var showsProgress = false
 
-    // MARK: - Fehler
+    // MARK: - Errors
 
     struct SaveFailure: Identifiable {
         let id = UUID()
@@ -291,30 +306,30 @@ final class AppState {
 
     private var undoStack: [UndoEntry] = []
 
-    /// Ein Session-weiter Schritt reicht (Spec §4.1).
+    /// One session-wide step is enough (spec §4.1).
     var canUndo: Bool { !undoStack.isEmpty && !isBusy }
 
-    // MARK: - Modusverfügbarkeit
+    // MARK: - Mode availability
 
     func availability(of mode: AppMode) -> ModeAvailability {
         switch mode {
         case .tag:
             .available
         case .convert:
-            // Immer betretbar, auch ohne ffmpeg. Den Modus zu sperren wäre ein
-            // Zirkelschluss: die Anleitung, wie man ffmpeg installiert, steht
-            // genau in diesem Bereich. Am Starten hindert stattdessen der
-            // `conversionBlocker`.
+            // Always enterable, even without ffmpeg. Locking the mode would be
+            // circular: the instructions for installing ffmpeg are in exactly
+            // this section. The `conversionBlocker` prevents starting
+            // instead.
             .available
         case .rip:
-            // Wie beim Konvertieren: immer betretbar. Ob eine Scheibe drin
-            // liegt, sagt der Bereich selbst — sperren würde nur verbergen,
-            // woran es liegt.
+            // As with converting: always enterable. Whether a disc is inserted
+            // is something the section says itself — locking would only hide
+            // what the matter is.
             .available
         }
     }
 
-    // MARK: - Dateien laden
+    // MARK: - Loading files
 
     func addFiles(_ urls: [URL]) async {
         guard !isBusy else { return }
@@ -338,7 +353,7 @@ final class AppState {
                 let info = try await engine.read(url)
                 loaded.append(TrackFile(url: url, info: info))
             } catch {
-                // Eine unlesbare Datei darf den Import nicht abbrechen.
+                // An unreadable file must not abort the import.
                 failures.append(SaveFailure(
                     filename: url.lastPathComponent,
                     message: Self.describe(error)
@@ -351,7 +366,7 @@ final class AppState {
         if !failures.isEmpty { isShowingFailureSheet = true }
     }
 
-    // MARK: - Speichern
+    // MARK: - Saving
 
     func save() async {
         guard !isBusy else { return }
@@ -375,8 +390,8 @@ final class AppState {
                 tags: track.edited,
                 fields: track.touchedFields
             )
-            // Vor dem Schreiben den Plattenstand sichern — das ist der
-            // Undo-Schritt.
+            // Back up the state on disk before writing — that is the undo
+            // step.
             let snapshot = UndoEntry(
                 trackID: track.id,
                 tags: track.original,
@@ -387,8 +402,8 @@ final class AppState {
                 if !track.touchedFields.isEmpty {
                     try await engine.write(request)
                 }
-                // Umbenennen nach dem Schreiben — schlägt das Schreiben fehl,
-                // soll die Datei unter ihrem alten Namen auffindbar bleiben.
+                // Rename after writing — if writing fails, the file should
+                // remain findable under its old name.
                 if let proposed = track.proposedFilename, proposed != track.filename {
                     track.url = try await engine.rename(track.url, to: proposed)
                 }
@@ -408,8 +423,7 @@ final class AppState {
         if !failures.isEmpty { isShowingFailureSheet = true }
     }
 
-    /// Nimmt den letzten Schreibvorgang zurück, indem der gesicherte Stand
-    /// wieder auf die Platte geschrieben wird.
+    /// Undoes the last write by writing the backed-up state to disk again.
     func undoLastSave() async {
         guard canUndo else { return }
         let entries = undoStack
@@ -450,7 +464,7 @@ final class AppState {
         targets.forEach { $0.revert() }
     }
 
-    // MARK: - Intern
+    // MARK: - Internal
 
     func finishWork() {
         isBusy = false

@@ -2,25 +2,40 @@
 //  RipEngine.swift
 //  Sleeve
 //
-//  Führt zusammen: Laufwerk finden, Scheibe erkennen, Spuren lesen, als WAV
-//  ablegen. Was danach kommt — konvertieren und taggen — macht die bestehende
-//  Pipeline.
+//  Copyright (C) 2026 NeonRost
 //
-//  Ein Aktor, weil das Laufwerk keine gleichzeitigen Zugriffe verträgt. Der
-//  `CDDrive` mit seinem Dateideskriptor verlässt diesen Aktor nie.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Brings it together: find the drive, identify the disc, read the tracks,
+//  store them as WAV. What comes after — converting and tagging — is done
+//  by the existing pipeline.
+//
+//  An actor, because the drive does not tolerate concurrent access. The
+//  `CDDrive` with its file descriptor never leaves this actor.
 //
 
 import Foundation
 
-/// Was von der Scheibe bekannt ist, bevor gerippt wird.
+/// What is known about the disc before ripping.
 struct DiscSnapshot: Sendable {
     var drive: CDDriveInfo
     var toc: DiscTOC
     var cdText: CDText?
     var mcn: String?
     var currentSpeed: Int?
-    /// Ob das Laufwerk C2-Fehlerzeiger wirklich herausgibt. Ausprobiert,
-    /// nicht angenommen — siehe `CDDrive.supportsC2`.
+    /// Whether the drive really delivers C2 error pointers. Tried, not
+    /// assumed — see `CDDrive.supportsC2`.
     var supportsC2 = false
 
     var discID: String { toc.musicBrainzDiscID }
@@ -36,9 +51,9 @@ actor RipEngine {
         case finished(RipReport)
     }
 
-    // MARK: - Erkennen
+    // MARK: - Identifying
 
-    /// Liest alles, was ohne Rippen über die Scheibe zu erfahren ist.
+    /// Reads everything that can be learned about the disc without ripping.
     func inspect() throws -> DiscSnapshot {
         guard let info = CDDriveFinder.availableDrives().first else {
             throw CDDriveError.noDrive
@@ -54,7 +69,7 @@ actor RipEngine {
         var mcn: String?
         if settings.readsSubchannel {
             mcn = drive.readMCN()
-            // ISRCs gleich mitnehmen — später ist die Scheibe vielleicht raus.
+            // Take the ISRCs along right away — later the disc may be out.
             let isrcs = drive.readISRCs(for: toc.tracks)
             for index in toc.tracks.indices {
                 toc.tracks[index].isrc = isrcs[toc.tracks[index].number]
@@ -68,11 +83,11 @@ actor RipEngine {
                             supportsC2: drive.supportsC2(probeLBA: probeLBA))
     }
 
-    // MARK: - Rippen
+    // MARK: - Ripping
 
-    /// Rippt die angegebenen Spuren in `destination` und meldet den Verlauf.
-    /// `names` gibt je Spur den Dateinamen ohne Endung vor. Fehlt einer,
-    /// bleibt es bei der zweistelligen Tracknummer.
+    /// Rips the given tracks into `destination` and reports progress. `names`
+    /// gives the file name without extension per track. If one is missing, the
+    /// two-digit track number is used.
     nonisolated func rip(tracks numbers: [Int],
                          to destination: URL,
                          names: [Int: String] = [:],
@@ -108,8 +123,8 @@ actor RipEngine {
         }
         drive.setSpeed(multiplier: settings.speedMultiplier)
 
-        // Ohne das stünde im Protokoll keine MCN: hier wird die TOC frisch
-        // aus IOKit gelesen und trägt die Kennungen noch nicht.
+        // Without this the log would show no MCN: here the TOC is read
+        // freshly from IOKit and does not carry the identifiers yet.
         if settings.readsSubchannel {
             toc.mcn = drive.readMCN()
             let isrcs = drive.readISRCs(for: toc.tracks)
@@ -118,9 +133,9 @@ actor RipEngine {
             }
         }
 
-        // Lieber ohne C2 lesen als mit einem Laufwerk, das dabei Unsinn
-        // liefert. Die Einstellung bleibt stehen, der Durchgang läuft ohne —
-        // und das Protokoll sagt es.
+        // Better to read without C2 than with a drive that delivers
+        // nonsense doing it. The setting stays, the pass runs without —
+        // and the log says so.
         var effective = settings
         if effective.usesC2, !drive.supportsC2(probeLBA: toc.audioTracks.first?.startLBA ?? 0) {
             effective.usesC2 = false
@@ -155,8 +170,8 @@ actor RipEngine {
             }
         }
 
-        // Ist C2 erst unterwegs ausgefallen, gehört das genauso ins
-        // Protokoll wie ein Ausfall, den die Vorabprüfung gefunden hat.
+        // If C2 only dropped out along the way, that belongs in the log
+        // just like a failure the upfront check found.
         if reader.c2Fellthrough {
             effective.usesC2 = false
             effective.c2WasRequestedButUnavailable = true
@@ -167,20 +182,19 @@ actor RipEngine {
         continuation.yield(.finished(report))
     }
 
-    /// Wirft die Scheibe aus — und zwar wirklich.
+    /// Ejects the disc — for real.
     ///
-    /// `diskutil eject` allein genügt **nicht**: es gibt das Medium nur
-    /// logisch frei. Danach meldet das Laufwerk „No Media Inserted", das
-    /// Volume ist aus dem Finder verschwunden — und die Schublade bleibt zu,
-    /// die Scheibe liegt weiter drin. Gemessen an einem ASUS BW-16D1X-U über
-    /// USB.
+    /// `diskutil eject` alone is **not** enough: it only releases the medium
+    /// logically. Afterwards the drive reports "No Media Inserted", the volume
+    /// has disappeared from the Finder — and the tray stays shut, the disc is
+    /// still inside. Measured on an ASUS BW-16D1X-U over USB.
     ///
-    /// Deshalb zwei Schritte: erst das Volume sauber freigeben, damit macOS
-    /// nicht dazwischenfunkt, dann über `drutil` die Lade öffnen.
+    /// Hence two steps: first release the volume cleanly so that macOS does
+    /// not interfere, then open the tray via `drutil`.
     ///
-    /// `drutil` spricht das voreingestellte Laufwerk an. Bei mehreren
-    /// optischen Laufwerken am selben Rechner träfe es womöglich das falsche —
-    /// das ist selten genug, um es hier nicht aufzulösen.
+    /// `drutil` addresses the default drive. With several optical drives on
+    /// the same machine it might hit the wrong one — rare enough not to be
+    /// resolved here.
     nonisolated func eject(bsdName: String) {
         run("/usr/sbin/diskutil", ["unmount", "/dev/\(bsdName)"])
         run("/usr/bin/drutil", ["tray", "eject"])
@@ -193,13 +207,13 @@ actor RipEngine {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         guard (try? process.run()) != nil else { return }
-        // Auf das Ende warten: sonst öffnet die Lade, bevor das Volume
-        // freigegeben ist, und macOS meldet eine unsaubere Entnahme.
+        // Wait for the end: otherwise the tray opens before the volume is
+        // released, and macOS reports an improper removal.
         process.waitUntilExit()
     }
 }
 
-// MARK: - Abbild der ganzen Scheibe
+// MARK: - Image of the whole disc
 
 extension RipEngine {
 
@@ -219,12 +233,12 @@ extension RipEngine {
         var c2FellThrough: Bool
     }
 
-    /// Schreibt die ganze Scheibe als ein Stück plus Cue Sheet.
+    /// Writes the whole disc as one piece plus a cue sheet.
     ///
-    /// Gelesen wird identisch zum normalen Rippen — gleicher Modus, gleicher
-    /// Versatz, gleiche Wiederholungen. Nur die Verpackung unterscheidet sich.
-    /// Eine Trackauswahl gibt es hier bewusst nicht: ein Abbild ist immer die
-    /// ganze Scheibe, sonst stimmen die Zeiten im Cue Sheet nicht mehr.
+    /// Reading is identical to normal ripping — the same mode, the same offset,
+    /// the same retries. Only the packaging differs. There is deliberately no
+    /// track selection here: an image is always the whole disc, otherwise the
+    /// times in the cue sheet are no longer right.
     nonisolated func createImage(in folder: URL,
                                  baseName: String,
                                  format: DiscImageFormat,
@@ -261,8 +275,8 @@ extension RipEngine {
             return
         }
         guard !toc.hasDataTrack else {
-            // Eine Datenspur roh mitzuschreiben hieße, sie auszulesen — das
-            // ist nicht, wofür dieser Modus da ist (Spec §6.8).
+            // Writing a data track along raw would mean extracting it — that
+            // is not what this mode is for (spec §6.8).
             continuation.yield(.failed(String(localized: "This disc carries a data track. Sleeve images audio discs only.")))
             return
         }
@@ -285,7 +299,7 @@ extension RipEngine {
             for index in toc.tracks.indices { toc.tracks[index].isrc = isrcs[toc.tracks[index].number] }
         }
 
-        // Das WAV ist bei FLAC nur Zwischenstand und verschwindet danach.
+        // For FLAC the WAV is only an intermediate and goes away afterwards.
         let audioExtension = format == .flac ? "wav" : format.fileExtension
         let audioURL = folder.appendingPathComponent("\(baseName).\(audioExtension)")
         let totalBytes = toc.leadOutLBA * CDGeometry.bytesPerSector
@@ -303,8 +317,8 @@ extension RipEngine {
         let reader = CDReader(drive: drive, settings: effective)
         var summary = CDReader.ReadSummary()
         do {
-            // Der WAV-Kopf steht vorn und braucht die Länge — die kennen wir
-            // aus der TOC, bevor das erste Byte gelesen ist.
+            // The WAV header comes first and needs the length — we know it
+            // from the TOC before the first byte is read.
             if format != .bin {
                 try handle.write(contentsOf: WAVWriter.header(forPCMByteCount: totalBytes))
             }
@@ -332,7 +346,7 @@ extension RipEngine {
             effective.c2WasRequestedButUnavailable = true
         }
 
-        // Nach FLAC umwandeln, dann das WAV wegräumen.
+        // Convert to FLAC, then clean up the WAV.
         var finalURL = audioURL
         if format == .flac {
             continuation.yield(.converting)
@@ -375,7 +389,7 @@ extension RipEngine {
             finalURL = converted
         }
 
-        // Cue Sheet mit dem Namen, der wirklich danebenliegt.
+        // Cue sheet with the name that is really next to it.
         let report = RipReport(drive: info, toc: toc, settings: effective,
                                entries: [], started: started, ended: Date())
         let cue = report.cueSheet(albumTitle: albumTitle, albumArtist: albumArtist,

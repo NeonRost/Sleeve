@@ -2,40 +2,55 @@
 //  WaveformView.swift
 //  Sleeve
 //
-//  Hüllkurve mit Trackgrenzen, Marke und Abspielkopf (Spec §7.7).
+//  Copyright (C) 2026 NeonRost
 //
-//  Dieselbe Ansicht dient als Übersicht über die ganze Datei und als Lupe auf
-//  eine einzelne Grenze — nur das gezeigte Zeitfenster unterscheidet sich.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//  Drei Ebenen übereinander, damit das Teure nicht ständig neu entsteht:
-//  Tönung der Tracks (billig), die Hüllkurve selbst (teuer, nur bei neuer
-//  Datei, neuem Ausschnitt oder neuer Größe) und Marke samt Abspielkopf
-//  (billig, zehnmal je Sekunde). Ohne diese Trennung liefe bei jedem Schritt
-//  des Abspielkopfs die ganze Hüllkurve neu durch — bei 45 Minuten eine
-//  Viertelmillion Werte.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Envelope with track boundaries, mark and playhead (spec §7.7).
+//
+//  The same view serves as the overview of the whole file and as the
+//  magnifier on a single boundary — only the time window shown differs.
+//
+//  Three layers on top of each other, so that the expensive part is not
+//  rebuilt all the time: the track shading (cheap), the envelope itself
+//  (expensive, only for a new file, a new window or a new size) and mark
+//  plus playhead (cheap, ten times a second). Without this separation every
+//  step of the playhead would run through the whole envelope again — a
+//  quarter of a million values for 45 minutes.
 //
 
 import SwiftUI
 
 struct WaveformView: View {
     let waveform: WaveformSampler.Waveform
-    /// Welcher Zeitausschnitt zu sehen ist, absolut in Sekunden.
+    /// Which time window is visible, in absolute seconds.
     let window: ClosedRange<Double>
     let tracks: [SplitTrack]
     let selectedID: UUID?
     let mark: Double
     let playhead: Double?
-    /// Welche Grenze des gewählten Tracks sich hier ziehen lässt — in der
-    /// Übersicht keine, in den Lupen je eine.
+    /// Which boundary of the selected track can be dragged here — none in
+    /// the overview, one in each magnifier.
     var draggableEdge: Edge? = nil
     var onClick: (Double) -> Void = { _ in }
     var onDragEdge: (Double) -> Void = { _ in }
 
     enum Edge { case start, end }
 
-    /// Ob gerade eine Grenze gezogen wird statt die Marke gesetzt. Beim ersten
-    /// Kontakt entschieden, danach bleibt es dabei — sonst spränge die Geste
-    /// um, sobald der Finger die Linie verlässt.
+    /// Whether a boundary is being dragged instead of the mark being set.
+    /// Decided on first contact and kept after that — otherwise the gesture
+    /// would switch as soon as the finger leaves the line.
     @State private var draggingEdge: Bool?
 
     var body: some View {
@@ -60,7 +75,7 @@ struct WaveformView: View {
                     .onEnded { _ in draggingEdge = nil }
             )
             .onContinuousHover { phase in
-                // Der Zeiger zeigt, dass sich die Linie ziehen lässt.
+                // The pointer shows that the line can be dragged.
                 if case let .active(point) = phase, isNearEdge(x: point.x, width: width) {
                     NSCursor.resizeLeftRight.set()
                 } else {
@@ -86,7 +101,7 @@ struct WaveformView: View {
     }
 }
 
-// MARK: - Ebenen
+// MARK: - Layers
 
 private func xPosition(_ seconds: Double, in window: ClosedRange<Double>, width: CGFloat) -> CGFloat {
     let span = window.upperBound - window.lowerBound
@@ -94,8 +109,9 @@ private func xPosition(_ seconds: Double, in window: ClosedRange<Double>, width:
     return CGFloat((seconds - window.lowerBound) / span) * width
 }
 
-/// Tracks abwechselnd getönt, der gewählte hervorgehoben. Was zu keinem Track
-/// gehört — die Stille dazwischen —, bleibt dunkel: das landet in keiner Datei.
+/// Tracks shaded alternately, the selected one highlighted. Whatever belongs
+/// to no track — the silence in between — stays dark: it ends up in no
+/// file.
 private struct ShadingLayer: View {
     let window: ClosedRange<Double>
     let tracks: [SplitTrack]
@@ -119,9 +135,9 @@ private struct ShadingLayer: View {
     }
 }
 
-/// Die Hüllkurve: ein senkrechter Strich je Bildpunkt, um die Mitte. Hängt nur
-/// an Datei und Ausschnitt — deshalb `Equatable`, damit SwiftUI sie beim
-/// Mitlaufen des Abspielkopfs in Ruhe lässt.
+/// The envelope: one vertical stroke per pixel, around the middle. Depends
+/// only on file and window — hence `Equatable`, so that SwiftUI leaves it
+/// alone while the playhead moves.
 private struct EnvelopeLayer: View, @preconcurrency Equatable {
     let waveform: WaveformSampler.Waveform
     let window: ClosedRange<Double>
@@ -148,7 +164,7 @@ private struct EnvelopeLayer: View, @preconcurrency Equatable {
     }
 }
 
-/// Grenzen, Marke und Abspielkopf.
+/// Boundaries, mark and playhead.
 private struct MarkerLayer: View {
     let window: ClosedRange<Double>
     let tracks: [SplitTrack]
@@ -177,7 +193,7 @@ private struct MarkerLayer: View {
                 line(at: selected.range.start, color: .green, width: 2)
                 line(at: selected.range.end, color: .orange, width: 2)
 
-                // Ein Griff oben an der Linie, die sich hier ziehen lässt.
+                // A handle at the top of the line that can be dragged here.
                 if let draggableEdge {
                     let seconds = draggableEdge == .start ? selected.range.start : selected.range.end
                     let x = xPosition(seconds, in: window, width: size.width)

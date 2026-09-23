@@ -2,21 +2,35 @@
 //  LookupParts.swift
 //  Sleeve
 //
-//  Die Bausteine, aus denen beide Nachschlage-Blätter bestehen: „Album
-//  nachschlagen" beim Taggen (Spec §4.6) und „Titel nachschlagen" im Track
-//  Splitter (§7.12). Gleiche Teile, damit beide gleich aussehen, gleich heißen
-//  und sich gleich bedienen — links suchen, rechts vergleichen, unten
-//  übernehmen.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The building blocks of both lookup sheets: "Look Up Album" when tagging
+//  (spec §4.6) and "Look Up Titles" in the Track Splitter (§7.12). The same
+//  parts, so that both look the same, use the same names and work the same
+//  way — search on the left, compare on the right, take over at the bottom.
 //
 
 import SwiftUI
 
-/// Wo die Tastatur gerade steht. Solange ein Suchfeld den Fokus hat, sucht
-/// Return — sonst übernimmt es. Ohne diese Weiche würde Return in einem
-/// Suchfeld das Blatt schließen, sobald ein Album geladen ist.
+/// Where the keyboard focus is. While a search field has focus, Return
+/// searches — otherwise it applies. Without this switch, Return in a
+/// search field would close the sheet as soon as an album is loaded.
 enum LookupSearchField: Hashable { case artist, album, year, catalogNumber }
 
-/// Titel links, Quelle rechts.
+/// Title on the left, source on the right.
 struct LookupHeader<Source: View>: View {
     let title: LocalizedStringKey
     @ViewBuilder var source: Source
@@ -33,7 +47,7 @@ struct LookupHeader<Source: View>: View {
     }
 }
 
-// MARK: - Links: suchen
+// MARK: - Left: search
 
 struct ReleaseSearchPane: View {
     @Bindable var search: ReleaseSearch
@@ -130,9 +144,9 @@ struct LookupThumbnail: View {
     }
 }
 
-// MARK: - Rechts: vergleichen
+// MARK: - Right: compare
 
-/// Das gewählte Album über dem Vergleich.
+/// The selected album above the comparison.
 struct ReleaseHeader: View {
     let release: LookupRelease
 
@@ -153,7 +167,7 @@ struct ReleaseHeader: View {
     }
 }
 
-/// Solange rechts nichts zu vergleichen ist.
+/// As long as there is nothing to compare on the right.
 struct LookupPlaceholder: View {
     let text: LocalizedStringKey
 
@@ -164,7 +178,7 @@ struct LookupPlaceholder: View {
     }
 }
 
-/// Eigener Wert mit Abweichung zur Liste: „3:42 +0.4 s".
+/// One's own value with its deviation from the list: "3:42 +0.4 s".
 struct LookupDeltaCell: View {
     let mine: Double?
     let theirs: Double?
@@ -182,14 +196,14 @@ struct LookupDeltaCell: View {
     }
 }
 
-// MARK: - Unten: übernehmen
+// MARK: - Bottom: take over
 
-/// Welche Felder übernommen werden. Rechts oben Platz für eine Einstellung
-/// dazu (Genre oder Style bei Discogs), hinten für weitere Schalter.
+/// Which fields are taken over. Room at the top right for a related
+/// setting (genre or style at Discogs), at the end for further switches.
 struct TakeOverSection<Accessory: View, More: View>: View {
     let fields: [TagField]
     @Binding var selection: Set<TagField>
-    /// Was die Quelle überhaupt hergibt — der Rest ist ausgegraut.
+    /// What the source provides at all — the rest is greyed out.
     var available: Set<TagField>?
     var columns = 5
     @ViewBuilder var accessory: Accessory
@@ -225,7 +239,7 @@ struct TakeOverSection<Accessory: View, More: View>: View {
     }
 }
 
-/// Bei Discogs stehen Genre und Style getrennt — gilt in beiden Blättern.
+/// At Discogs, genre and style are separate — applies to both sheets.
 struct GenreSourcePicker: View {
     @Binding var selection: GenreSource
 
@@ -241,7 +255,7 @@ struct GenreSourcePicker: View {
     }
 }
 
-/// Unten links: passt es, oder ist etwas zu prüfen?
+/// Bottom left: does it fit, or is there something to check?
 struct LookupStatus: View {
     let text: Text
     let isWarning: Bool

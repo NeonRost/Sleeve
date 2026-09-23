@@ -1,6 +1,6 @@
-# TagLib-Quellen und Build-Artefakte — werden von Scripts/build-taglib.sh erzeugt.
-# Die fertige Bibliothek unter Vendor/taglib/ ist eingecheckt, damit Sleeve
-# ohne cmake baut.
+# TagLib sources and build artefacts — produced by Scripts/build-taglib.sh.
+# The finished library under Vendor/taglib/ is checked in, so that Sleeve
+# builds without cmake.
 Vendor/src/
 
 # Xcode
@@ -13,7 +13,7 @@ xcuserdata/
 *.xccheckout
 *.xcscmblueprint
 
-# Build-Ergebnisse — Releases hängen an GitHub Releases, nicht im Repository
+# Build results — releases are attached to GitHub Releases, not committed
 Sleeve.app/
 Sleeve.zip
 Sleeve-*.zip
@@ -24,5 +24,5 @@ Sleeve-*.zip
 # macOS
 .DS_Store
 
-# Claude Code, lokale Einstellungen (enthalten lokale Pfade)
+# Claude Code local settings (contain local paths)
 .claude/settings.local.json

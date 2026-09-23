@@ -2,8 +2,23 @@
 //  ProcessRunner.swift
 //  Sleeve
 //
-//  Dünne Hülle um `Process`. Einzige Stelle, an der Sleeve fremde Programme
-//  startet.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  A thin wrapper around `Process`. The only place where Sleeve starts other
+//  programs.
 //
 
 import Foundation
@@ -22,14 +37,14 @@ enum ProcessRunner {
         case cancelled
     }
 
-    /// Startet das Programm und wartet auf das Ende.
+    /// Starts the program and waits for it to finish.
     ///
-    /// Beide Ausgabekanäle werden **gleichzeitig** gelesen. Nacheinander zu
-    /// lesen verklemmt, sobald der jeweils andere Puffer volläuft — bei
-    /// ffmpeg passiert genau das, weil es seinen Fortschritt nach stderr
-    /// schreibt, während wir noch auf stdout warten.
+    /// Both output channels are read **at the same time**. Reading them one
+    /// after the other deadlocks as soon as the other buffer fills up — with
+    /// ffmpeg exactly that happens, because it writes its progress to stderr
+    /// while we are still waiting on stdout.
     ///
-    /// Wird die aufrufende Task abgebrochen, bekommt der Prozess SIGTERM.
+    /// If the calling task is cancelled, the process gets SIGTERM.
     static func run(
         _ executable: URL,
         arguments: [String],
@@ -49,7 +64,7 @@ enum ProcessRunner {
                     let errPipe = Pipe()
                     process.standardOutput = outPipe
                     process.standardError = errPipe
-                    // Ohne das kann ffmpeg auf eine Eingabe warten, die nie kommt.
+                    // Without this, ffmpeg may wait for input that never comes.
                     process.standardInput = FileHandle.nullDevice
 
                     do {
@@ -86,8 +101,8 @@ enum ProcessRunner {
     }
 }
 
-/// Nimmt die Ausgaben der beiden Lese-Threads entgegen. Ohne Sperre wäre das
-/// ein Datenrennen — die DispatchGroup ordnet nur das Ende, nicht die Zugriffe.
+/// Receives the output of the two reader threads. Without a lock this would
+/// be a data race — the DispatchGroup only orders the end, not the accesses.
 private final class OutputBox: @unchecked Sendable {
     private let lock = NSLock()
     private var standardOutput = Data()
@@ -106,8 +121,8 @@ private final class OutputBox: @unchecked Sendable {
     }
 }
 
-/// Hält den laufenden Prozess, damit das Abbrechen ihn erreicht. `Process`
-/// ist nicht `Sendable`, deshalb hinter einer Sperre.
+/// Holds the running process so that cancellation can reach it. `Process`
+/// is not `Sendable`, hence behind a lock.
 private final class ProcessBox: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
@@ -116,7 +131,7 @@ private final class ProcessBox: @unchecked Sendable {
     func adopt(_ process: Process) {
         lock.lock()
         defer { lock.unlock() }
-        // Abbruch kam, bevor der Prozess lief — sofort beenden.
+        // Cancellation came before the process was running — end it right away.
         if cancelled {
             process.terminate()
         } else {

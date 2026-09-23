@@ -2,25 +2,40 @@
 //  AppState+Split.swift
 //  Sleeve
 //
-//  Track Splitter (Spec §7).
+//  Copyright (C) 2026 NeonRost
 //
-//  Was nach dem Schneiden passiert, unterscheidet Sleeve von einem reinen
-//  Splitter: die Stücke landen in der Trackliste. Deshalb gibt es hier
-//  **keinen eigenen Tag-Block** für Interpret, Album, Jahr und Cover — das
-//  kann der Tag-Bereich längst besser, mit Mehrfachauswahl und Nachschlagen.
-//  Geschrieben werden hier nur Titel und Tracknummer, weil die beim Schneiden
-//  ohnehin feststehen.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//  Wichtig: `-c copy` **erbt die Tags der Quelldatei**. Ohne Korrektur trüge
-//  jedes Stück den Titel des ganzen Albums.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Track Splitter (spec §7).
+//
+//  What happens after cutting sets Sleeve apart from a mere splitter: the
+//  pieces land in the track list. That is why there is **no tag block of
+//  its own** here for artist, album, year and cover — the Tag section has
+//  long done that better, with multiple selection and lookup. Written here
+//  are only title and track number, which are settled by the cut anyway,
+//  plus whatever an applied track list provides.
+//
+//  Important: `-c copy` **inherits the source file's tags**. Without a
+//  correction every piece would carry the title of the whole album.
 //
 
 import AppKit
 import Foundation
 import SwiftUI
 
-/// Woher die Titel kommen: eine der beiden Quellen von „Album nachschlagen"
-/// oder eine eingefügte Trackliste.
+/// Where the titles come from: one of the two sources of "Look Up Album"
+/// or a pasted track list.
 enum SplitLookupMode: String, CaseIterable, Identifiable, Sendable {
     case musicBrainz, discogs, pasted
     var id: String { rawValue }
@@ -55,10 +70,10 @@ enum SplitStage: Sendable, Equatable {
 
 extension AppState {
 
-    // MARK: - Quelle
+    // MARK: - Source
 
-    /// Vor dem Öffnen des Fensters aufräumen — ein Fehler vom letzten Mal
-    /// soll nicht als Erstes zu sehen sein.
+    /// Clean up before the window opens — an error from last time should
+    /// not be the first thing to see.
     func prepareSplit() {
         splitError = nil
         splitFailures = []
@@ -95,8 +110,8 @@ extension AppState {
         splitSearch = nil
         splitPreview.stop()
 
-        // Gleich nachsehen, was drinsteckt: davon hängt ab, welche Endung die
-        // Stücke bekommen — und ob überhaupt Ton dabei ist.
+        // Look right away at what is inside: it decides which extension the
+        // pieces get — and whether there is sound at all.
         guard let tool = ffmpeg else { return }
         Task {
             await splitPreview.check(url)
@@ -113,8 +128,8 @@ extension AppState {
         }
     }
 
-    /// Rechnet die Hüllkurve einmal durch. Das dauert bei einem langen
-    /// Mitschnitt spürbar, deshalb im Hintergrund und mit Anzeige.
+    /// Computes the envelope once. With a long recording that takes
+    /// noticeably long, hence in the background and with an indicator.
     private func loadWaveform(_ url: URL, duration: Double, ffmpeg tool: FFmpegTool) async {
         guard duration > 0 else { return }
         isLoadingWaveform = true
@@ -122,12 +137,10 @@ extension AppState {
         splitWaveform = try? await WaveformSampler.load(url, duration: duration, ffmpeg: tool)
     }
 
-    /// Setzt an dieser Stelle eine neue Grenze — das Gegenstück zum
-    /// Verschmelzen.
+    /// Sets a new boundary at this position — the counterpart to merging.
     ///
-    /// Bisher konnten Grenzen nur verschwinden, nie entstehen. Wer in der
-    /// Hüllkurve sieht, dass zwei Stücke zusammengefasst wurden, konnte sie
-    /// nicht trennen.
+    /// Before, boundaries could only disappear, never appear. Whoever saw in
+    /// the envelope that two pieces had been combined could not separate them.
     @discardableResult
     func splitTrack(at seconds: Double) -> UUID? {
         guard let index = splitTracks.firstIndex(where: {
@@ -143,7 +156,7 @@ extension AppState {
         return tail.id
     }
 
-    /// Welche Endung die geschnittenen Stücke bekommen.
+    /// Which extension the cut pieces get.
     var splitOutputExtension: String {
         if case let .convert(format) = splitOutput { return format.fileExtension }
         return splitSourceInfo?.outputExtension
@@ -151,8 +164,8 @@ extension AppState {
             ?? "mp3"
     }
 
-    /// Wie das Zielformat in der Auswahl heißt. Bei „wie die Quelle" gehört
-    /// die tatsächliche Endung dazu — sonst rät man.
+    /// What the target format is called in the picker. For "same as source"
+    /// the actual extension belongs with it — otherwise one guesses.
     var splitKeepSourceLabel: String {
         let ext = (splitSourceInfo?.outputExtension ?? "").uppercased()
         return ext.isEmpty
@@ -166,7 +179,7 @@ extension AppState {
         return tool.supports(format) ? nil : format.missingEncoderHint
     }
 
-    // MARK: - Untersuchen
+    // MARK: - Analysis
 
     var splitBlocker: String? {
         guard splitSource != nil else { return String(localized: "Pick an audio file first.") }
@@ -206,7 +219,7 @@ extension AppState {
         }
     }
 
-    // MARK: - Auswahl und Marke
+    // MARK: - Selection and mark
 
     var selectedSplitTrack: SplitTrack? {
         splitTracks.first { $0.id == splitSelectionID }
@@ -221,38 +234,38 @@ extension AppState {
     func selectSplitTrack(_ id: UUID?) {
         guard id != splitSelectionID else { return }
         splitSelectionID = id
-        // Eine neue Zeile heißt: die Marke gehört wieder an ihren Anfang.
+        // A new row means: the mark goes back to its start.
         splitMark = nil
         if splitPreview.playingID != nil { splitPreview.stop() }
     }
 
-    /// Wo die Marke steht. Ohne eigene Setzung: **am Anfang** des gewählten
-    /// Tracks, auf der grünen Linie.
+    /// Where the mark is. Unless set by hand: **at the start** of the selected
+    /// track, on the green line.
     ///
-    /// Die erste Fassung setzte sie ein Stück davor, damit „Ab Marke
-    /// abspielen" von selbst über die Grenze hinweg hörte. Das war nicht zu
-    /// erraten — wer einen Track abspielt, erwartet ihn ab seinem Anfang. Über
-    /// die Grenze hinweg hören ⏮ und der Knopf in der Trackliste.
+    /// The first version put it a little before, so that "Play from Mark"
+    /// would play across the boundary by itself. Nobody could guess that —
+    /// whoever plays a track expects it from its start. Playing across the
+    /// boundary is what ⏮ and the button in the track list do.
     var splitMarkPosition: Double {
         if let splitMark { return splitMark }
         return selectedSplitTrack?.range.start ?? 0
     }
 
-    /// Die Stelle, die gerade gilt: beim Abspielen der laufende Kopf, sonst
-    /// die Marke. Darauf beziehen sich „Anfang hierher", „Ende hierher" und
-    /// „Hier teilen" — man drückt, was man hört.
+    /// The position that currently applies: while playing the moving head,
+    /// otherwise the mark. "Start Here", "End Here" and "Split Here" refer to
+    /// it — one presses what one hears.
     var splitCurrentPosition: Double {
         splitPreview.position ?? splitMarkPosition
     }
 
     func setSplitMark(_ seconds: Double) {
         splitMark = min(max(0, seconds), splitDuration)
-        // Läuft schon etwas, springt die Wiedergabe mit — sonst hört man eine
-        // andere Stelle als die, die man gerade angeklickt hat.
+        // If something is already playing, playback jumps along — otherwise one
+        // hears a different spot than the one just clicked.
         if splitPreview.playingID != nil { playSplitFromMark() }
     }
 
-    // MARK: - Abspielen
+    // MARK: - Playback
 
     var isSplitPlaying: Bool { splitPreview.playingID != nil }
 
@@ -262,10 +275,10 @@ extension AppState {
                               position: splitMarkPosition, fileDuration: splitDuration)
     }
 
-    /// Wer beim Hören auf Stopp drückt, meint **diese** Stelle: die Marke
-    /// übernimmt den Kopf. Läuft die Hörprobe dagegen von allein aus, bleibt
-    /// die Marke, wo sie war — sonst marschierte sie bei jedem Abspielen ein
-    /// Stück weiter.
+    /// Whoever presses stop while listening means **this** spot: the mark
+    /// takes over the head. If the preview runs out by itself, however, the
+    /// mark stays where it was — otherwise it would march on a bit with
+    /// every playback.
     func toggleSplitPlayback() {
         if isSplitPlaying {
             if let live = splitPreview.position { splitMark = live }
@@ -275,15 +288,15 @@ extension AppState {
         }
     }
 
-    /// Den Knopf in einer Zeile: auswählen und die vordere Grenze hören.
+    /// The button in a row: select it and hear the front boundary.
     func playAcrossStart(of track: SplitTrack) {
         if splitPreview.playingID == track.id { splitPreview.stop(); return }
         splitSelectionID = track.id
         jumpToStartBoundary()
     }
 
-    /// Hört **über** den Anfang hinweg: ein Drittel der Hörprobe davor — Ende
-    /// des vorigen Tracks, Pause, Einsatz.
+    /// Plays **across** the start: a third of the preview before it — end of
+    /// the previous track, pause, entry.
     func jumpToStartBoundary() {
         guard let track = selectedSplitTrack else { return }
         splitMark = max(0, track.range.start - splitPreview.lead)
@@ -296,16 +309,15 @@ extension AppState {
         playSplitFromMark()
     }
 
-    // MARK: - Grenzen
+    // MARK: - Boundaries
 
-    /// Verschiebt eine Grenze. Grenze `b` ist der Anfang von Track `b` und
-    /// zugleich das Ende von Track `b − 1` — die Tracks liegen lückenlos
-    /// aneinander, und das muss beim Bearbeiten so bleiben. Verschöbe man nur
-    /// eine Seite, entstünde eine Lücke, und was darin liegt, stünde in keiner
-    /// Datei.
+    /// Moves a boundary. Boundary `b` is the start of track `b` and at the
+    /// same time the end of track `b − 1` — the tracks lie against each other
+    /// without gaps, and editing has to keep it that way. Moving only one side
+    /// would open a gap, and whatever lies in it would end up in no file.
     ///
-    /// Nur am Anfang der Datei (`b == 0`) und an ihrem Ende (`b == Anzahl`)
-    /// lässt sich etwas abschneiden — etwa eine Ansage vor dem ersten Stück.
+    /// Only at the start of the file (`b == 0`) and at its end (`b == count`)
+    /// can something be cut off — an announcement before the first piece, say.
     func moveBoundary(_ boundary: Int, to seconds: Double) {
         let count = splitTracks.count
         guard count > 0, boundary >= 0, boundary <= count else { return }
@@ -341,14 +353,14 @@ extension AppState {
     func setSelectedStartHere() { moveSelectedStart(to: splitCurrentPosition) }
     func setSelectedEndHere() { moveSelectedEnd(to: splitCurrentPosition) }
 
-    /// Beide Grenzen des gewählten Tracks zurück — die Nachbarn gehen mit.
+    /// Both boundaries of the selected track back — the neighbours move along.
     func resetSelectedBoundaries() {
         guard let track = selectedSplitTrack else { return }
         moveSelectedStart(to: track.detected.start)
         moveSelectedEnd(to: track.detected.end)
     }
 
-    /// Kann an der aktuellen Stelle eine neue Grenze entstehen?
+    /// Can a new boundary be created at the current position?
     var canSplitHere: Bool {
         let at = splitCurrentPosition
         return splitTracks.contains {
@@ -365,7 +377,7 @@ extension AppState {
         }
     }
 
-    /// Den gewählten Track mit dem vorigen zusammenlegen.
+    /// Merges the selected track with the previous one.
     func mergeSelectedWithPrevious() {
         guard let index = selectedSplitIndex, index > 0 else { return }
         let previous = splitTracks[index - 1]
@@ -374,7 +386,7 @@ extension AppState {
         splitMark = nil
     }
 
-    /// Eine Grenze entfernen: der Track wandert in seinen Vorgänger.
+    /// Removes a boundary: the track moves into its predecessor.
     func mergeSplitTrack(_ track: SplitTrack) {
         guard let index = splitTracks.firstIndex(where: { $0.id == track.id }) else { return }
         if index > 0 {
@@ -389,10 +401,10 @@ extension AppState {
         splitTracks.remove(at: index)
     }
 
-    // MARK: - Trackliste von außen (§7.12)
+    // MARK: - Track list from outside (§7.12)
 
-    /// Ein Vorschlag für die Suche, aus dem Dateinamen: „Interpret - Album",
-    /// ohne die Klammern, die Uploader anhängen — „(Full Album)", „(486p…)".
+    /// A suggestion for the search, from the file name: "Artist - Album",
+    /// without the parentheses uploaders append — "(Full Album)", "(486p…)".
     var suggestedSplitSearch: (artist: String, album: String) {
         guard let source = splitSource else { return ("", "") }
         var name = source.deletingPathExtension().lastPathComponent
@@ -406,15 +418,15 @@ extension AppState {
                 parts.dropFirst().joined(separator: " - ").trimmingCharacters(in: .whitespaces))
     }
 
-    /// Legt eine Trackliste auf die gefundenen Tracks.
+    /// Lays a track list onto the tracks found.
     ///
-    /// Mit `alignBoundaries` werden die Grenzen neu gesetzt — aus Startzeiten
-    /// oder Längen, eingerastet an erkannten Stillen in der Nähe. Das findet
-    /// auch Übergänge ohne Pause, die keine Stille-Erkennung sieht. Ohne
-    /// bleiben die Grenzen, und die Titel werden der Reihe nach übernommen.
+    /// With `alignBoundaries` the boundaries are set anew — from start times
+    /// or lengths, snapped to detected silences nearby. That also finds
+    /// transitions without a pause, which no silence detection sees. Without
+    /// it the boundaries stay, and the titles are taken over in order.
     ///
-    /// `fields` sagt, was davon in die Tags soll — dieselbe Auswahl wie beim
-    /// Taggen. Was nicht gewählt ist, bleibt, wie es war.
+    /// `fields` says what of it should go into the tags — the same choice as
+    /// when tagging. Whatever is not chosen stays as it was.
     func applyListing(_ listing: TrackListing,
                       fields: Set<TagField> = Set(TrackListing.takeOverFields),
                       alignBoundaries: Bool) {
@@ -455,14 +467,14 @@ extension AppState {
         splitMark = nil
     }
 
-    // MARK: - Schneiden
+    // MARK: - Cutting
 
     var splitCanRun: Bool {
         !splitTracks.isEmpty && splitBlocker == nil
             && splitBlockerForFormat == nil && splitTask == nil
     }
 
-    /// Der Dateiname eines Stücks — dasselbe Muster wie beim Rippen.
+    /// The file name of a piece — the same pattern as when ripping.
     func splitFilename(at index: Int) -> String {
         guard splitTracks.indices.contains(index), let source = splitSource else { return "" }
         let base = renderedSplitName(at: index)
@@ -494,9 +506,9 @@ extension AppState {
         return tags
     }
 
-    /// Welche Felder beim Schneiden geschrieben werden. Titel, Nummer und
-    /// Kommentar immer (§7.2); Album, Interpret, Jahr und Genre nur, wenn eine
-    /// Trackliste sie geliefert hat — sonst bleibt, was die Quelle trug.
+    /// Which fields are written when cutting. Title, number and comment
+    /// always (§7.2); album, artist, year and genre only if a track list
+    /// provided them — otherwise what the source carried stays.
     private var splitWrittenFields: Set<TagField> {
         var fields: Set<TagField> = [.title, .trackNumber, .comment]
         if splitMetadata?.album != nil { fields.insert(.album) }
@@ -538,17 +550,17 @@ extension AppState {
                                                 to: destination, audioOnly: audioOnly,
                                                 output: output, bitrate: rate,
                                                 compressionLevel: level, ffmpeg: tool)
-                    // `-c copy` schleppt die Tags der Quelle mit. Was die ganze
-                    // Aufnahme beschreibt — Interpret, Jahr, Genre —, darf
-                    // bleiben. Was die *Quelldatei* beschreibt, nicht:
+                    // `-c copy` drags the source's tags along. Whatever describes
+                    // the whole recording — artist, year, genre — may stay.
+                    // Whatever describes the *source file* may not:
                     //
-                    // - der Titel, sonst hieße jedes Stück wie das ganze Album;
-                    // - der Kommentar, der bei Downloads fast immer die
-                    //   Herkunfts-URL ist. An einem echten Album-Video
-                    //   gemessen: alle 13 Stücke trugen die YouTube-Adresse.
+                    // - the title, or every piece would be named like the whole album;
+                    // - the comment, which for downloads is almost always the
+                    //   URL it came from. Measured on a real album video: all
+                    //   13 pieces carried the YouTube address.
                     //
-                    // `comment` steht deshalb mit leerem Wert in der Liste —
-                    // das löscht ihn.
+                    // `comment` is therefore in the list with an empty value —
+                    // that deletes it.
                     try? await engine.write(TagEngine.WriteRequest(
                         url: destination, tags: job.tags, fields: fields))
                     produced.append(destination)
@@ -562,8 +574,8 @@ extension AppState {
             splitTask = nil
             splitFailures = failures
             if !produced.isEmpty {
-                // Sichtbar melden, wo die Stücke gelandet sind — ohne das
-                // endet der Vorgang stumm, und man sucht die Dateien.
+                // Report visibly where the pieces ended up — without it the
+                // process ends silently, and one goes looking for the files.
                 splitCompleted = SplitResult(count: produced.count, folder: folder,
                                              files: produced)
                 await addFiles(produced)
@@ -577,8 +589,8 @@ extension AppState {
         splitStage = .idle
     }
 
-    /// Nie eine vorhandene Datei überschreiben — dieselbe Regel wie beim
-    /// Konvertieren.
+    /// Never overwrite an existing file — the same rule as when
+    /// converting.
     private static func freeURL(in folder: URL, name: String, extension ext: String) -> URL {
         let candidate = folder.appendingPathComponent("\(name).\(ext)")
         guard FileManager.default.fileExists(atPath: candidate.path(percentEncoded: false))

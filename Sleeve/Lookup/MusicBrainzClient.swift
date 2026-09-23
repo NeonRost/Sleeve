@@ -2,20 +2,35 @@
 //  MusicBrainzClient.swift
 //  Sleeve
 //
-//  Die tokenfreie Nachschlagequelle (Spec §4.6, §6.2).
+//  Copyright (C) 2026 NeonRost
 //
-//  MusicBrainz verlangt kein Konto und keinen Schlüssel — nur einen
-//  aussagekräftigen User-Agent und **höchstens eine Anfrage pro Sekunde**.
-//  Wer schneller fragt, bekommt 503.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The lookup source without a token (spec §4.6, §6.2).
+//
+//  MusicBrainz requires no account and no key — only a meaningful
+//  User-Agent and **at most one request per second**. Whoever asks faster
+//  gets 503.
 //
 
 import Foundation
 
-// MARK: - Antwortstrukturen
+// MARK: - Response structures
 
 struct MBArtistCredit: Decodable, Sendable {
     struct Artist: Decodable, Sendable { var name: String? }
-    /// Die für diese Veröffentlichung gutgeschriebene Schreibweise.
+    /// The spelling credited for this release.
     var name: String?
     var joinphrase: String?
     var artist: Artist?
@@ -47,10 +62,10 @@ struct MBLabelInfo: Decodable, Sendable {
 
 struct MBGenre: Decodable, Sendable { var name: String? }
 
-/// Genres hängen bei MusicBrainz fast nie am einzelnen Release, sondern an
-/// der Release-Group. Nachgemessen: selbst „Nevermind" hat am Release keine,
-/// an der Gruppe sieben. Ohne diesen Umweg bliebe das Genrefeld fast immer
-/// leer.
+/// At MusicBrainz, genres hardly ever hang off the individual release
+/// but off the release group. Measured: even "Nevermind" has none on the
+/// release and seven on the group. Without this detour the genre field
+/// would almost always stay empty.
 struct MBReleaseGroup: Decodable, Sendable {
     var id: String?
     var primaryType: String?
@@ -125,7 +140,7 @@ struct MBRelease: Decodable, Sendable {
         return media.count > 1 ? "\(media.count)× \(formats[0])" : formats[0]
     }
 
-    /// Das Cover Art Archive ist offen und braucht ebenfalls keinen Schlüssel.
+    /// The Cover Art Archive is open and needs no key either.
     var coverURL: URL? {
         URL(string: "https://coverartarchive.org/release/\(id)/front-250")
     }
@@ -158,8 +173,8 @@ struct MBRelease: Decodable, Sendable {
             country: country,
             labelSummary: labelSummary,
             formatSummary: formatSummary,
-            // Erst am Release nachsehen, dann an der Gruppe — dort stehen sie
-            // in aller Regel.
+            // Look at the release first, then at the group — that is where they
+            // usually are.
             genres: {
                 let own = (genres ?? []).compactMap(\.name)
                 return own.isEmpty ? (releaseGroup?.genres ?? []).compactMap(\.name) : own
@@ -185,7 +200,7 @@ struct MBRelease: Decodable, Sendable {
     }
 }
 
-/// Antwort der Disc-ID-Abfrage.
+/// Response of the disc ID query.
 struct MBDiscResponse: Decodable, Sendable {
     var releases: [MBRelease]?
 }
@@ -217,14 +232,14 @@ actor MusicBrainzClient {
         }
     }
 
-    /// MusicBrainz verlangt Anwendungsname, Version und eine Kontaktmöglichkeit.
-    /// Ein allgemeiner User-Agent wird geblockt.
+    /// MusicBrainz requires the application name, version and a way to get
+    /// in touch. A generic User-Agent gets blocked.
     static let userAgent = "Sleeve/1.0 ( https://github.com/NeonRost/Sleeve )"
 
     private static let baseURL = URL(string: "https://musicbrainz.org/ws/2")!
 
     private let session: URLSession
-    /// Eine Anfrage pro Sekunde — das ist die dokumentierte Obergrenze.
+    /// One request per second — that is the documented limit.
     private let limiter = RateLimiter(limit: 1, per: .seconds(1))
 
     init(session: URLSession = .shared) {
@@ -252,9 +267,9 @@ actor MusicBrainzClient {
         return (response.releases ?? []).map { $0.asLookupSearchResult() }
     }
 
-    /// Sucht über die Disc ID. Das ist der genaue Weg: die Kennung fällt aus
-    /// der TOC und trifft damit **diese** Pressung, nicht bloß ein Album
-    /// gleichen Namens. Leeres Ergebnis heißt: nicht eingetragen.
+    /// Searches via the disc ID. That is the exact route: the identifier
+    /// follows from the TOC and thus hits **this** pressing, not just an album
+    /// of the same name. An empty result means: not registered.
     func releases(discID: String) async throws -> [LookupRelease] {
         do {
             let response: MBDiscResponse = try await get("/discid/\(discID)", items: [
@@ -263,15 +278,15 @@ actor MusicBrainzClient {
             ])
             return (response.releases ?? []).map { $0.asLookupRelease() }
         } catch ClientError.notFound {
-            // Für eine Disc ID ist „unbekannt" eine Antwort, kein Fehler.
+            // For a disc ID, "unknown" is an answer, not an error.
             return []
         }
     }
 
-    /// Ersatzweg, wenn die Disc ID nicht eingetragen ist: MusicBrainz kann
-    /// auch über die rohe TOC suchen. Das trifft unschärfer — Pressungen mit
-    /// geringfügig anderen Spurlängen kommen mit — und liefert deshalb
-    /// mehrere Treffer zur Auswahl.
+    /// Fallback when the disc ID is not registered: MusicBrainz can also
+    /// search by the raw TOC. That is less exact — pressings with slightly
+    /// different track lengths come along — and therefore returns several
+    /// candidates to choose from.
     func releases(tocParameter: String) async throws -> [LookupRelease] {
         do {
             let response: MBDiscResponse = try await get("/discid/-", items: [
@@ -293,10 +308,10 @@ actor MusicBrainzClient {
         return release.asLookupRelease()
     }
 
-    // MARK: - Intern
+    // MARK: - Internal
 
-    /// Lucene-Sonderzeichen maskieren, sonst zerlegt ein Titel wie
-    /// „Best of (Live)" die Abfrage.
+    /// Escape Lucene special characters, or a title like "Best of (Live)"
+    /// breaks the query apart.
     private func escape(_ text: String) -> String {
         var escaped = ""
         for character in text {
@@ -306,9 +321,9 @@ actor MusicBrainzClient {
         return escaped
     }
 
-    /// MusicBrainz antwortet bei Überlast mit 503 und erwartet, dass der
-    /// Aufrufer es gleich noch einmal versucht. Ein einzelner 503 ist also
-    /// kein Fehler, sondern eine Bitte um Geduld.
+    /// When overloaded, MusicBrainz answers with 503 and expects the caller
+    /// to try again right away. A single 503 is therefore not an error but a
+    /// request for patience.
     private func get<T: Decodable>(_ path: String, items: [URLQueryItem],
                                    attempt: Int = 1) async throws -> T {
         do {
@@ -342,7 +357,7 @@ actor MusicBrainzClient {
             switch http.statusCode {
             case 200..<300: break
             case 404:       throw ClientError.notFound
-            case 503:       throw ClientError.busy   // zu schnell gefragt
+            case 503:       throw ClientError.busy   // asked too fast
             default:        throw ClientError.server(http.statusCode)
             }
         }

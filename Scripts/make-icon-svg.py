@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 NeonRost
+# SPDX-License-Identifier: GPL-3.0-or-later
 """
-make-icon-svg.py — erzeugt alle SVG-Quellen für das Sleeve-Icon.
+make-icon-svg.py — generates all SVG sources for the Sleeve icon.
 
-Master, Einzelebenen und Dark-Variante entstehen aus derselben Geometrie,
-damit sie nicht auseinanderlaufen. Vorgaben: Docs/ICON-BRIEF.md.
+Master, individual layers and dark variant come from the same geometry, so
+that they cannot drift apart. Requirements: Docs/ICON-BRIEF.md.
 """
 
 import colorsys
@@ -14,16 +16,16 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICON = os.path.join(ROOT, "Icon")
 
-# Das Icon-Composer-Dokument entsteht zweimal: einmal als Entwurfslieferung in
-# Icon/, einmal im App-Ordner, wo Xcodes synchronisierte Gruppe es findet und
-# als App-Icon einbindet. Beide werden erzeugt, können also nicht auseinander-
-# laufen — keine der beiden Fassungen von Hand bearbeiten.
+# The Icon Composer document is produced twice: once as the design delivery in
+# Icon/, once in the app folder, where Xcode's synchronized group finds it and
+# uses it as the app icon. Both are generated, so they cannot drift apart —
+# do not edit either copy by hand.
 ICON_BUNDLES = [
     os.path.join(ICON, "Sleeve.icon"),
     os.path.join(ROOT, "Sleeve", "Resources", "Sleeve.icon"),
 ]
 
-# ── Geometrie ───────────────────────────────────────────────────────────────
+# ── Geometry ────────────────────────────────────────────────────────────────
 CANVAS = 1024
 SQ = dict(x=100, y=100, w=824, h=824, rx=184)          # macOS-Squircle
 SLEEVE = dict(x=150, y=277, w=470, h=470, rx=20)
@@ -31,9 +33,9 @@ DISC = dict(cx=620, cy=512, r=235)
 HUB_R, HOLE_R = 88, 42
 SLOT = dict(x=602, y=297, w=16, h=430, rx=8)
 
-# Optische Korrektur (ICON-BRIEF §2): links bleiben 50 px Luft, rechts 69.
-# Der runde CD-Rand verträgt weniger Rand als die gerade Hüllenkante, die
-# Gruppe wandert deshalb um das erlaubte Maximum nach rechts → 60 / 59.
+# Optical correction (ICON-BRIEF §2): 50 px of room remain on the left, 69 on
+# the right. The round CD edge tolerates less margin than the straight sleeve
+# edge, so the group moves right by the permitted maximum → 60 / 59.
 SHIFT = 10
 
 LINES = [  # y, Breite, Deckkraft
@@ -44,7 +46,7 @@ LINES = [  # y, Breite, Deckkraft
 ]
 LINE_H, LINE_RX, LINE_X = 30, 15, 196
 
-# ── Palette (NeonRost, unverändert) ─────────────────────────────────────────
+# ── Palette (NeonRost, unchanged) ───────────────────────────────────────────
 C_LIGHTEST = "#8FE3FF"
 C_MID      = "#35B4E8"
 C_SLEEVE_T = "#0E6EA6"
@@ -55,7 +57,7 @@ C_SHADOW   = "#031F33"
 
 
 def desaturate(hex_color, amount):
-    """Sättigung um `amount` (0–1) relativ absenken."""
+    """Lower the saturation relatively by `amount` (0–1)."""
     r, g, b = (int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5))
     h, l, s = colorsys.rgb_to_hls(r, g, b)
     r, g, b = colorsys.hls_to_rgb(h, l, s * (1 - amount))
@@ -63,22 +65,22 @@ def desaturate(hex_color, amount):
 
 
 def srgb(hex_color):
-    """Farbcodierung, die Icon Composer erwartet: Farbraum, Doppelpunkt,
-       vier Komponenten. Ein blanker Hex-Wert bringt actool zum Absturz."""
+    """Color encoding Icon Composer expects: color space, colon, four
+       components. A bare hex value crashes actool."""
     r, g, b = (int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5))
     return f"extended-srgb:{r:.4f},{g:.4f},{b:.4f},1.0000"
 
 
-# Dark Mode: nur der hellste Verlaufsstopp wird entsättigt (ICON-BRIEF §6).
+# Dark mode: only the lightest gradient stop is desaturated (ICON-BRIEF §6).
 C_LIGHTEST_DARK = desaturate(C_LIGHTEST, 0.15)
 
 
 def line_opacity(o, dark):
-    """Zeilen im Dark Mode um 10 % anheben, damit sie sich behaupten."""
+    """Raise the lines by 10 % in dark mode, so that they hold their own."""
     return round(min(1.0, o * 1.10), 3) if dark else o
 
 
-# ── SVG-Bausteine ───────────────────────────────────────────────────────────
+# ── SVG building blocks ─────────────────────────────────────────────────────
 
 def defs(dark=False, need=None):
     need = need or ALL_DEFS
@@ -99,7 +101,7 @@ def defs(dark=False, need=None):
     </linearGradient>''')
 
     if "cd" in need:
-        # Quer zum Hintergrundverlauf: von unten-links nach oben-rechts.
+        # Across the background gradient: from bottom left to top right.
         out.append('''    <linearGradient id="discGradient" x1="0" y1="1" x2="1" y2="0">
       <stop offset="0" stop-color="#FFFFFF"/>
       <stop offset="0.30" stop-color="#CFEEFB"/>
@@ -115,9 +117,9 @@ def defs(dark=False, need=None):
     </linearGradient>''')
 
     if "facets" in need:
-        # Die Facetten werden weichgezeichnet. Eine harte Polygonkante behält
-        # beim Verkleinern ihre volle Amplitude und bleibt deshalb auch bei
-        # 128 px als Kante erkennbar — genau das soll sie nicht (§7, Punkt 4).
+        # The facets are blurred. A hard polygon edge keeps its full amplitude
+        # when scaled down and therefore stays recognizable as an edge even at
+        # 128 px — which is exactly what it should not (§7, point 4).
         out.append('''    <filter id="facetBlur" x="-20%" y="-20%" width="140%" height="140%">
       <feGaussianBlur stdDeviation="26"/>
     </filter>''')
@@ -141,30 +143,30 @@ def defs(dark=False, need=None):
     return "\n".join(out)
 
 
-# ── Randlose Fassung für Icon Composer ──────────────────────────────────────
+# ── Borderless version for Icon Composer ────────────────────────────────────
 #
-# Zwei Zielformate, zwei Geometrien — das lässt sich nicht vermeiden:
+# Two target formats, two geometries — that cannot be avoided:
 #
-#   .icns          Das Bild bringt seine eigene Squircle-Form samt Rand mit.
-#                  Das ist die Vorgabe aus ICON-BRIEF §2.
-#   Icon Composer  Die Ebenen müssen die volle Fläche füllen; die Squircle-
-#                  Maske, den Schatten und das Glanzlicht legt macOS selbst an.
-#                  Ein eingerückter Squircle in der Ebene ergibt sonst ein
-#                  Icon im Icon, mit dunklem Rahmen drumherum.
+#   .icns          The picture brings its own squircle shape including the
+#                  margin. That is the requirement from ICON-BRIEF §2.
+#   Icon Composer  The layers have to fill the whole area; macOS applies the
+#                  squircle mask, the shadow and the highlight itself. An
+#                  inset squircle in the layer otherwise makes an icon within
+#                  the icon, with a dark frame around it.
 #
-# Der Inhalt wird dafür vom Squircle (824 px) auf die volle Leinwand
-# hochskaliert und der eigene Schlagschatten weggelassen.
+# For that, the content is scaled up from the squircle (824 px) to the full
+# canvas, and the own drop shadow is left out.
 BLEED = CANVAS / SQ["w"]
 BLEED_TRANSFORM = (f'translate({CANVAS / 2},{CANVAS / 2}) scale({BLEED:.6f}) '
                    f'translate({-CANVAS / 2},{-CANVAS / 2})')
 
 
 def bleed(markup):
-    """Gruppeninhalt randlos aufziehen: Squircle-Clip raus, eigener
-       Schlagschatten raus, Inhalt auf die volle Leinwand skaliert."""
+    """Stretch group content borderless: squircle clip out, own drop
+       shadow out, content scaled to the full canvas."""
     markup = markup.replace(' clip-path="url(#squircleClip)"', "")
     markup = markup.replace(' filter="url(#softShadow)"', "")
-    # Der Hintergrund ist kein skalierter Inhalt, sondern füllt einfach alles.
+    # The background is not scaled content, it simply fills everything.
     markup = markup.replace(
         f'''<rect x="{SQ['x']}" y="{SQ['y']}" width="{SQ['w']}" height="{SQ['h']}"
           rx="{SQ['rx']}" fill="url(#bgGradient)"/>''',
@@ -179,9 +181,9 @@ def group_background(dark=False):
     return f'''  <g id="background" clip-path="url(#squircleClip)">
     <rect x="{SQ['x']}" y="{SQ['y']}" width="{SQ['w']}" height="{SQ['h']}"
           rx="{SQ['rx']}" fill="url(#bgGradient)"/>
-    <!-- Kristallfacetten: bei 1024 px spürbar, ab 128 px unsichtbar.
-         Weichgezeichnet, damit keine Kante übrig bleibt, die das Verkleinern
-         unbeschadet übersteht. -->
+    <!-- Crystal facets: noticeable at 1024 px, invisible from 128 px down.
+         Blurred, so that no edge is left that survives scaling down
+         unscathed. -->
     <g filter="url(#facetBlur)">
       <polygon points="100,556 476,100 648,100 100,748" fill="#FFFFFF" opacity="0.05"/>
       <polygon points="924,262 924,486 596,924 372,924" fill="#FFFFFF" opacity="0.032"/>
@@ -209,10 +211,10 @@ def group_sleeve(dark=False):
       <rect x="{SLEEVE['x']}" y="{SLEEVE['y']}" width="{SLEEVE['w']}"
             height="{SLEEVE['h']}" rx="{SLEEVE['rx']}"
             fill="url(#sleeveGradient)" filter="url(#softShadow)"/>
-      <!-- Glanzkante, an der Hüllenform beschnitten -->
+      <!-- Gloss edge, clipped to the sleeve shape -->
       <rect x="{SLEEVE['x']}" y="{SLEEVE['y']}" width="{SLEEVE['w']}" height="46"
             fill="url(#glossGradient)" clip-path="url(#sleeveClip)"/>
-      <!-- Öffnungsschlitz, aus dem die CD kommt -->
+      <!-- Opening slit the CD comes out of -->
       <rect x="{SLOT['x']}" y="{SLOT['y']}" width="{SLOT['w']}"
             height="{SLOT['h']}" rx="{SLOT['rx']}"
             fill="{C_SHADOW}" opacity="0.45"/>
@@ -255,7 +257,7 @@ def write(path, text):
 
 
 def main():
-    print("SVG-Quellen:")
+    print("SVG sources:")
 
     for dark, name in ((False, "sleeve-icon-master.svg"), (True, "sleeve-icon-dark.svg")):
         write(os.path.join(ICON, name), document(
@@ -263,7 +265,7 @@ def main():
             dark,
         ))
 
-    # Einzelebenen für Icon Composer — je Datei nur eine Gruppe, nichts vermischt.
+    # Individual layers for Icon Composer — one group per file, nothing mixed.
     layers = {
         "background": (group_background, ("bg", "facets", "clips")),
         "disc":       (group_disc,       ("cd", "shadow", "clips")),
@@ -271,25 +273,25 @@ def main():
         "metadata":   (group_metadata,   ("clips",)),
     }
     for name, (builder, need) in layers.items():
-        # Die Einzelebenen sind die Importquelle für Icon Composer und
-        # deshalb randlos — identisch mit dem, was in den .icon-Bundles liegt.
-        # Die eingerückte Squircle-Fassung steckt im Master und in der .icns.
+        # The individual layers are the import source for Icon Composer and
+        # therefore borderless — identical to what is in the .icon bundles.
+        # The inset squircle version lives in the master and in the .icns.
         svg = document([bleed(builder(False))], dark=False, need=need)
         write(os.path.join(ICON, "layers", f"{name}.svg"), svg)
         for bundle in ICON_BUNDLES:
             write(os.path.join(bundle, "Assets", f"{name}.svg"), svg)
 
-    # Icon-Composer-Dokument. Reihenfolge im JSON ist von vorne nach hinten.
+    # Icon Composer document. The order in the JSON is front to back.
     #
-    # Farben brauchen hier zwingend eine Farbraum-Angabe mit Doppelpunkt —
-    # ein Hex-Wert lässt actool mit einer nil-Exception abstürzen, ohne zu
-    # sagen, welches Feld gemeint ist.
+    # Colors here strictly need a color space with a colon — a hex value
+    # crashes actool with a nil exception, without saying which field is
+    # meant.
     icon_json = {
         "fill": {"automatic-gradient": srgb(C_MID)},
         "groups": [
             {
-                # Vordergrund: bekommt den Systemschatten und das
-                # System-Glanzlicht. Eigene Spiegelungen zeichnen wir nicht.
+                # Foreground: gets the system shadow and the system
+                # highlight. We draw no reflections of our own.
                 "layers": [
                     {"image-name": "metadata.svg", "name": "metadata"},
                     {"image-name": "sleeve.svg", "name": "sleeve"},
@@ -308,8 +310,8 @@ def main():
     for bundle in ICON_BUNDLES:
         write(os.path.join(bundle, "icon.json"), json.dumps(icon_json, indent=2) + "\n")
 
-    print(f"\n  Dark-Mode-Verlaufsstopp: {C_LIGHTEST} → {C_LIGHTEST_DARK} (Sättigung −15 %)")
-    print(f"  Optische Verschiebung:   +{SHIFT} px nach rechts")
+    print(f"\n  Dark mode gradient stop: {C_LIGHTEST} → {C_LIGHTEST_DARK} (saturation −15 %)")
+    print(f"  Optical shift:           +{SHIFT} px to the right")
 
 
 if __name__ == "__main__":

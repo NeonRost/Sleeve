@@ -2,11 +2,26 @@
 //  ArtworkImportSheet.swift
 //  Sleeve
 //
-//  Entscheidung pro Bild statt globaler Voreinstellung (Spec §4.5).
+//  Copyright (C) 2026 NeonRost
 //
-//  Die angezeigte Dateigröße ist keine Schätzung: das Bild wird mit den
-//  aktuellen Einstellungen tatsächlich kodiert und das Ergebnis gemessen.
-//  Für ein Cover in üblicher Größe dauert das wenige Millisekunden.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  A decision per picture instead of a global preset (spec §4.5).
+//
+//  The file size shown is not an estimate: the picture is actually encoded
+//  with the current settings and the result measured. For a cover of the
+//  usual size that takes a few milliseconds.
 //
 
 import AppKit
@@ -17,16 +32,16 @@ struct ArtworkImportSheet: View {
 
     let sourceData: Data
     let sourceName: String
-    /// Welche Bildtypen die Auswahl schon trägt. Daraus ergibt sich, was
-    /// beim Übernehmen tatsächlich passiert — und wie der Knopf heißt.
+    /// Which picture types the selection already carries. That determines
+    /// what taking the picture over actually does — and what the button says.
     let existingTypes: Set<PictureType>
-    /// Wird mit dem fertigen Bild aufgerufen. `replacingAll == true` räumt
-    /// alle bisherigen Bilder weg.
+    /// Called with the finished picture. `replacingAll == true` clears away
+    /// all previous pictures.
     let onApply: (Artwork, Bool) -> Void
 
     @State private var pictureType: PictureType = .frontCover
-    /// Bewusst aus. Anhängen ist der Normalfall; alles wegzuräumen ist die
-    /// Ausnahme und muss ausdrücklich gewollt sein.
+    /// Off on purpose. Appending is the normal case; clearing everything is
+    /// the exception and has to be explicitly wanted.
     @State private var replacesAll = false
     @State private var keepsOriginalSize = true
     @State private var targetEdge = 500
@@ -48,14 +63,14 @@ struct ArtworkImportSheet: View {
         )
     }
 
-    /// Ändert sich das, wird neu gerechnet — `task(id:)` bricht den laufenden
-    /// Durchgang ab, solange am Regler gezogen wird.
+    /// When this changes, the result is recomputed — `task(id:)` cancels the
+    /// running pass while the slider is being dragged.
     private var signature: String {
         "\(keepsOriginalSize)-\(targetEdge)-\(output.rawValue)-\(Int(quality * 100))-\(pictureType.rawValue)"
     }
 
-    /// Sagt, was der Knopf tun wird — „Ersetzen" wäre falsch, wenn es zu
-    /// diesem Bildtyp noch gar kein Bild gibt.
+    /// Says what the button will do — "Replace" would be wrong when there is
+    /// no picture of this type yet.
     private var actionLabel: LocalizedStringKey {
         if replacesAll { return "Replace All" }
         if existingTypes.contains(pictureType) { return "Replace" }
@@ -113,8 +128,8 @@ struct ArtworkImportSheet: View {
         }
         .frame(width: 560)
         .task(id: signature) {
-            // Kurz warten, damit das Ziehen am Regler nicht jede Zwischenstufe
-            // kodiert.
+            // Wait briefly, so that dragging the slider does not encode every
+            // intermediate step.
             try? await Task.sleep(for: .milliseconds(120))
             guard !Task.isCancelled else { return }
 
@@ -129,7 +144,7 @@ struct ArtworkImportSheet: View {
         }
     }
 
-    // MARK: - Vorschau
+    // MARK: - Preview
 
     private var preview: some View {
         VStack(spacing: 6) {
@@ -153,13 +168,13 @@ struct ArtworkImportSheet: View {
         }
     }
 
-    // MARK: - Bedienung
+    // MARK: - Controls
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Der Bildtyp landet wirklich im Tag. Für ein eingescanntes
-            // Booklet ist „Leaflet page" gemeint, nicht „Front Cover" —
-            // Abspielprogramme unterscheiden das.
+            // The picture type really ends up in the tag. For a scanned
+            // booklet "Leaflet page" is meant, not "Front Cover" — players
+            // tell the two apart.
             Picker("Kind", selection: $pictureType) {
                 ForEach(PictureType.commonCases, id: \.self) { type in
                     Text(type.label).tag(type)
@@ -225,10 +240,9 @@ struct ArtworkImportSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Vergleich
+    // MARK: - Comparison
 
-    /// Vorher und nachher nebeneinander — das ist die Angabe, auf die es
-    /// ankommt.
+    /// Before and after side by side — that is the figure that matters.
     private var comparison: String {
         let before = describe(size: sourceSize, bytes: sourceData.count)
         guard let result else { return before }

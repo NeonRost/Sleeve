@@ -2,9 +2,24 @@
 //  LookupModels.swift
 //  Sleeve
 //
-//  Gemeinsame Sprache für alle Nachschlagequellen. Discogs und MusicBrainz
-//  antworten völlig verschieden; die Zuordnungs-Oberfläche und der
-//  `ReleaseMatcher` sollen davon nichts merken.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  A common language for all lookup sources. Discogs and MusicBrainz answer
+//  completely differently; the matching UI and `ReleaseMatcher` should not
+//  notice.
 //
 
 import Foundation
@@ -21,13 +36,12 @@ enum LookupProvider: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Discogs sperrt seine Suche hinter einen Token. MusicBrainz nicht —
-    /// dort genügt ein aussagekräftiger User-Agent.
+    /// Discogs locks its search behind a token. MusicBrainz does not — a
+    /// meaningful User-Agent is enough there.
     var needsToken: Bool { self == .discogs }
 
-    /// Vorgabe beider Nachschlage-Blätter: Discogs, sobald ein Token
-    /// hinterlegt ist — bessere Cover, feinere Styles. Sonst MusicBrainz, das
-    /// ohne auskommt.
+    /// Default for both lookup sheets: Discogs as soon as a token is stored —
+    /// better covers, finer styles. Otherwise MusicBrainz, which needs none.
     static func preferred(hasDiscogsToken: Bool) -> LookupProvider {
         hasDiscogsToken ? .discogs : .musicBrainz
     }
@@ -43,19 +57,19 @@ enum LookupProvider: String, CaseIterable, Identifiable, Sendable {
 }
 
 struct LookupTrack: Sendable, Hashable {
-    /// Wie die Quelle es schreibt: "3", "A1", "1-3".
+    /// As the source writes it: "3", "A1", "1-3".
     var position: String?
     var title: String?
     var artistName: String?
     var duration: String?
-    /// Schon aufgelöst, wo die Quelle es hergibt.
+    /// Already resolved, where the source provides it.
     var disc: Int?
     var number: Int?
 }
 
 struct LookupSearchResult: Sendable, Identifiable, Hashable {
     var provider: LookupProvider
-    /// Bei Discogs eine Zahl, bei MusicBrainz eine UUID — deshalb Text.
+    /// A number at Discogs, a UUID at MusicBrainz — hence text.
     var id: String
     var title: String
     var subtitle: String
@@ -71,7 +85,7 @@ struct LookupRelease: Sendable {
     var country: String?
     var labelSummary: String?
     var formatSummary: String?
-    /// MusicBrainz kennt nur Genres, Discogs trennt Genre und Style.
+    /// MusicBrainz only knows genres, Discogs separates genre and style.
     var genres: [String] = []
     var styles: [String] = []
     var thumbnailURL: URL?
@@ -89,9 +103,9 @@ struct LookupRelease: Sendable {
     }
 }
 
-/// Discogs trennt `genre` („Rock") und `style` („Melodic Death Metal").
-/// Gewünscht ist meist der Style (Spec §4.6). MusicBrainz liefert nur Genres —
-/// dort fällt die Wahl automatisch darauf zurück.
+/// Discogs separates `genre` ("Rock") and `style` ("Melodic Death Metal").
+/// The style is usually what one wants (spec §4.6). MusicBrainz only
+/// delivers genres — there the choice falls back to them automatically.
 enum GenreSource: String, CaseIterable, Identifiable, Sendable {
     case style, genre, both
 
@@ -115,7 +129,7 @@ enum GenreSource: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// Aus "1987-04-01" oder "1987" die Jahreszahl.
+/// The year from "1987-04-01" or "1987".
 extension String {
     var leadingYearValue: Int? {
         let digits = prefix { $0.isNumber }
@@ -124,12 +138,12 @@ extension String {
     }
 }
 
-/// Wie genau eine Länge aus der Quelle zur eigenen passen muss — gilt beim
-/// Taggen wie im Track Splitter.
+/// How closely a length from the source has to match one's own — the same
+/// when tagging and in the Track Splitter.
 enum LookupComparison {
-    /// Ab wann eine Abweichung orange wird. Uploader runden auf ganze
-    /// Sekunden, Pressungen unterscheiden sich um Bruchteile — drei Sekunden
-    /// fangen beides ab und lassen echte Fehlgriffe durch.
+    /// From when on a deviation turns orange. Uploaders round to whole
+    /// seconds, pressings differ by fractions — three seconds absorb both and
+    /// still let real mismatches through.
     static let tolerance: Double = 3
 
     static func deviates(_ mine: Double?, from theirs: Double?) -> Bool {

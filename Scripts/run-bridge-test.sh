@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 #
-# run-bridge-test.sh — kompiliert Model + TagEngine zusammen mit bridge-test.swift
-# und lässt die Prüfungen gegen Kopien aus TestFiles/ laufen.
+# run-bridge-test.sh — compiles the app's model and engine code together with
+# the checks in Scripts/bridge-test/ and runs them against copies of TestFiles/.
+#
+# Copyright (C) 2026 NeonRost
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 set -euo pipefail
 

@@ -2,12 +2,27 @@
 //  AppState+Operations.swift
 //  Sleeve
 //
-//  Die Stapelverarbeitungen aus der Toolbar: Nummerierung (§4.2),
-//  Schreibweise (§4.3), Pattern-Engine in beide Richtungen (§4.4),
-//  Coverbilder (§4.5) und Music.app (§4.7).
+//  Copyright (C) 2026 NeonRost
 //
-//  Alle arbeiten auf dem **Editor-Zustand**, nie direkt auf der Platte.
-//  Geschrieben wird ausschließlich beim Speichern.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The batch operations from the toolbar: numbering (§4.2), capitalization
+//  (§4.3), the pattern engine in both directions (§4.4), cover pictures
+//  (§4.5) and the Music app (§4.7).
+//
+//  All of them work on the **editor state**, never directly on disk.
+//  Nothing is written until the user saves.
 //
 
 import AppKit
@@ -15,27 +30,26 @@ import Foundation
 
 extension AppState {
 
-    /// Ziel jeder Operation: die Auswahl, oder die ganze Liste, wenn nichts
-    /// ausgewählt ist. So verhält sich Tagr auch.
+    /// Target of every operation: the selection, or the whole list when
+    /// nothing is selected. Tagr behaves the same way.
     var operationTargets: [TrackFile] {
         let selected = trackList.selectedTracks
         return selected.isEmpty ? trackList.tracksInDisplayOrder : selected
     }
 
-    /// Dieselben Tracks, aber in der Reihenfolge der Tabelle — für die
-    /// Nummerierung entscheidend.
+    /// The same tracks, but in table order — decisive for numbering.
     var operationTargetsInDisplayOrder: [TrackFile] {
         let targets = Set(operationTargets.map(\.id))
         return trackList.tracksInDisplayOrder.filter { targets.contains($0.id) }
     }
 
-    // MARK: - Nummerierung (§4.2)
+    // MARK: - Numbering (§4.2)
 
     func applyNumbering(_ options: NumberingOptions) {
         Numbering.apply(options, to: operationTargetsInDisplayOrder)
     }
 
-    // MARK: - Schreibweise (§4.3)
+    // MARK: - Capitalization (§4.3)
 
     func applyCase(_ textCase: TextCase, language: TextCase.Language, fields: Set<TagField>) {
         for track in operationTargets {
@@ -46,16 +60,16 @@ extension AppState {
         }
     }
 
-    /// Felder, auf die sich die Schreibweise sinnvoll anwenden lässt.
-    /// `nonisolated`, damit die Liste auch aus `AllInOneOptions` erreichbar ist.
+    /// Fields capitalization can sensibly be applied to. `nonisolated`, so
+    /// that `AllInOneOptions` can reach the list too.
     nonisolated static let textFields: [TagField] = [
         .title, .artist, .albumArtist, .album, .composer, .genre, .comment,
     ]
 
-    // MARK: - Tags → Dateiname (§4.4)
+    // MARK: - Tags → file name (§4.4)
 
-    /// Vorschau, bevor etwas passiert. Gibt je Track den vorgeschlagenen
-    /// Namen zurück — Kollisionen sind schon aufgelöst.
+    /// Preview before anything happens. Returns the proposed name per track —
+    /// collisions are already resolved.
     func previewFilenames(pattern: String, padsNumbers: Bool = true) -> [(TrackFile, String)] {
         let targets = operationTargetsInDisplayOrder
         guard PatternSyntax.containsToken(pattern) else { return [] }
@@ -71,7 +85,7 @@ extension AppState {
 
     func applyFilenamePattern(_ pattern: String, padsNumbers: Bool = true) {
         for (track, name) in previewFilenames(pattern: pattern, padsNumbers: padsNumbers) {
-            // Gleicht der Vorschlag dem aktuellen Namen, gibt es nichts zu tun.
+            // If the proposal equals the current name, there is nothing to do.
             track.proposedFilename = name == track.filename ? nil : name
         }
     }
@@ -80,13 +94,13 @@ extension AppState {
         operationTargets.forEach { $0.proposedFilename = nil }
     }
 
-    // MARK: - Dateiname → Tags (§4.4)
+    // MARK: - File name → tags (§4.4)
 
     struct ExtractionPreview: Identifiable {
         let id: TrackFile.ID
         let track: TrackFile
         let subject: String
-        /// `nil` heißt: passt nicht auf den Pattern, wird übersprungen.
+        /// `nil` means: does not fit the pattern, skipped.
         let values: [TagField: String]?
     }
 
@@ -102,8 +116,8 @@ extension AppState {
         }
     }
 
-    /// Übernimmt nur die Zeilen, die matchen. Nicht-matchende bleiben
-    /// unangetastet (Spec §4.4).
+    /// Takes over only the lines that match. Non-matching ones stay untouched
+    /// (spec §4.4).
     @discardableResult
     func applyExtraction(_ pattern: String) -> Int {
         var applied = 0
@@ -117,16 +131,16 @@ extension AppState {
         return applied
     }
 
-    // MARK: - Coverbilder (§4.5)
+    // MARK: - Cover pictures (§4.5)
 
-    /// Setzt das Bild auf **alle** Zieltracks — der häufigste Fall.
+    /// Sets the picture on **all** target tracks — the most common case.
     ///
-    /// Skaliert und kodiert wird nicht mehr hier, sondern im Einfüge-Dialog:
-    /// eine globale Voreinstellung trifft es je Bild ohnehin nie.
+    /// Scaling and encoding no longer happen here but in the import dialog: a
+    /// global preset never gets it right for every picture anyway.
     func applyArtwork(_ artwork: Artwork, replacing: Bool = true) {
         for track in operationTargets {
-            // Beim Anhängen denselben Bildtyp nicht doppelt führen — zwei
-            // „Front Cover" in einer Datei sind ein Fehler, kein Booklet.
+            // When appending, do not keep the same picture type twice — two
+            // "Front Cover" pictures in one file are a mistake, not a booklet.
             let existing = replacing
                 ? []
                 : track.edited.artwork.filter { $0.pictureType != artwork.pictureType }
@@ -134,13 +148,13 @@ extension AppState {
         }
     }
 
-    /// Entfernt alle Bilder.
+    /// Removes all pictures.
     func removeArtwork() {
         operationTargets.forEach { $0.setArtwork([]) }
     }
 
-    /// Entfernt genau ein Bild. Sinnvoll nur, wenn die Auswahl dieselben
-    /// Bilder trägt — sonst zeigt das Feld ohnehin nichts an.
+    /// Removes exactly one picture. Only useful when the selection carries
+    /// the same pictures — otherwise the well shows nothing anyway.
     func removeArtwork(at index: Int) {
         for track in operationTargets {
             var images = track.edited.artwork
@@ -150,13 +164,13 @@ extension AppState {
         }
     }
 
-    /// Exportiert das Cover des ersten Zieltracks als Datei (§4.5).
+    /// Exports the cover of the first target track as a file (§4.5).
     func exportArtwork(to url: URL) throws {
         guard let artwork = operationTargets.first?.edited.artwork.first else { return }
         try artwork.data.write(to: url)
     }
 
-    // MARK: - Music.app (§4.7)
+    // MARK: - Music app (§4.7)
 
     func addToMusic() {
         let urls = operationTargets.map(\.url)
@@ -173,8 +187,8 @@ extension AppState {
 
     // MARK: - All in One (§4.4)
 
-    /// Reine Verkettung, keine eigene Logik: Nummerierung → Schreibweise →
-    /// Dateibenennung → Speichern.
+    /// Pure chaining, no logic of its own: numbering → capitalization →
+    /// renaming → saving.
     struct AllInOneOptions: Sendable {
         var numbering: NumberingOptions? = NumberingOptions()
         var textCase: TextCase? = .titleCase

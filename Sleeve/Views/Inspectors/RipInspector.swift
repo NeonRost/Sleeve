@@ -2,12 +2,27 @@
 //  RipInspector.swift
 //  Sleeve
 //
-//  Modus „Rippen" (Spec §6).
+//  Copyright (C) 2026 NeonRost
 //
-//  Der Startknopf sitzt **nicht** hier, sondern links in der Werkzeugleiste,
-//  an derselben Stelle wie „Speichern" — und der Fortschritt steht in der
-//  Fußzeile. Beides, weil der Bereich lang ist: unten in einem Formular
-//  scrollt der wichtigste Knopf aus dem Bild.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The Rip mode (spec §6).
+//
+//  The start button does **not** sit here but on the left of the toolbar,
+//  in the same place as "Save" — and progress is in the footer. Both
+//  because the section is long: at the bottom of a form, the most
+//  important button scrolls out of view.
 //
 
 import SwiftUI
@@ -32,12 +47,12 @@ struct RipInspector: View {
         }
         .formStyle(.grouped)
         .task {
-            // Der Beobachter überlebt diesen Bereich — er hängt an AppState,
-            // nicht an der Ansicht. Deshalb hier die Bremse: `inspect()`
-            // öffnet das Laufwerk, liest CD-TEXT, MCN und **jede** ISRC und
-            // fährt dafür jede Spur an. Das ist sekundenlange Arbeit am
-            // Laufwerk und hat im Tag-Bereich nichts zu suchen, bloß weil
-            // jemand einen USB-Stick angesteckt hat.
+            // The observer outlives this section — it hangs off AppState,
+            // not off the view. Hence the brake here: `inspect()` opens the
+            // drive, reads CD-TEXT, MCN and **every** ISRC and seeks to
+            // every track for it. That is seconds of work on the drive and
+            // has no business in the Tag section just because someone
+            // plugged in a USB stick.
             state.discWatcher.start {
                 guard state.activeMode == .rip else { return }
                 Task { await state.refreshDisc() }
@@ -47,24 +62,24 @@ struct RipInspector: View {
     }
 }
 
-// MARK: - Gemeinsamer Feldstil
+// MARK: - Shared field style
 //
-// `LabeledContent` richtet den Inhalt rechts aus und gibt ihm nur so viel
-// Breite, wie er gerade braucht — und klappt ihn unter die Beschriftung,
-// sobald das nicht mehr passt. Beim Textfeld wächst die Wunschbreite mit dem
-// Inhalt, also kippt ausgerechnet die längste Angabe („Malte Arkona, Dresdner
-// Philharmonie") in eine zweite Zeile, während kurze Angaben unterschiedlich
-// breite Felder bekommen.
+// `LabeledContent` right-aligns the content and gives it only as much
+// width as it currently needs — and folds it below the label as soon as
+// that no longer fits. For a text field the desired width grows with the
+// content, so of all things the longest entry ("Malte Arkona, Dresdner
+// Philharmonie") tips into a second line, while short entries get fields
+// of different widths.
 //
-// Eine feste Beschriftungsspalte macht beides unmöglich: alle Felder beginnen
-// an derselben Stelle, reichen bis zum Rand und bleiben einzeilig.
+// A fixed label column makes both impossible: all fields start at the same
+// position, reach the edge and stay on one line.
 
 private struct Row<Content: View>: View {
     let label: LocalizedStringKey
     @ViewBuilder var content: Content
 
-    /// Breit genug für die längste Beschriftung in diesem Bereich, auch auf
-    /// Spanisch („Compositor", „Nombre de la carpeta" steht einzeln).
+    /// Wide enough for the longest label in this section, in Spanish too
+    /// ("Compositor"; "Nombre de la carpeta" sits on its own).
     static var labelWidth: CGFloat { 96 }
 
     var body: some View {
@@ -82,8 +97,8 @@ private struct LabeledField: View {
     let label: LocalizedStringKey
     @Binding var text: String
     var prompt: LocalizedStringKey?
-    /// Für Platzhalter, die sich zur Laufzeit ergeben und deshalb kein
-    /// übersetzbarer Schlüssel sein können.
+    /// For placeholders that only emerge at runtime and therefore cannot
+    /// be a translatable key.
     var placeholderText: String?
 
     var body: some View {
@@ -96,7 +111,7 @@ private struct LabeledField: View {
     }
 }
 
-/// Nur-lesende Zeile im selben Raster.
+/// A read-only row in the same grid.
 private struct ReadOnlyRow<Content: View>: View {
     let label: LocalizedStringKey
     @ViewBuilder var content: Content
@@ -108,7 +123,7 @@ private struct ReadOnlyRow<Content: View>: View {
     }
 }
 
-// MARK: - Keine Scheibe
+// MARK: - No disc
 
 private struct NoDiscSection: View {
     @Environment(AppState.self) private var state
@@ -129,7 +144,7 @@ private struct NoDiscSection: View {
     }
 }
 
-// MARK: - Die Scheibe
+// MARK: - The disc
 
 private struct DiscSection: View {
     @Environment(AppState.self) private var state
@@ -144,7 +159,7 @@ private struct DiscSection: View {
             LabeledField(label: "Genre", text: $state.discGenre, prompt: "unknown")
             LabeledField(label: "Composer", text: $state.discComposer, prompt: "unknown")
 
-            // Nur bei Mehrfachalben nützlich, deshalb hinter einem Schalter.
+            // Only useful for multi-disc albums, hence behind a switch.
             Toggle("Part of a set", isOn: Binding(
                 get: { state.discTotal > 1 },
                 set: { state.discTotal = $0 ? max(2, state.discTotal) : 1 }))
@@ -174,8 +189,8 @@ private struct DiscSection: View {
                 ReadOnlyRow(label: "Source") { Text(source.label) }
             }
 
-            // Kurze Beschriftungen, die Erklärung hängt am Mauszeiger —
-            // ausgeschriebene Sätze werden hier abgeschnitten.
+            // Short labels, the explanation hangs off the mouse pointer —
+            // full sentences get cut off here.
             HStack {
                 Button("MusicBrainz") {
                     Task { await state.lookupDisc() }
@@ -232,7 +247,7 @@ private struct DiscSection: View {
     }
 }
 
-// MARK: - Welche Tracks
+// MARK: - Which tracks
 
 private struct TrackSelectionSection: View {
     @Environment(AppState.self) private var state
@@ -242,13 +257,13 @@ private struct TrackSelectionSection: View {
 
         Section {
             ForEach(state.disc?.toc.audioTracks ?? []) { track in
-                // Die Zeile steht im **Beschriftungs**-Platz, die Dauer im
-                // Inhaltsplatz. Grund: `Form` richtet den Inhaltsplatz rechts
-                // aus und gibt ihm nur die Wunschbreite — dort bekommt jedes
-                // Titelfeld eine andere Breite, der Text rutscht nach rechts,
-                // und lange Titel sprengen die Zeilenhöhe. Der
-                // Beschriftungsplatz ist linksbündig und lässt das Feld die
-                // Breite füllen. Ausprobiert, nicht hergeleitet.
+                // The row sits in the **label** slot, the duration in the
+                // content slot. The reason: `Form` right-aligns the content
+                // slot and gives it only its desired width — there every title
+                // field gets a different width, the text slides to the right,
+                // and long titles blow up the row height. The label slot is
+                // left-aligned and lets the field fill the width. Found by
+                // trying, not derived.
                 LabeledContent {
                     HStack(spacing: 8) {
                         Text(track.duration.formatted(.time(pattern: .minuteSecond)))
@@ -260,8 +275,8 @@ private struct TrackSelectionSection: View {
                     }
                 } label: {
                     HStack(spacing: 8) {
-                        // Kästchen, nicht Schalter — so kennt man es aus jedem
-                        // anderen Ripper.
+                        // Checkboxes, not switches — as known from every other
+                        // ripper.
                         Toggle("", isOn: Binding(
                             get: { state.selectedRipTracks.contains(track.number) },
                             set: { on in
@@ -302,12 +317,11 @@ private struct TrackSelectionSection: View {
     }
 }
 
-/// Einheitliche Titelfelder: gleiche Breite, gleiche Höhe, Text links.
+/// Uniform title fields: same width, same height, text on the left.
 ///
-/// `.textFieldStyle(.roundedBorder)` setzt seine eigene, inhaltsabhängige
-/// Breite durch und lässt sich von `frame(maxWidth:)` nicht davon abbringen —
-/// gemessen. Deshalb das schlichte Feld mit selbst gezeichnetem Hintergrund,
-/// wie in der Trackliste auch.
+/// `.textFieldStyle(.roundedBorder)` insists on its own content-dependent
+/// width and cannot be talked out of it by `frame(maxWidth:)` — measured.
+/// Hence the plain field with a self-drawn background, as in the track list.
 private struct TrackTitleField: View {
     @Binding var text: String
     let prompt: Text
@@ -350,7 +364,7 @@ private struct RipProgressBadge: View {
     }
 }
 
-// MARK: - Zielformat
+// MARK: - Target format
 
 private struct FormatSection: View {
     @Environment(AppState.self) private var state
@@ -392,7 +406,7 @@ private struct FormatSection: View {
     }
 }
 
-// MARK: - Wie gelesen wird
+// MARK: - How reading works
 
 private struct ReadingSection: View {
     @Environment(AppState.self) private var state
@@ -406,8 +420,8 @@ private struct ReadingSection: View {
                     Text(mode.label).tag(mode)
                 }
             }
-            // Die Erklärung steht unter der Auswahl — im Menü würde sie
-            // abgeschnitten.
+            // The explanation sits below the picker — in the menu it would be
+            // cut off.
             Text(state.ripSettings.mode.explanation)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -460,7 +474,7 @@ private struct ReadingSection: View {
     }
 }
 
-// MARK: - Wohin
+// MARK: - Where to
 
 private struct OutputSection: View {
     @Environment(AppState.self) private var state
@@ -480,18 +494,15 @@ private struct OutputSection: View {
                         .help("Pick where the album folder is created")
                 }
             }
-            // Als Feld, nicht als Text: es *ist* änderbar, und das muss man
-            // sehen. Leer lassen heißt „nimm den Vorschlag" — deshalb steht
-            // der Vorschlag als Platzhalter drin, nicht als Wert.
+            // A field, not text: it *is* editable, and one has to see that.
+            // Leaving it empty means "take the suggestion" — which is why the
+            // suggestion is in there as a placeholder, not as a value.
             LabeledField(label: "Folder name", text: $state.ripFolderName,
                          prompt: nil, placeholderText: state.suggestedAlbumFolderName)
 
-            // Muster und Ergebnis stehen über die volle Breite und brechen um.
-            // Eine Zeile mit Auslassung wäre hier nutzlos: man baut das Muster
-            // ja gerade zusammen und will sehen, was dabei herauskommt.
-            // Das Muster steht über die volle Breite und bricht um. Eine
-            // Zeile mit Auslassung wäre hier nutzlos: man baut es ja gerade
-            // zusammen und will sehen, was dabei herauskommt.
+            // The pattern spans the full width and wraps. A single line with
+            // an ellipsis would be useless here: one is putting the pattern
+            // together right now and wants to see what comes out.
             VStack(alignment: .leading, spacing: 5) {
                 Text("File name")
                 TextField("", text: $state.ripSettings.filenamePattern,
@@ -514,9 +525,9 @@ private struct OutputSection: View {
                 }
             }
 
-            // Die Bausteine bekommen einen eigenen, abgesetzten Block. Ohne
-            // die Abgrenzung sahen sie aus, als gehörten sie zum Eingabefeld
-            // — dabei sind sie ein Vorrat, aus dem man sich bedient.
+            // The building blocks get a block of their own, set apart.
+            // Without the separation they looked as if they belonged to the
+            // input field — whereas they are a supply to help oneself from.
             TokenHints()
 
             if let first = state.selectedRipTracks.min() {
@@ -547,10 +558,10 @@ private struct OutputSection: View {
     }
 }
 
-/// Die Platzhalter zum Anklicken — abtippen muss sie niemand.
+/// The placeholders to click — nobody has to type them.
 ///
-/// Die Reihenfolge ist nach Nutzen sortiert, nicht alphabetisch: für einen
-/// Dateinamen greift man fast immer zuerst zu Tracknummer und Titel.
+/// The order is by usefulness, not alphabetical: for a file name one
+/// almost always reaches for track number and title first.
 private struct TokenHints: View {
     @Environment(AppState.self) private var state
 
@@ -575,8 +586,8 @@ private struct TokenHints: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .font(.caption.monospaced())
-                    // Ohne das quetscht das Layout die Beschriftung, bis sie
-                    // mitten im Wort umbricht.
+                    // Without this the layout squeezes the label until it breaks
+                    // in the middle of a word.
                     .fixedSize()
                 }
             }
@@ -590,7 +601,7 @@ private struct TokenHints: View {
     }
 }
 
-// MARK: - Ergebnis
+// MARK: - Result
 
 private struct ResultSection: View {
     @Environment(AppState.self) private var state
@@ -607,8 +618,8 @@ private struct ResultSection: View {
                               ? "checkmark.seal" : "exclamationmark.triangle")
                             .foregroundStyle(report.allAccurate ? .green : .orange)
 
-                        // Ehrlich bleiben: das ist eine Aussage über
-                        // Wiederholbarkeit, nicht über Richtigkeit.
+                        // Stay honest: this is a statement about repeatability,
+                        // not about correctness.
                         Text("Checked against this drive, not against other people's rips.")
                             .font(.caption)
                             .foregroundStyle(.secondary)

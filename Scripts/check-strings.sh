@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 #
-# check-strings.sh — vergleicht die vom Compiler extrahierten UI-Texte mit dem
-# String-Catalog und meldet, was noch keine Übersetzung hat.
+# check-strings.sh — compares the UI strings extracted by the compiler with the
+# string catalog and reports what has no translation yet.
 #
-# Nach jeder Änderung an sichtbaren Texten laufen lassen. Xcode ergänzt den
-# Katalog beim Bauen nur in der IDE, nicht über xcodebuild.
+# Run after every change to visible text. Xcode only adds to the catalog when
+# building in the IDE, not via xcodebuild.
+#
+# Copyright (C) 2026 NeonRost
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 set -euo pipefail
 
@@ -41,10 +44,10 @@ untranslated = sorted(
     and {"de", "es"} - set(entry.get("localizations", {}))
 )
 
-print(f"{len(found)} Texte im Code, {len(known)} im Katalog\n")
-for title, items in (("Ohne Katalogeintrag", missing),
-                     ("Im Katalog, aber nicht mehr im Code", orphans),
-                     ("Ohne de/es-Übersetzung", untranslated)):
+print(f"{len(found)} strings in the code, {len(known)} in the catalog\n")
+for title, items in (("Missing from the catalog", missing),
+                     ("In the catalog but no longer in the code", orphans),
+                     ("Without de/es translation", untranslated)):
     if items:
         print(f"{title} ({len(items)}):")
         for key in items:
@@ -53,4 +56,4 @@ for title, items in (("Ohne Katalogeintrag", missing),
 
 sys.exit(1 if (missing or untranslated) else 0)
 PY
-echo "✓ Katalog ist vollständig."
+echo "✓ Catalog is complete."

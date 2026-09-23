@@ -2,9 +2,24 @@
 //  ArtworkWell.swift
 //  Sleeve
 //
-//  Coverbilder (Spec §4.5). Klicken öffnet die Dateiauswahl, Bilder lassen
-//  sich hineinziehen, und alles wirkt auf die ganze Auswahl — der häufigste
-//  Fall ist „ein Cover für das ganze Album".
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Cover pictures (spec §4.5). Clicking opens the file picker, pictures can
+//  be dragged in, and everything applies to the whole selection — the most
+//  common case is "one cover for the whole album".
 //
 
 import AppKit
@@ -19,12 +34,12 @@ struct ArtworkWell: View {
     @State private var index = 0
     @State private var isTargeted = false
     @State private var isHovering = false
-    /// Quelldaten und Name des Bildes, über das gerade entschieden wird.
+    /// Source data and name of the picture currently being decided on.
     @State private var pending: (data: Data, name: String)?
 
     private var artworks: [Artwork] {
-        // Nur anzeigen, was alle gemeinsam haben — sonst ist unklar, was das
-        // Bild überhaupt darstellt.
+        // Only show what all of them have in common — otherwise it is unclear
+        // what the picture represents at all.
         guard let first = tracks.first?.edited.artwork else { return [] }
         let allSame = tracks.allSatisfy { $0.edited.artwork == first }
         return allSame ? first : []
@@ -61,7 +76,7 @@ struct ArtworkWell: View {
         }
     }
 
-    // MARK: - Bildfläche
+    // MARK: - Picture area
 
     private var well: some View {
         ZStack {
@@ -92,10 +107,9 @@ struct ArtworkWell: View {
                     lineWidth: isTargeted ? 2 : 1
                 )
 
-            // Bei mehreren Bildern direkt auf dem Bild blättern. In der
-            // Knopfreihe darunter waren die Pfeile zwar vorhanden, aber
-            // zwischen den übrigen Symbolen kaum als Blätterfunktion zu
-            // erkennen.
+            // With several pictures, page through them right on the picture.
+            // The arrows existed in the row of buttons below, but among the
+            // other icons they were hard to recognize as paging controls.
             if artworks.count > 1 {
                 pager
             }
@@ -112,7 +126,7 @@ struct ArtworkWell: View {
         .help("Click to choose an image, or drop one here")
     }
 
-    /// Pfeile links und rechts über dem Bild, dazu die Seitenangabe.
+    /// Arrows left and right over the picture, plus the page indicator.
     private var pager: some View {
         VStack(spacing: 0) {
             Spacer()
@@ -152,7 +166,7 @@ struct ArtworkWell: View {
         .disabled(!isEnabled)
     }
 
-    // MARK: - Beschriftung
+    // MARK: - Caption
 
     @ViewBuilder
     private var caption: some View {
@@ -175,7 +189,7 @@ struct ArtworkWell: View {
         }
     }
 
-    // MARK: - Bedienung
+    // MARK: - Controls
 
     private var controls: some View {
         HStack(spacing: 6) {

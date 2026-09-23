@@ -2,7 +2,22 @@
 //  AppState+Lookup.swift
 //  Sleeve
 //
-//  Anbindung des Nachschlagens bei MusicBrainz und Discogs (Spec §4.6).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Looking up releases on MusicBrainz and Discogs (spec §4.6).
 //
 
 import Foundation
@@ -11,8 +26,8 @@ extension AppState {
 
     var hasDiscogsToken: Bool { (discogsToken?.isEmpty == false) }
 
-    /// Erzeugt den Sitzungszustand für „Album nachschlagen" und rät die
-    /// Suchbegriffe aus den vorhandenen Tags, sonst aus dem Ordnernamen.
+    /// Creates the session state for "Look Up Album" and guesses the search
+    /// terms from the existing tags, otherwise from the folder name.
     func makeLookupSession() -> LookupSession? {
         let targets = operationTargetsInDisplayOrder
         guard !targets.isEmpty else { return nil }
@@ -31,8 +46,7 @@ extension AppState {
         )
     }
 
-    /// Die Suche beider Nachschlage-Blätter — mit derselben Vorgabe für die
-    /// Quelle.
+    /// The search used by both lookup sheets — with the same default source.
     func makeReleaseSearch(query: DiscogsClient.SearchQuery,
                            provider: LookupProvider? = nil) -> ReleaseSearch {
         ReleaseSearch(service: lookup,
@@ -41,12 +55,12 @@ extension AppState {
                       hasDiscogsToken: hasDiscogsToken)
     }
 
-    /// Schritt 2 aus §4.6: Suchbegriffe raten.
+    /// Step 2 of §4.6: guess the search terms.
     static func guessQuery(from tracks: [TrackFile]) -> DiscogsClient.SearchQuery {
         var query = DiscogsClient.SearchQuery()
 
-        // Album-Interpret vor Interpret: bei Samplern steht auf jedem Stück
-        // ein anderer Künstler, der Album-Interpret ist der verlässlichere.
+        // Album artist before artist: on a compilation every track has a
+        // different artist, the album artist is the more reliable one.
         query.artist = tracks.compactMap { $0.edited.albumArtist }.first
             ?? tracks.compactMap { $0.edited.artist }.first
             ?? ""
@@ -55,8 +69,8 @@ extension AppState {
             query.year = String(year)
         }
 
-        // Nichts in den Tags? Dann der Ordnername — der heißt oft
-        // „Interpret - Album" oder schlicht wie das Album.
+        // Nothing in the tags? Then the folder name — often
+        // "Artist - Album" or simply the album's name.
         if query.artist.isEmpty, query.releaseTitle.isEmpty,
            let folder = tracks.first?.url.deletingLastPathComponent().lastPathComponent,
            !folder.isEmpty {
@@ -72,8 +86,8 @@ extension AppState {
         return query
     }
 
-    /// Übernimmt die Vorschläge in den **Editor-Zustand**, nicht auf die
-    /// Platte (Spec §4.6, Schritt 8). Geschrieben wird erst beim Speichern.
+    /// Applies the proposals to the **editor state**, not to disk (spec §4.6,
+    /// step 9). Nothing is written until the user saves.
     func applyLookup(_ proposals: [ReleaseMatcher.Proposal], fields: Set<TagField>) {
         for proposal in proposals {
             guard let track = trackList.track(id: proposal.trackID) else { continue }

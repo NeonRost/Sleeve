@@ -2,12 +2,27 @@
 //  ModeSwitcher.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import SwiftUI
 
-/// Der persistente Umschalter in der Toolbar (Resolve-Modell, Spec §1.1).
-/// Kein Startfenster, das vorab zur Entscheidung zwingt — die Dateiliste
-/// bleibt beim Wechsel stehen.
+/// The persistent switcher in the toolbar (Resolve model, spec §1.1). No
+/// start window forcing a decision up front — the file list stays put when
+/// the mode changes.
 struct ModeSwitcher: View {
     @Environment(AppState.self) private var state
 
@@ -21,17 +36,17 @@ struct ModeSwitcher: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        // Keine feste Breite: die Segmente sind in jeder Sprache verschieden
-        // lang, und jeder überschüssige Punkt fehlt den Knöpfen rechts.
+        // No fixed width: the segments differ in length in every language, and
+        // every surplus point is missing from the buttons on the right.
         .fixedSize()
-        // Nicht verfügbare Modi bleiben sichtbar, sind aber nicht wählbar.
+        // Unavailable modes stay visible but cannot be chosen.
         .overlay { DisabledModeOverlay() }
     }
 }
 
-/// SwiftUIs `Picker` kennt kein „einzelnes Segment deaktivieren". Die
-/// Erklärung kommt deshalb per Tooltip über dem Umschalter, und die Auswahl
-/// wird zurückgesetzt, falls doch ein gesperrter Modus gewählt wird.
+/// SwiftUI's `Picker` cannot disable a single segment. The explanation
+/// therefore comes as a tooltip over the switcher, and the selection is
+/// reset should a locked mode get chosen anyway.
 private struct DisabledModeOverlay: View {
     @Environment(AppState.self) private var state
 

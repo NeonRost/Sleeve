@@ -2,21 +2,35 @@
 //  CDText.swift
 //  Sleeve
 //
-//  CD-TEXT steht auf der Scheibe selbst. Für Alben, die in keiner Datenbank
-//  eingetragen sind, ist es oft die einzige Quelle — und es kostet kein
-//  Netz und keine Wartezeit.
+//  Copyright (C) 2026 NeonRost
 //
-//  Aufbau: Pakete zu 18 Byte. Vier Byte Kopf (Typ, Tracknummer, laufende
-//  Nummer, Blockinfo), zwölf Byte Text, zwei Byte CRC. Ein Textfeld läuft
-//  über beliebig viele Pakete und ist mit einem Nullbyte abgeschlossen;
-//  die Pakete eines Typs bilden zusammen eine Kette aus Feldern, in der
-//  Eintrag 0 zum Album gehört und 1…n zu den Spuren.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  CD-TEXT lives on the disc itself. For albums that are in no database it
+//  is often the only source — and it costs no network and no waiting.
+//
+//  Layout: packs of 18 bytes. Four bytes of header (type, track number,
+//  sequence number, block info), twelve bytes of text, two bytes of CRC. A
+//  text field runs across any number of packs and ends with a null byte;
+//  the packs of one type together form a chain of fields in which entry 0
+//  belongs to the album and 1…n to the tracks.
 //
 
 import Foundation
 
 struct CDText: Equatable, Sendable {
-    /// Index 0 ist das Album, 1…n sind die Spuren.
+    /// Index 0 is the album, 1…n are the tracks.
     var titles: [Int: String] = [:]
     var performers: [Int: String] = [:]
     var songwriters: [Int: String] = [:]
@@ -36,7 +50,7 @@ struct CDText: Equatable, Sendable {
     func performer(forTrack number: Int) -> String? { performers[number] ?? performers[0] }
     func composer(forTrack number: Int) -> String? { composers[number] ?? composers[0] }
 
-    // MARK: - Auswerten
+    // MARK: - Parsing
 
     private enum PackType: UInt8 {
         case title = 0x80, performer = 0x81, songwriter = 0x82
@@ -44,12 +58,13 @@ struct CDText: Equatable, Sendable {
         case sizeInfo = 0x8F
     }
 
-    /// `payload` ist der Rumpf der TOC-Antwort im Format 5, also ohne den
-    /// vier Byte langen Kopf.
+    /// `payload` is the body of the TOC response in format 5, i.e. without the
+    /// four-byte header.
     init(packets payload: [UInt8]) {
-        // Der Zeichensatz steht im Size-Info-Paket. 0x00 ist Latin-1, 0x80
-        // ist MS-JIS. Ohne Angabe gilt Latin-1 — als UTF-8 gelesen zerfallen
-        // Umlaute zu Ersatzzeichen, was beim ersten Anlauf auch passiert ist.
+        // The character set is in the size info pack. 0x00 is Latin-1, 0x80
+        // is MS-JIS. Without it, Latin-1 applies — read as UTF-8, umlauts
+        // fall apart into replacement characters, which is exactly what
+        // happened on the first attempt.
         var encoding = String.Encoding.isoLatin1
         var index = 0
         while index + 18 <= payload.count {
@@ -60,8 +75,8 @@ struct CDText: Equatable, Sendable {
             index += 18
         }
 
-        // Erst alle Textbytes je Typ aneinanderhängen, dann an den Nullbytes
-        // trennen — ein Feld darf über Paketgrenzen laufen.
+        // First concatenate all text bytes per type, then split at the null
+        // bytes — a field may run across pack boundaries.
         var streams: [UInt8: [UInt8]] = [:]
         var startTrack: [UInt8: Int] = [:]
         index = 0
@@ -77,7 +92,7 @@ struct CDText: Equatable, Sendable {
 
         for (type, bytes) in streams {
             var fields = bytes.split(separator: 0, omittingEmptySubsequences: false)
-            // Hinter dem letzten Nullbyte steht nur noch Füllmaterial.
+            // After the last null byte there is only padding.
             if !fields.isEmpty { fields.removeLast() }
 
             var entries: [Int: String] = [:]

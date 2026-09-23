@@ -2,25 +2,41 @@
 //  DiscImage.swift
 //  Sleeve
 //
-//  Ein Abbild der ganzen Scheibe statt einzelner Spuren (Spec §9.1).
+//  Copyright (C) 2026 NeonRost
 //
-//  **Kein ISO.** Eine Audio-CD trägt kein Dateisystem: bei Sektor 16, wo der
-//  ISO-9660-Volume-Descriptor stünde, steht Musik statt der Kennung `CD001`.
-//  Und von den 2352 Byte eines CDDA-Sektors sind alle 2352 Audio — ein
-//  ISO-Container mit seinen 2048 Byte Nutzdaten würde ein Achtel wegwerfen.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//  Das passende Format ist ein durchgehender Audiostrom plus Cue Sheet mit
-//  den Trackgrenzen.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  An image of the whole disc instead of individual tracks (spec §6.9).
+//
+//  **No ISO.** An audio CD carries no file system: at sector 16, where the
+//  ISO 9660 volume descriptor would be, there is music instead of the
+//  identifier `CD001`. And of the 2352 bytes of a CDDA sector all 2352 are
+//  audio — an ISO container with its 2048 bytes of payload would throw away
+//  an eighth.
+//
+//  The fitting format is one continuous audio stream plus a cue sheet with
+//  the track boundaries.
 //
 
 import Foundation
 
 enum DiscImageFormat: String, CaseIterable, Identifiable, Sendable {
-    /// Roh, 2352 Byte je Sektor, ohne jeden Kopf. Das klassische BIN.
+    /// Raw, 2352 bytes per sector, no header at all. The classic BIN.
     case bin
-    /// Dasselbe mit 44-Byte-WAV-Kopf — von jedem Abspielprogramm zu öffnen.
+    /// The same with a 44-byte WAV header — opens in any player.
     case wav
-    /// Verlustfrei gepackt, rund ein Drittel kleiner.
+    /// Losslessly compressed, about a third smaller.
     case flac
 
     var id: String { rawValue }
@@ -34,13 +50,13 @@ enum DiscImageFormat: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Wofür das Format taugt — und wofür nicht.
+    /// What the format is good for — and what not.
     ///
-    /// Gemessen mit VLC 3.0.23: bei `.bin` **und** bei `.cue` greift VLC zum
-    /// `ps`-Demuxer (MPEG-Programmstrom), also zum Raten; nur die WAV bekommt
-    /// den richtigen. Ohne diesen Hinweis wählt man BIN — „roh, wie auf der
-    /// CD" klingt nach der treuesten Wahl — und wundert sich dann, dass sich
-    /// nichts abspielen lässt.
+    /// Measured with VLC 3.0.23: for `.bin` **and** for `.cue` VLC picks the
+    /// `ps` demuxer (MPEG program stream), i.e. it guesses; only the WAV gets
+    /// the right one. Without this hint one picks BIN — "raw, as on the CD"
+    /// sounds like the most faithful choice — and then wonders why nothing
+    /// plays.
     var hint: LocalizedStringResource {
         switch self {
         case .bin:
@@ -52,13 +68,13 @@ enum DiscImageFormat: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Was im Cue Sheet hinter dem Dateinamen steht. `BINARY` für den rohen
-    /// Strom, `WAVE` für alles mit Kopf — auch für FLAC, so halten es die
-    /// gängigen Abspielprogramme.
+    /// What follows the file name in the cue sheet. `BINARY` for the raw stream,
+    /// `WAVE` for anything with a header — FLAC included, which is how common
+    /// players handle it.
     var cueFileType: String {
         self == .bin ? "BINARY" : "WAVE"
     }
 
-    /// FLAC entsteht aus dem WAV-Zwischenstand und braucht deshalb ffmpeg.
+    /// FLAC is made from the intermediate WAV and therefore needs ffmpeg.
     var needsFFmpeg: Bool { self == .flac }
 }

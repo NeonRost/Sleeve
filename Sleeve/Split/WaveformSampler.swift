@@ -2,37 +2,52 @@
 //  WaveformSampler.swift
 //  Sleeve
 //
-//  Die Hüllkurve einer Datei berechnen (Spec §7.7).
+//  Copyright (C) 2026 NeonRost
 //
-//  Berechnet wird einmal in fester, feiner Auflösung — hundert Werte je
-//  Sekunde. Daraus schöpfen beide Ansichten: die Übersicht über die ganze
-//  Datei fasst viele Werte je Bildpunkt zusammen, die Lupen auf eine Grenze
-//  nur wenige. Eine feste *Anzahl* Werte (der erste Anlauf nahm 2000) taugte
-//  nur für die Übersicht: bei 45 Minuten sind das 1,35 s je Wert, zu grob, um
-//  einen Schnitt zu setzen.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//  Je Bildpunkt wird der **lauteste** Wert gezeichnet, nicht der Mittelwert —
-//  der zöge kurze laute Stellen glatt, und genau die will man sehen.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Computes the envelope of a file (spec §7.7).
+//
+//  It is computed once, at a fixed fine resolution — a hundred values per
+//  second. Both views draw from it: the overview of the whole file combines
+//  many values per pixel, the magnifiers on a boundary only a few. A fixed
+//  *number* of values (the first attempt used 2000) only worked for the
+//  overview: at 45 minutes that is 1.35 s per value, too coarse to place a
+//  cut.
+//
+//  Each pixel shows the **loudest** value, not the mean — the mean would
+//  smooth out short loud spots, and those are exactly what one wants to see.
 //
 
 import Foundation
 
 enum WaveformSampler {
 
-    /// Proben je Sekunde beim Dekodieren. Gegen die volle Auflösung gemessen
-    /// weicht die Hüllkurve bei 4000 Hz um 0,002 ab, bei 2000 Hz um 0,023.
+    /// Samples per second while decoding. Measured against full resolution,
+    /// the envelope deviates by 0.002 at 4000 Hz and by 0.023 at 2000 Hz.
     static let workingRate = 4000
 
-    /// Werte je Sekunde in der fertigen Hüllkurve — 10 ms je Wert.
+    /// Values per second in the finished envelope — 10 ms per value.
     static let peaksPerSecond = 100
 
     struct Waveform: Sendable, Identifiable {
         let id = UUID()
-        /// Ein Spitzenwert je 1/`peaksPerSecond` Sekunde, 0…1 bezogen auf
-        /// Vollaussteuerung.
+        /// One peak value per 1/`peaksPerSecond` second, 0…1 relative to full
+        /// scale.
         var peaks: [Float]
         var duration: Double
-        /// Der lauteste Wert der ganzen Datei — Bezug für die Normierung.
+        /// The loudest value of the whole file — the reference for normalization.
         var loudest: Float
 
         init(peaks: [Float], duration: Double) {
@@ -43,13 +58,13 @@ enum WaveformSampler {
 
         var isEmpty: Bool { peaks.isEmpty }
 
-        /// Auf den lautesten Punkt der **ganzen Datei** bezogen, auch in einer
-        /// Lupe. Würde jede Lupe auf sich selbst normieren, sähe ein leises
-        /// Ausklingen genauso laut aus wie der Refrain — und man setzte die
-        /// Grenze an die falsche Stelle.
+        /// Relative to the loudest point of the **whole file**, even in a
+        /// magnifier. If every magnifier normalized to itself, a quiet fade-out
+        /// would look as loud as the chorus — and one would put the boundary in
+        /// the wrong place.
         ///
-        /// Ohne Normierung wiederum wird eine leise Aufnahme zur flachen
-        /// Linie: ffmpegs eigener `sine`-Generator liefert nur −18 dBFS.
+        /// Without normalization, on the other hand, a quiet recording becomes a
+        /// flat line: ffmpeg's own `sine` generator only delivers −18 dBFS.
         func envelope(from start: Double, to end: Double, columns: Int) -> [Float] {
             guard columns > 0, end > start, !peaks.isEmpty else { return [] }
             let scale: Float = loudest > 0.0001 ? 1 / loudest : 0
@@ -73,7 +88,7 @@ enum WaveformSampler {
         }
     }
 
-    /// Rechnet die Datei einmal durch.
+    /// Runs through the file once.
     static func load(_ url: URL, duration: Double, ffmpeg: FFmpegTool) async throws -> Waveform {
         guard duration > 0 else { throw SplitError.analysisFailed }
 
@@ -84,8 +99,8 @@ enum WaveformSampler {
         let result = try await ProcessRunner.run(ffmpeg.url, arguments: [
             "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
             "-i", url.path(percentEncoded: false),
-            // Kein Bild, ein Kanal, grob abgetastet — es geht um die Form,
-            // nicht um den Klang.
+            // No picture, one channel, coarsely sampled — this is about the
+            // shape, not the sound.
             "-vn", "-ac", "1", "-ar", "\(workingRate)",
             "-f", "s16le", scratch.path(percentEncoded: false),
         ])
@@ -97,7 +112,7 @@ enum WaveformSampler {
         return Waveform(peaks: reduce(data, into: buckets), duration: duration)
     }
 
-    /// Fasst rohe 16-Bit-Proben zu Spitzenwerten zusammen.
+    /// Combines raw 16-bit samples into peak values.
     static func reduce(_ data: Data, into buckets: Int) -> [Float] {
         let sampleCount = data.count / 2
         guard sampleCount > 0, buckets > 0 else { return [] }

@@ -2,12 +2,27 @@
 //  FlowLayout.swift
 //  Sleeve
 //
-//  Legt Elemente nebeneinander und bricht um, wenn die Zeile voll ist.
+//  Copyright (C) 2026 NeonRost
 //
-//  `HStack` kann das nicht: er quetscht stattdessen, bis die Beschriftungen
-//  mitten im Wort umbrechen. Ein `LazyVGrid` wäre die naheliegende Alternative,
-//  vergibt aber gleich breite Spalten — bei Platzhaltern von „%year%" bis
-//  „%albumartist%" verschenkt das die halbe Breite.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Lays elements out side by side and wraps when the row is full.
+//
+//  `HStack` cannot do that: it squeezes instead, until the labels break in
+//  the middle of a word. A `LazyVGrid` would be the obvious alternative, but
+//  it hands out equal column widths — with placeholders ranging from
+//  "%year%" to "%albumartist%" that wastes half the width.
 //
 
 import SwiftUI
@@ -35,7 +50,7 @@ struct FlowLayout: Layout {
         }
     }
 
-    // MARK: - Umbruch
+    // MARK: - Wrapping
 
     private struct Row {
         var y: CGFloat
@@ -50,8 +65,8 @@ struct FlowLayout: Layout {
 
         for index in subviews.indices {
             let size = subviews[index].sizeThatFits(.unspecified)
-            // Passt es nicht mehr, neue Zeile — aber nie eine leere Zeile
-            // erzwingen, sonst hängt ein zu breites Element in der Luft.
+            // If it no longer fits, start a new row — but never force an empty row,
+            // or an element that is too wide hangs in mid-air.
             if x + size.width > width, !current.items.isEmpty {
                 rows.append(current)
                 current = Row(y: current.y + current.height + lineSpacing,

@@ -2,30 +2,45 @@
 //  ArtworkProcessor.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Skaliert Coverbilder beim Einfügen. Ein 4000×4000-PNG in jedem Track bläht
-/// ein Album um 200 MB auf (Spec §4.5) — deshalb wird beim Hinzufügen
-/// heruntergerechnet, nicht erst beim Speichern.
+/// Scales cover pictures when they are added. A 4000×4000 PNG in every track
+/// bloats an album by 200 MB (spec §4.5) — so the picture is scaled down when
+/// it is added, not only when saving.
 ///
-/// Gearbeitet wird mit ImageIO, nicht über `NSImage` und einen selbst
-/// aufgespannten `NSGraphicsContext`. Der erste Anlauf tat genau das und
-/// lieferte **schwarze Bilder**: `NSBitmapImageRep` mit drei Kanälen ohne
-/// Alpha ergibt 24 Bit pro Pixel, und dafür kann CoreGraphics keinen
-/// Bitmap-Kontext hinterlegen. `NSGraphicsContext(bitmapImageRep:)` gibt dann
-/// `nil` zurück, gezeichnet wird ins Leere, und übrig bleibt die genullte
-/// Bitmap. ImageIO umgeht das, ist schneller, behält das Farbprofil und dreht
-/// EXIF-orientierte Bilder von selbst richtig.
+/// The work is done with ImageIO, not via `NSImage` and a self-made
+/// `NSGraphicsContext`. The first attempt did exactly that and produced
+/// **black pictures**: an `NSBitmapImageRep` with three channels and no
+/// alpha means 24 bits per pixel, and CoreGraphics cannot back a bitmap
+/// context with that. `NSGraphicsContext(bitmapImageRep:)` then returns
+/// `nil`, drawing goes nowhere, and what remains is the zeroed bitmap.
+/// ImageIO avoids this, is faster, keeps the color profile and rotates
+/// EXIF-oriented pictures correctly by itself.
 enum ArtworkProcessor {
 
-    /// Was hinten herauskommen soll.
+    /// What should come out.
     enum Output: String, CaseIterable, Identifiable, Equatable, Sendable {
-        /// Format der Quelle beibehalten. Ein PNG bleibt ein PNG — auch beim
-        /// Verkleinern. Vorher landete es dabei stillschweigend als JPEG im
-        /// Tag, obwohl „umwandeln" ausgeschaltet war.
+        /// Keep the source format. A PNG stays a PNG — even when scaled down.
+        /// Before, it silently ended up in the tag as JPEG, although "convert"
+        /// was switched off.
         case keepSource
         case jpeg
 
@@ -40,12 +55,12 @@ enum ArtworkProcessor {
     }
 
     struct Options: Equatable, Sendable {
-        /// 0 heißt: nicht skalieren.
+        /// 0 means: do not scale.
         var maximumEdge: Int = 0
         var jpegQuality: Double = 0.85
         var output: Output = .keepSource
 
-        /// Nichts anfassen — das Bild wandert unverändert ins Tag.
+        /// Touch nothing — the picture goes into the tag unchanged.
         static let passthrough = Options()
     }
 
@@ -70,12 +85,12 @@ enum ArtworkProcessor {
 
         let longestEdge = max(size.width, size.height)
         let needsResize = options.maximumEdge > 0 && longestEdge > options.maximumEdge
-        // PNG-Cover sind der häufigste Grund für aufgeblähte Dateien.
+        // PNG covers are the most common reason for bloated files.
         let needsConversion = options.output == .jpeg && sourceMime != "image/jpeg"
         guard needsResize || needsConversion else { return unchanged() }
 
-        // Beim Verkleinern ohne Umwandeln das Quellformat halten, soweit wir
-        // es schreiben können; alles Exotische landet als JPEG.
+        // When scaling down without converting, keep the source format as far
+        // as we can write it; anything exotic ends up as JPEG.
         let targetMime = options.output == .jpeg
             ? "image/jpeg"
             : (sourceMime == "image/png" ? "image/png" : "image/jpeg")
@@ -84,7 +99,7 @@ enum ArtworkProcessor {
                                     maximumEdge: needsResize ? options.maximumEdge : nil),
               let encoded = encode(image, as: targetMime, quality: options.jpegQuality)
         else {
-            // Lieber das Original einbetten als gar nichts.
+            // Better to embed the original than nothing at all.
             return unchanged()
         }
 
@@ -92,10 +107,10 @@ enum ArtworkProcessor {
                        pictureType: pictureType, description: description)
     }
 
-    // MARK: - Intern
+    // MARK: - Internal
 
-    /// Echte Pixelmaße aus den Metadaten — nicht `NSImage.size`, das liefert
-    /// Punkte und geht bei Bildern mit abweichender DPI-Angabe daneben.
+    /// Real pixel dimensions from the metadata — not `NSImage.size`, which
+    /// returns points and is off for pictures with an unusual DPI value.
     static func pixelSize(of source: CGImageSource) -> (width: Int, height: Int)? {
         guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
                 as? [CFString: Any],
@@ -113,8 +128,8 @@ enum ArtworkProcessor {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceThumbnailMaxPixelSize: maximumEdge,
-            // Dreht EXIF-orientierte Bilder gleich richtig, statt sie liegend
-            // ins Tag zu schreiben.
+            // Rotates EXIF-oriented pictures right away instead of writing them
+            // into the tag lying on their side.
             kCGImageSourceCreateThumbnailWithTransform: true,
         ]
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
@@ -135,7 +150,7 @@ enum ArtworkProcessor {
         return output as Data
     }
 
-    /// Pixelmaße ohne Umweg über eine `CGImageSource` — für die Oberfläche.
+    /// Pixel dimensions without going through a `CGImageSource` — for the UI.
     static func pixelSize(of data: Data) -> (width: Int, height: Int)? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         return pixelSize(of: source)

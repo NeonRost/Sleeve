@@ -1,8 +1,24 @@
 //
 //  LookupTests.swift
 //
-//  Discogs-Lookup (§4.6). Geprüft wird gegen echte API-Antworten, die im
-//  Ordner `fixtures/` liegen — kein Netz im Testlauf.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Lookup (§4.6). Checked against real API responses stored in the
+//  `fixtures/` folder — no network during the test run. The German titles in
+//  the made-up Discogs fixture are deliberate: umlauts break matching first.
 //
 
 import Foundation
@@ -24,7 +40,7 @@ enum LookupTests {
     }
 
     static func equal<T: Equatable>(_ actual: T, _ expected: T, _ label: String) {
-        check(actual == expected, label, detail: "ist \(actual), erwartet \(expected)")
+        check(actual == expected, label, detail: "is \(actual), expected \(expected)")
     }
 
     static func section(_ title: String) { print("\n━━ \(title)") }
@@ -37,96 +53,97 @@ enum LookupTests {
 
     static func run() async throws -> Int32 {
 
-        // MARK: - Steuerzeichen
+        // MARK: - Control characters
 
-        section("Steuerzeichen in der Antwort")
-        let roh = try fixture("release-control-chars")
-        check(roh.filter { $0 < 0x20 }.count > 0, "Antwort enthält rohe Steuerzeichen",
-              detail: "\(roh.filter { $0 < 0x20 }.count) Stück")
+        section("Control characters in the response")
+        let raw = try fixture("release-control-chars")
+        check(raw.filter { $0 < 0x20 }.count > 0, "the response contains raw control characters",
+              detail: "\(raw.filter { $0 < 0x20 }.count) of them")
 
-        // JSONDecoder prüft faul: er stolpert nur über das Steuerzeichen, wenn
-        // ein deklariertes Feld es tatsächlich liest. Damit hängt es vom Modell
-        // ab, ob dieselbe Antwort durchgeht — genau deshalb wird begradigt.
-        struct MitNotes: Decodable { let id: Int; let notes: String? }
-        struct OhneNotes: Decodable { let id: Int }
-        check((try? JSONDecoder().decode(OhneNotes.self, from: roh)) != nil,
-              "Modell ohne das betroffene Feld liest die Rohdaten klaglos")
-        check((try? JSONDecoder().decode(MitNotes.self, from: roh)) == nil,
-              "Sobald das Feld deklariert ist, scheitert dieselbe Antwort")
+        // JSONDecoder checks lazily: it only trips over the control character
+        // if a declared field actually reads it. So whether the same response
+        // gets through depends on the model — which is exactly why the bytes
+        // are straightened.
+        struct WithNotes: Decodable { let id: Int; let notes: String? }
+        struct WithoutNotes: Decodable { let id: Int }
+        check((try? JSONDecoder().decode(WithoutNotes.self, from: raw)) != nil,
+              "a model without the affected field reads the raw data without complaint")
+        check((try? JSONDecoder().decode(WithNotes.self, from: raw)) == nil,
+              "as soon as the field is declared, the same response fails")
         check((try? JSONDecoder().decode(
-                MitNotes.self,
-                from: JSONSanitizer.escapingControlCharactersInStrings(roh))) != nil,
-              "Nach dem Begradigen geht auch das")
+                WithNotes.self,
+                from: JSONSanitizer.escapingControlCharactersInStrings(raw))) != nil,
+              "after straightening, that works too")
 
-        let begradigt = JSONSanitizer.escapingControlCharactersInStrings(roh)
-        let release = try JSONDecoder().decode(DiscogsRelease.self, from: begradigt)
-        check(true, "Nach dem Begradigen lesbar: \(release.title)")
-        equal(release.id, 82730, "ID stimmt")
-        check(!release.playableTracks.isEmpty, "Tracks gelesen",
+        let straightened = JSONSanitizer.escapingControlCharactersInStrings(raw)
+        let release = try JSONDecoder().decode(DiscogsRelease.self, from: straightened)
+        check(true, "readable after straightening: \(release.title)")
+        equal(release.id, 82730, "the ID is right")
+        check(!release.playableTracks.isEmpty, "tracks read",
               detail: "\(release.playableTracks.count)")
 
-        // Der Sanitizer darf nichts anderes anfassen.
-        let bereitsEscaped = Data(#"{"a":"Zeile\nUmbruch","b":"Backslash\\","c":"Quote\""}"#.utf8)
-        equal(JSONSanitizer.escapingControlCharactersInStrings(bereitsEscaped), bereitsEscaped,
-              "Korrektes JSON bleibt unverändert")
+        // The sanitizer must not touch anything else.
+        let alreadyEscaped = Data(#"{"a":"Line\nBreak","b":"Backslash\\","c":"Quote\""}"#.utf8)
+        equal(JSONSanitizer.escapingControlCharactersInStrings(alreadyEscaped), alreadyEscaped,
+              "correct JSON stays unchanged")
 
-        let mitLeerraum = Data("{\n  \"a\" : \"x\"\n}".utf8)
-        equal(JSONSanitizer.escapingControlCharactersInStrings(mitLeerraum), mitLeerraum,
-              "Steuerzeichen außerhalb von Zeichenketten bleiben stehen")
+        let withWhitespace = Data("{\n  \"a\" : \"x\"\n}".utf8)
+        equal(JSONSanitizer.escapingControlCharactersInStrings(withWhitespace), withWhitespace,
+              "control characters outside of strings stay")
 
         struct Probe: Decodable { let a: String }
-        let kaputt = Data("{\"a\":\"vor\rnach\"}".utf8)
-        check((try? JSONDecoder().decode(Probe.self, from: kaputt)) == nil,
-              "Rohes \\r scheitert ohne Sanitizer")
-        let repariert = try JSONDecoder().decode(
-            Probe.self, from: JSONSanitizer.escapingControlCharactersInStrings(kaputt))
-        equal(repariert.a, "vor\rnach", "Mit Sanitizer lesbar, Inhalt erhalten")
+        let broken = Data("{\"a\":\"before\rafter\"}".utf8)
+        check((try? JSONDecoder().decode(Probe.self, from: broken)) == nil,
+              "a raw \\r fails without the sanitizer")
+        let repaired = try JSONDecoder().decode(
+            Probe.self, from: JSONSanitizer.escapingControlCharactersInStrings(broken))
+        equal(repaired.a, "before\rafter", "readable with the sanitizer, content preserved")
 
-        // MARK: - Echtes Release
+        // MARK: - A real release
 
-        section("Echte Antwort lesen")
+        section("Reading a real response")
         let simple = try JSONDecoder().decode(
             DiscogsRelease.self,
             from: JSONSanitizer.escapingControlCharactersInStrings(try fixture("release-simple")))
-        equal(simple.title, "Never Gonna Give You Up", "Titel")
-        equal(simple.albumArtist, "Rick Astley", "Album-Interpret")
-        equal(simple.year, 1987, "Jahr")
-        equal(simple.playableTracks.count, 2, "Zwei Stücke")
-        equal(simple.labelSummary, "RCA · PB 41447", "Label und Katalognummer")
+        equal(simple.title, "Never Gonna Give You Up", "title")
+        equal(simple.albumArtist, "Rick Astley", "album artist")
+        equal(simple.year, 1987, "year")
+        equal(simple.playableTracks.count, 2, "two pieces")
+        equal(simple.labelSummary, "RCA · PB 41447", "label and catalog number")
         let simpleNeutral = simple.asLookupRelease()
-        equal(GenreSource.style.value(from: simpleNeutral), "Euro-Disco", "Style bevorzugt")
-        equal(GenreSource.genre.value(from: simpleNeutral), "Electronic; Pop", "Genre wahlweise")
+        equal(GenreSource.style.value(from: simpleNeutral), "Euro-Disco", "style preferred")
+        equal(GenreSource.genre.value(from: simpleNeutral), "Electronic; Pop", "genre on request")
         equal(GenreSource.both.value(from: simpleNeutral), "Electronic; Pop; Euro-Disco",
-              "Beides kombiniert")
+              "both combined")
 
-        // MARK: - Eigenheiten
+        // MARK: - Quirks
 
-        section("Discogs-Eigenheiten")
+        section("Discogs quirks")
         let tricky = try JSONDecoder().decode(DiscogsRelease.self, from: try fixture("release-tricky"))
 
-        equal(tricky.tracklist?.count, 6, "Sechs Einträge in der Tracklist")
-        equal(tricky.playableTracks.count, 4, "Überschrift und Index-Eintrag sind raus")
+        equal(tricky.tracklist?.count, 6, "six entries in the track list")
+        equal(tricky.playableTracks.count, 4, "heading and index entry are out")
         check(!tricky.playableTracks.contains { $0.title == "Medley" },
-              "Index-Eintrag ohne Position übersprungen")
+              "index entry without a position skipped")
 
-        let fernVorschau = tricky.asLookupRelease().tracks
+        let remotePreview = tricky.asLookupRelease().tracks
         equal(tricky.albumArtist, "Nirvana & Die Ärzte, Queen Featuring",
-              "Mehrere Künstler zusammengesetzt, Suffix „(2)\" entfernt")
-        equal(fernVorschau[1].artistName, "Böhse Mädelz Feat. NeonRost",
-              "Track-eigene Künstler mit join")
+              "several artists joined, suffix \"(2)\" removed")
+        equal(remotePreview[1].artistName, "Böhse Mädelz Feat. NeonRost",
+              "the track's own artists with join")
 
-        equal(TrackPosition.parse("1-3"), TrackPosition(disc: 1, number: 3), "Position „1-3\"")
-        equal(TrackPosition.parse("CD2-4"), TrackPosition(disc: 2, number: 4), "Position „CD2-4\"")
-        equal(TrackPosition.parse("2.5"), TrackPosition(disc: 2, number: 5), "Position „2.5\"")
-        equal(TrackPosition.parse("12"), TrackPosition(disc: nil, number: 12), "Reine Nummer")
-        equal(TrackPosition.parse("B2"), TrackPosition(disc: nil, number: nil), "Vinylseite")
-        equal(TrackPosition.parse(nil), TrackPosition(), "Ohne Angabe")
-        equal(tricky.discCount, 2, "Doppel-CD erkannt")
+        equal(TrackPosition.parse("1-3"), TrackPosition(disc: 1, number: 3), "position \"1-3\"")
+        equal(TrackPosition.parse("CD2-4"), TrackPosition(disc: 2, number: 4), "position \"CD2-4\"")
+        equal(TrackPosition.parse("2.5"), TrackPosition(disc: 2, number: 5), "position \"2.5\"")
+        equal(TrackPosition.parse("12"), TrackPosition(disc: nil, number: 12), "plain number")
+        equal(TrackPosition.parse("B2"), TrackPosition(disc: nil, number: nil), "vinyl side")
+        equal(TrackPosition.parse(nil), TrackPosition(), "without a value")
+        equal(tricky.discCount, 2, "double CD recognized")
 
-        // MARK: - Zuordnung
+        // MARK: - Matching
 
-        section("Zuordnung")
-        func lokal(_ titles: [String?]) -> [ReleaseMatcher.LocalTrack] {
+        section("Matching")
+        func localTracks(_ titles: [String?]) -> [ReleaseMatcher.LocalTrack] {
             titles.enumerated().map {
                 ReleaseMatcher.LocalTrack(id: UUID(), title: $0.element,
                                           filename: "\($0.offset + 1).mp3")
@@ -134,163 +151,163 @@ enum LookupTests {
         }
 
         let trickyNeutral = tricky.asLookupRelease()
-        let fern = trickyNeutral.tracks
-        let vier = lokal(["Erstes Stück", "Zweites Stück", "Drittes Stück", "Viertes Stück"])
-        equal(ReleaseMatcher.suggest(local: vier, remote: fern),
-              [0, 1, 2, 3], "Gleiche Anzahl, gleiche Reihenfolge")
+        let remote = trickyNeutral.tracks
+        let four = localTracks(["Erstes Stück", "Zweites Stück", "Drittes Stück", "Viertes Stück"])
+        equal(ReleaseMatcher.suggest(local: four, remote: remote),
+              [0, 1, 2, 3], "same count, same order")
 
-        let ohneTitel = lokal([nil, nil, nil, nil])
-        equal(ReleaseMatcher.suggest(local: ohneTitel, remote: fern),
-              [0, 1, 2, 3], "Ohne Titel gilt die Reihenfolge")
+        let noTitles = localTracks([nil, nil, nil, nil])
+        equal(ReleaseMatcher.suggest(local: noTitles, remote: remote),
+              [0, 1, 2, 3], "without titles the order applies")
 
-        // Bonustrack am Ende: die vier bekannten müssen trotzdem sitzen.
-        let mitBonus = lokal(["Erstes Stück", "Zweites Stück", "Drittes Stück",
-                              "Viertes Stück", "Bonus aus der Radiosendung"])
-        let bonusPaarung = ReleaseMatcher.suggest(local: mitBonus, remote: fern)
-        equal(Array(bonusPaarung.prefix(4)), [0, 1, 2, 3], "Bekannte Stücke sitzen")
-        equal(bonusPaarung[4], nil, "Bonustrack bleibt ohne Gegenstück")
+        // A bonus track at the end: the four known ones still have to fit.
+        let withBonus = localTracks(["Erstes Stück", "Zweites Stück", "Drittes Stück",
+                                     "Viertes Stück", "Bonus from the radio show"])
+        let bonusPairing = ReleaseMatcher.suggest(local: withBonus, remote: remote)
+        equal(Array(bonusPairing.prefix(4)), [0, 1, 2, 3], "known pieces fit")
+        equal(bonusPairing[4], nil, "the bonus track stays without a counterpart")
 
-        // Vertauschte Reihenfolge — hier muss der Titelabgleich greifen.
-        let vertauscht = lokal(["Viertes Stück", "Erstes Stück", "Drittes Stück", "Zweites Stück"])
-        equal(ReleaseMatcher.suggest(local: vertauscht, remote: fern),
-              [3, 0, 2, 1], "Vertauschte Dateien werden über den Titel zugeordnet")
+        // Swapped order — here the title match has to take effect.
+        let swapped = localTracks(["Viertes Stück", "Erstes Stück", "Drittes Stück", "Zweites Stück"])
+        equal(ReleaseMatcher.suggest(local: swapped, remote: remote),
+              [3, 0, 2, 1], "swapped files are matched by title")
 
         equal(ReleaseMatcher.normalize("03 - Haut bloß ab!"), "haut bloß ab",
-              "Normalisierung entfernt Tracknummer und Satzzeichen")
+              "normalization removes track number and punctuation")
         check(ReleaseMatcher.similarity("Erstes Stück", "erstes stueck") < 1.0,
-              "Ähnlichkeit ist kein blinder Gleichheitstest")
-        check(ReleaseMatcher.similarity("Erstes Stück", "Erstes Stück") == 1.0, "Gleich ist 1.0")
-        check(ReleaseMatcher.similarity("Erstes Stück", "Ganz was anderes") < 0.4,
-              "Unterschiedliches bleibt unten")
+              "similarity is no blind equality test")
+        check(ReleaseMatcher.similarity("Erstes Stück", "Erstes Stück") == 1.0, "equal is 1.0")
+        check(ReleaseMatcher.similarity("Erstes Stück", "Something else entirely") < 0.4,
+              "different stays low")
 
-        // MARK: - Vorgeschlagene Felder
+        // MARK: - Proposed fields
 
-        section("Vorgeschlagene Felder")
-        let vorschlaege = ReleaseMatcher.proposals(
-            release: trickyNeutral, local: vier,
+        section("Proposed fields")
+        let proposals = ReleaseMatcher.proposals(
+            release: trickyNeutral, local: four,
             pairing: [0, 1, 2, 3], genreSource: .style)
-        equal(vorschlaege.count, 4, "Ein Vorschlag je Datei")
+        equal(proposals.count, 4, "one proposal per file")
 
-        let erster = vorschlaege[0].values
-        equal(erster[.title], "Erstes Stück", "Titel")
-        equal(erster[.album], "Die Hüllen - Sampler", "Album")
-        equal(erster[.albumArtist], "Nirvana & Die Ärzte, Queen Featuring", "Album-Interpret")
-        equal(erster[.year], "1994", "Jahr")
-        equal(erster[.genre], "Melodic Death Metal; Doom Metal", "Style statt Genre")
-        equal(erster[.trackNumber], "1", "Tracknummer aus der Position")
-        equal(erster[.discNumber], "1", "Discnummer aus der Position")
-        equal(erster[.discTotal], "2", "Zwei Tonträger")
-        equal(erster[.trackTotal], "2", "Zwei Stücke auf dieser Disc")
+        let first = proposals[0].values
+        equal(first[.title], "Erstes Stück", "title")
+        equal(first[.album], "Die Hüllen - Sampler", "album")
+        equal(first[.albumArtist], "Nirvana & Die Ärzte, Queen Featuring", "album artist")
+        equal(first[.year], "1994", "year")
+        equal(first[.genre], "Melodic Death Metal; Doom Metal", "style instead of genre")
+        equal(first[.trackNumber], "1", "track number from the position")
+        equal(first[.discNumber], "1", "disc number from the position")
+        equal(first[.discTotal], "2", "two media")
+        equal(first[.trackTotal], "2", "two pieces on this disc")
 
-        let zweiter = vorschlaege[1].values
-        equal(zweiter[.artist], "Böhse Mädelz Feat. NeonRost",
-              "Track-eigener Künstler schlägt den Album-Interpreten")
-        let dritter = vorschlaege[2].values
-        equal(dritter[.discNumber], "2", "Zweite Disc")
-        equal(dritter[.trackNumber], "1", "Auf Disc 2 wieder bei 1")
+        let second = proposals[1].values
+        equal(second[.artist], "Böhse Mädelz Feat. NeonRost",
+              "the track's own artist beats the album artist")
+        let third = proposals[2].values
+        equal(third[.discNumber], "2", "second disc")
+        equal(third[.trackNumber], "1", "back at 1 on disc 2")
 
         // MARK: - MusicBrainz
 
-        section("MusicBrainz — ohne Token")
+        section("MusicBrainz — without a token")
         let mbRelease = try JSONDecoder().decode(
             MBRelease.self,
             from: JSONSanitizer.escapingControlCharactersInStrings(
                 try fixture("musicbrainz-release")))
         let mbNeutral = mbRelease.asLookupRelease()
-        equal(mbNeutral.title, "Whenever You Need Somebody", "Titel")
-        equal(mbNeutral.albumArtist, "Rick Astley", "Interpret aus artist-credit")
-        equal(mbNeutral.year, 1987, "Jahr aus dem Datum")
-        equal(mbNeutral.country, "US", "Land")
-        equal(mbNeutral.tracks.count, 10, "Zehn Stücke über alle Medien")
-        equal(mbNeutral.tracks.first?.title, "Never Gonna Give You Up", "Erstes Stück")
-        equal(mbNeutral.tracks.first?.number, 1, "Tracknummer")
-        equal(mbNeutral.tracks.first?.duration, "3:37", "Dauer aus Millisekunden")
-        equal(mbNeutral.provider, .musicBrainz, "Quelle vermerkt")
-        check(mbNeutral.labelSummary?.contains("BMG") == true, "Label gelesen",
+        equal(mbNeutral.title, "Whenever You Need Somebody", "title")
+        equal(mbNeutral.albumArtist, "Rick Astley", "artist from artist-credit")
+        equal(mbNeutral.year, 1987, "year from the date")
+        equal(mbNeutral.country, "US", "country")
+        equal(mbNeutral.tracks.count, 10, "ten pieces across all media")
+        equal(mbNeutral.tracks.first?.title, "Never Gonna Give You Up", "first piece")
+        equal(mbNeutral.tracks.first?.number, 1, "track number")
+        equal(mbNeutral.tracks.first?.duration, "3:37", "duration from milliseconds")
+        equal(mbNeutral.provider, .musicBrainz, "source noted")
+        check(mbNeutral.labelSummary?.contains("BMG") == true, "label read",
               detail: mbNeutral.labelSummary ?? "—")
         check(mbNeutral.thumbnailURL?.absoluteString.contains("coverartarchive.org") == true,
-              "Cover kommt aus dem offenen Cover Art Archive")
+              "the cover comes from the open Cover Art Archive")
 
-        // MusicBrainz kennt keine Styles — die Wahl muss trotzdem etwas liefern.
+        // MusicBrainz knows no styles — the choice still has to deliver something.
         equal(GenreSource.style.value(from: mbNeutral), GenreSource.genre.value(from: mbNeutral),
-              "Ohne Styles fällt die Style-Wahl auf Genres zurück")
+              "without styles the style choice falls back to genres")
 
         let mbSearch = try JSONDecoder().decode(
             MBSearchResponse.self, from: try fixture("musicbrainz-search"))
-        let treffer = (mbSearch.releases ?? []).map { $0.asLookupSearchResult() }
-        check(!treffer.isEmpty, "Suchtreffer gelesen", detail: "\(treffer.count)")
-        check(treffer.first?.subtitle.contains("Rick Astley") == true,
-              "Untertitel nennt den Interpreten", detail: treffer.first?.subtitle ?? "—")
-        equal(treffer.first?.provider, .musicBrainz, "Quelle am Treffer vermerkt")
+        let results = (mbSearch.releases ?? []).map { $0.asLookupSearchResult() }
+        check(!results.isEmpty, "search results read", detail: "\(results.count)")
+        check(results.first?.subtitle.contains("Rick Astley") == true,
+              "the subtitle names the artist", detail: results.first?.subtitle ?? "—")
+        equal(results.first?.provider, .musicBrainz, "source noted on the result")
 
         equal(MusicBrainzClient.userAgent, "Sleeve/1.0 ( https://github.com/NeonRost/Sleeve )",
-              "User-Agent nennt Anwendung und Kontakt")
-        check(!LookupProvider.musicBrainz.needsToken, "MusicBrainz braucht keinen Token")
-        check(LookupProvider.discogs.needsToken, "Discogs schon")
+              "the User-Agent names application and contact")
+        check(!LookupProvider.musicBrainz.needsToken, "MusicBrainz needs no token")
+        check(LookupProvider.discogs.needsToken, "Discogs does")
 
-        // Beide Quellen durch denselben Matcher.
-        let mbLokal = lokal(mbNeutral.tracks.map(\.title))
-        equal(ReleaseMatcher.suggest(local: mbLokal, remote: mbNeutral.tracks),
-              Array(0..<mbNeutral.tracks.count), "Derselbe Matcher trägt beide Quellen")
+        // Both sources through the same matcher.
+        let mbLocal = localTracks(mbNeutral.tracks.map(\.title))
+        equal(ReleaseMatcher.suggest(local: mbLocal, remote: mbNeutral.tracks),
+              Array(0..<mbNeutral.tracks.count), "the same matcher serves both sources")
 
-        // MARK: - Rate-Limit
+        // MARK: - Rate limit
 
-        section("Rate-Limit")
+        section("Rate limit")
         let limiter = RateLimiter(limit: 3, per: .milliseconds(400))
         let start = ContinuousClock().now
         for _ in 0..<3 { await limiter.acquire() }
-        let nachDrei = ContinuousClock().now - start
-        check(nachDrei < .milliseconds(100), "Die ersten drei gehen sofort durch",
-              detail: "\(nachDrei)")
+        let afterThree = ContinuousClock().now - start
+        check(afterThree < .milliseconds(100), "the first three go through right away",
+              detail: "\(afterThree)")
 
-        await limiter.acquire()   // die vierte muss warten
-        let nachVier = ContinuousClock().now - start
-        check(nachVier >= .milliseconds(380), "Die vierte wartet auf das Fenster",
-              detail: "\(nachVier)")
+        await limiter.acquire()   // the fourth has to wait
+        let afterFour = ContinuousClock().now - start
+        check(afterFour >= .milliseconds(380), "the fourth waits for the window",
+              detail: "\(afterFour)")
 
         let discogs = RateLimiter.forDiscogs(authenticated: true)
-        check(await discogs.currentLoad == 0, "Frischer Limiter ist leer")
+        check(await discogs.currentLoad == 0, "a fresh limiter is empty")
 
-        // MARK: - Client ohne Token
+        // MARK: - Client without a token
 
         section("Client")
         let client = DiscogsClient(token: nil)
-        check(!(await client.hasToken), "Ohne Token als solcher erkannt")
+        check(!(await client.hasToken), "recognized as having no token")
         do {
-            _ = try await client.search(.init(artist: "egal"))
-            check(false, "Suche ohne Token wirft")
+            _ = try await client.search(.init(artist: "whatever"))
+            check(false, "search without a token throws")
         } catch let error as DiscogsClient.ClientError {
-            equal(error, .missingToken, "Suche ohne Token meldet fehlenden Token")
+            equal(error, .missingToken, "search without a token reports the missing token")
         }
         await client.updateToken("  ")
-        check(!(await client.hasToken), "Leerraum gilt nicht als Token")
+        check(!(await client.hasToken), "whitespace does not count as a token")
         await client.updateToken("abc123")
-        check(await client.hasToken, "Echter Token wird übernommen")
+        check(await client.hasToken, "a real token is taken over")
         equal(DiscogsClient.userAgent, "Sleeve/1.0 +https://github.com/NeonRost/Sleeve",
-              "User-Agent wie in der Spec")
+              "User-Agent as in the spec")
 
         await sharedSearch()
 
-        print("\n\(checks - failures)/\(checks) Prüfungen bestanden")
+        print("\n\(checks - failures)/\(checks) checks passed")
         if failures > 0 {
-            print("✗ \(failures) fehlgeschlagen")
+            print("✗ \(failures) failed")
             return 1
         }
-        print("✓ Alles grün.")
+        print("✓ All green.")
         return 0
     }
 
-    // MARK: - Gemeinsame Suche
+    // MARK: - Shared search
 
-    /// „Album nachschlagen" und „Titel nachschlagen" teilen sich die Suche.
-    /// Geprüft ohne Netz: die Antworten kommen aus `fixtures/`.
+    /// "Look Up Album" and "Look Up Titles" share the search. Checked without
+    /// network: the responses come from `fixtures/`.
     @MainActor
     static func sharedSearch() async {
-        section("Gemeinsame Suche beider Blätter")
+        section("Search shared by both sheets")
         equal(LookupProvider.preferred(hasDiscogsToken: false), .musicBrainz,
-              "Ohne Token ist MusicBrainz die Vorgabe")
+              "without a token MusicBrainz is the default")
         equal(LookupProvider.preferred(hasDiscogsToken: true), .discogs,
-              "Mit Token Discogs — in beiden Blättern")
+              "with a token Discogs — in both sheets")
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [FixtureProtocol.self]
@@ -303,64 +320,64 @@ enum LookupTests {
         query.artist = "Rick Astley"
         let search = ReleaseSearch(service: service, provider: .musicBrainz, query: query,
                                    hasDiscogsToken: false)
-        check(search.canSearch, "Mit Suchbegriff und ohne Sperre darf gesucht werden")
+        check(search.canSearch, "with a search term and no lock, searching is allowed")
         await search.search()
-        check(!search.results.isEmpty, "Treffer aus der Suche", detail: "\(search.results.count)")
-        check(search.message == nil, "Keine Meldung, wenn etwas gefunden wurde")
+        check(!search.results.isEmpty, "results from the search", detail: "\(search.results.count)")
+        check(search.message == nil, "no message when something was found")
 
-        // Die Dateien: die Titel des Albums, eine davon zehn Sekunden zu lang.
+        // The files: the album's titles, one of them ten seconds too long.
         guard let data = try? fixture("musicbrainz-release"),
               let album = try? JSONDecoder().decode(
                 MBRelease.self, from: JSONSanitizer.escapingControlCharactersInStrings(data))
                 .asLookupRelease()
-        else { check(false, "Fixture lesbar"); return }
-        let dateien = album.tracks.enumerated().map { index, track in
+        else { check(false, "fixture readable"); return }
+        let files = album.tracks.enumerated().map { index, track in
             ReleaseMatcher.LocalTrack(
                 id: UUID(), title: track.title, filename: "\(index + 1).mp3",
                 duration: (track.duration.flatMap(Timecode.parse) ?? 0) + (index == 3 ? 10 : 0.4))
         }
-        let session = LookupSession(search: search, local: dateien, genreSource: .style)
-        equal(session.matchedCount, 0, "Ohne gewähltes Album ist nichts zugeordnet")
+        let session = LookupSession(search: search, local: files, genreSource: .style)
+        equal(session.matchedCount, 0, "without a selected album nothing is matched")
 
         await search.select(search.results[0].id)
-        check(search.release != nil, "Treffer gewählt, Album geladen")
-        equal(search.selectedID, search.results[0].id, "Der Treffer bleibt markiert")
-        equal(session.matchedCount, dateien.count, "Die Zuordnung folgt dem geladenen Album")
-        equal(session.remoteDuration(for: 0), 217, "Länge des zugeordneten Tracks in Sekunden")
+        check(search.release != nil, "result selected, album loaded")
+        equal(search.selectedID, search.results[0].id, "the result stays selected")
+        equal(session.matchedCount, files.count, "the matching follows the loaded album")
+        equal(session.remoteDuration(for: 0), 217, "length of the assigned track in seconds")
         equal(session.deviationCount, 1,
-              "Genau die Datei, die zehn Sekunden abweicht, fällt auf — 0,4 s nicht")
-        check(!session.proposals().isEmpty, "Vorschläge zum Übernehmen")
+              "exactly the file ten seconds off stands out — 0.4 s does not")
+        check(!session.proposals().isEmpty, "proposals to take over")
 
         session.assign(remoteIndex: nil, toLocal: 3)
-        equal(session.matchedCount, dateien.count - 1, "Von Hand gelöst")
-        equal(session.deviationCount, 0, "Ohne Zuordnung keine Abweichung")
+        equal(session.matchedCount, files.count - 1, "unassigned by hand")
+        equal(session.deviationCount, 0, "no assignment, no deviation")
 
         await search.select(nil)
-        check(search.release == nil, "Auswahl aufgehoben, Album weg")
-        equal(session.matchedCount, 0, "…und mit ihm die Zuordnung")
+        check(search.release == nil, "selection cleared, album gone")
+        equal(session.matchedCount, 0, "…and with it the matching")
 
-        let bisher = FixtureProtocol.requests
+        let requestsSoFar = FixtureProtocol.requests
         await search.switchProvider(to: .discogs)
-        equal(search.provider, .discogs, "Quelle gewechselt")
-        check(search.results.isEmpty, "Treffer der anderen Quelle sind weg")
-        check(search.providerBlocker != nil, "Ohne Token: Hinweis statt Suche")
-        check(!search.canSearch, "Suchen gesperrt")
-        equal(FixtureProtocol.requests, bisher, "Und es ging keine Anfrage raus")
+        equal(search.provider, .discogs, "source switched")
+        check(search.results.isEmpty, "the other source's results are gone")
+        check(search.providerBlocker != nil, "without a token: a hint instead of a search")
+        check(!search.canSearch, "searching locked")
+        equal(FixtureProtocol.requests, requestsSoFar, "and no request went out")
 
         await search.switchProvider(to: .musicBrainz)
-        check(!search.results.isEmpty, "Zurück bei MusicBrainz wird gleich neu gesucht")
+        check(!search.results.isEmpty, "back at MusicBrainz a new search starts right away")
 
         search.query = DiscogsClient.SearchQuery()
-        check(!search.canSearch, "Ohne Suchbegriff kein Suchen")
+        check(!search.canSearch, "no search term, no search")
 
-        check(!LookupComparison.deviates(200, from: 203), "3 s gelten noch als passend")
-        check(LookupComparison.deviates(200, from: 203.5), "darüber nicht")
-        check(!LookupComparison.deviates(nil, from: 200), "Ohne eigene Länge keine Abweichung")
+        check(!LookupComparison.deviates(200, from: 203), "3 s still count as matching")
+        check(LookupComparison.deviates(200, from: 203.5), "above that not")
+        check(!LookupComparison.deviates(nil, from: 200), "without a length of one's own, no deviation")
     }
 }
 
-/// Beantwortet MusicBrainz-Anfragen aus `fixtures/`: die Suche mit der
-/// gespeicherten Trefferliste, jeden Albumabruf mit dem gespeicherten Album.
+/// Answers MusicBrainz requests from `fixtures/`: the search with the stored
+/// result list, every album request with the stored album.
 final class FixtureProtocol: URLProtocol {
     nonisolated(unsafe) static var requests = 0
 

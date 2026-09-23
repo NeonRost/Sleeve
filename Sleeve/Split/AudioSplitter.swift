@@ -2,16 +2,31 @@
 //  AudioSplitter.swift
 //  Sleeve
 //
-//  Eine lange Aufnahme in einzelne Tracks zerlegen (Spec §7).
+//  Copyright (C) 2026 NeonRost
 //
-//  Der Kern heißt bewusst „schneide diese Datei an dieser Liste von
-//  Positionen" und nicht „finde Stille". Woher die Grenzen kommen, ist
-//  austauschbar: heute aus der Stille zwischen den Stücken, später aus einem
-//  Cue Sheet (§9.1). Sonst stünde das Cue-Einlesen irgendwann als zweites
-//  Werkzeug daneben statt als weitere Quelle davor.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//  Die Stille-Erkennung und der Randpuffer stammen aus dem Track Splitter in
-//  NeonRosts Werkzeugkoffer und sind dort über längere Zeit erprobt worden.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Splitting a long recording into individual tracks (spec §7).
+//
+//  The core is deliberately called "cut this file at this list of
+//  positions" and not "find silence". Where the boundaries come from is
+//  interchangeable: today from the silence between the pieces, later from a
+//  cue sheet (§9.1). Otherwise reading cue sheets would one day stand next
+//  to it as a second tool instead of being one more source in front of it.
+//
+//  Silence detection and the edge buffer come from the Track Splitter in
+//  NeonRost's toolbox and have been proven there over a long time.
 //
 
 import Foundation
@@ -23,8 +38,8 @@ struct SilenceInterval: Equatable, Sendable {
 
 struct SilenceAnalysis: Sendable {
     var duration: Double
-    /// Alles, was ffmpeg gemeldet hat, samt Randartefakten. Was davon
-    /// tatsächlich geschnitten wird, entscheidet `trackRanges`.
+    /// Everything ffmpeg reported, edge artefacts included. What actually
+    /// gets cut is decided by `trackRanges`.
     var silences: [SilenceInterval]
 }
 
@@ -36,12 +51,12 @@ struct TrackRange: Identifiable, Equatable, Sendable {
     var duration: Double { max(0, end - start) }
 }
 
-/// Was aus den Stücken werden soll.
+/// What the pieces should become.
 ///
-/// `keepSource` schneidet nur (`-c copy`) und lässt die Tonspur unangetastet.
-/// Alles andere **kodiert neu** — bei einer verlustbehafteten Quelle heißt das
-/// ein zweites Mal verlustbehaftet. Das ist manchmal gewollt (eine MP3 für den
-/// Autoradio-Stick), aber nie gratis, und die Oberfläche sagt es deshalb.
+/// `keepSource` only cuts (`-c copy`) and leaves the audio stream untouched.
+/// Everything else **re-encodes** — with a lossy source that means lossy a
+/// second time. Sometimes that is wanted (an MP3 for the car radio stick),
+/// but it is never free, which is why the UI says so.
 enum SplitOutput: Hashable, Sendable {
     case keepSource
     case convert(AudioFormat)
@@ -63,44 +78,43 @@ enum AudioSplitter {
         "mp3", "flac", "m4a", "aac", "ogg", "opus", "wav", "aiff", "aif", "wma", "alac",
     ]
 
-    /// Ein heruntergeladenes Album ist oft ein Video — YouTube liefert Bild
-    /// und Ton zusammen, und wer „ganzes Album" sucht, bekommt genau das.
-    /// Die Tonspur lässt sich verlustfrei herausziehen, also gibt es keinen
-    /// Grund, solche Dateien abzuweisen.
+    /// A downloaded album is often a video — YouTube delivers picture and
+    /// sound together, and whoever searches for a "full album" gets exactly
+    /// that. The audio stream can be extracted losslessly, so there is no
+    /// reason to reject such files.
     static let videoExtensions: Set<String> = [
         "mp4", "m4v", "mov", "mkv", "webm", "avi", "flv", "wmv", "ts", "mpg", "mpeg",
     ]
 
     static var acceptedExtensions: Set<String> { audioExtensions.union(videoExtensions) }
 
-    /// Stille in den ersten oder letzten zwei Sekunden gilt als übliche
-    /// Leerlaufzeit einer Plattenseite oder Kassette, nicht als Trackgrenze.
-    /// Fester Wert, kein Regler: die beiden, auf die es ankommt — Schwelle und
-    /// Mindestdauer — sind genug Knöpfe für einen Bildschirm.
+    /// Silence in the first or last two seconds counts as the usual dead air
+    /// of a record side or cassette, not as a track boundary. A fixed value,
+    /// not a slider: the two that matter — threshold and minimum duration —
+    /// are enough controls for one screen.
     static let edgeBuffer: Double = 2.0
 
-    /// Voreinstellung für die kürzeste Länge, die ein Track haben darf.
+    /// Default for the shortest length a track may have.
     ///
-    /// Ohne diese Schranke entstehen aus Applaus, Übergängen und Ansagen
-    /// Bruchstücke von Sekundenbruchteilen. An einem echten Mitschnitt
-    /// gemessen: von 22 gefundenen Abschnitten waren **neun kürzer als vier
-    /// Sekunden**, vier davon unter einer halben, einer exakt null Sekunden
-    /// lang — ein Schnitt der Länge null ergibt eine unbrauchbare Datei.
+    /// Without this limit, applause, transitions and announcements produce
+    /// fragments of fractions of a second. Measured on a real recording: of 22
+    /// sections found, **nine were shorter than four seconds**, four of them
+    /// under half a second, one exactly zero seconds long — a cut of length
+    /// zero yields an unusable file.
     static let defaultMinimumTrackLength: Double = 10.0
 
-    // MARK: - Was ist das für eine Datei?
+    // MARK: - What kind of file is this?
 
     struct SourceInfo: Equatable, Sendable {
         var duration: Double
-        /// Der Codec der Tonspur, wie ffmpeg ihn nennt — `aac`, `mp3`, …
+        /// The codec of the audio stream as ffmpeg names it — `aac`, `mp3`, …
         var audioCodec: String
         var hasVideo: Bool
 
-        /// Die Endung, die das geschnittene Stück bekommt.
+        /// The extension the cut piece gets.
         ///
-        /// Aus einem Video wird nie wieder ein Video: gefragt ist die Musik.
-        /// Der Behälter richtet sich nach dem Tonformat, damit nichts neu
-        /// kodiert werden muss.
+        /// A video never becomes a video again: the music is what is wanted. The
+        /// container follows the audio format, so that nothing needs re-encoding.
         var outputExtension: String {
             switch audioCodec {
             case "aac", "alac":            "m4a"
@@ -110,15 +124,15 @@ enum AudioSplitter {
             case "vorbis":                 "ogg"
             case "ac3":                    "ac3"
             case let codec where codec.hasPrefix("pcm_"): "wav"
-            // Unbekanntes in einen Behälter zu zwingen, der es nicht nimmt,
-            // scheitert erst beim Schneiden. m4a nimmt am meisten.
+            // Forcing something unknown into a container that does not take it
+            // only fails when cutting. m4a takes the most.
             default:                       "m4a"
             }
         }
     }
 
-    /// Fragt ffmpeg, was in der Datei steckt. Liefert zugleich die Dauer, die
-    /// sonst ein zweiter Aufruf kosten würde.
+    /// Asks ffmpeg what is in the file. Also returns the duration, which
+    /// would otherwise cost a second call.
     static func probe(file: URL, ffmpeg: FFmpegTool) async throws -> SourceInfo {
         let result: ProcessRunner.Result
         do {
@@ -135,7 +149,7 @@ enum AudioSplitter {
                           hasVideo: text.contains("Stream #") && text.contains("Video:"))
     }
 
-    /// `Stream #0:1[0x2](und): Audio: aac (LC) …` — der Name hinter „Audio:".
+    /// `Stream #0:1[0x2](und): Audio: aac (LC) …` — the name after "Audio:".
     static func parseAudioCodec(_ text: String) -> String? {
         for line in text.split(whereSeparator: \.isNewline) {
             guard line.contains("Stream #"), let range = line.range(of: "Audio: ") else { continue }
@@ -146,9 +160,9 @@ enum AudioSplitter {
         return nil
     }
 
-    // MARK: - Untersuchen
+    // MARK: - Analysis
 
-    /// Lässt ffmpeg die Stille suchen und liest Dauer und Fundstellen aus.
+    /// Lets ffmpeg look for silence and reads the duration and the findings.
     static func analyze(file: URL,
                         thresholdDB: Double,
                         minDuration: Double,
@@ -158,8 +172,8 @@ enum AudioSplitter {
             result = try await ProcessRunner.run(ffmpeg.url, arguments: [
                 "-hide_banner",
                 "-i", file.path(percentEncoded: false),
-                // Kein Bild dekodieren — bei einem Album-Video spart das den
-                // Löwenanteil der Zeit, und gesucht wird ohnehin im Ton.
+                // Decode no picture — for an album video that saves the lion's
+                // share of the time, and the search happens in the audio anyway.
                 "-vn",
                 "-af", "silencedetect=noise=\(thresholdDB)dB:d=\(minDuration)",
                 "-f", "null", "-",
@@ -168,13 +182,13 @@ enum AudioSplitter {
             throw SplitError.analysisFailed
         }
 
-        // ffmpeg schreibt Banner *und* Filterausgabe nach stderr.
+        // ffmpeg writes banner *and* filter output to stderr.
         let text = result.standardError
         guard let duration = parseDuration(text) else { throw SplitError.analysisFailed }
         return SilenceAnalysis(duration: duration, silences: parseSilences(text))
     }
 
-    /// `Duration: 00:52:29.57, …` aus ffmpegs Kopfzeilen.
+    /// `Duration: 00:52:29.57, …` from ffmpeg's header lines.
     static func parseDuration(_ text: String) -> Double? {
         guard let match = text.range(of: #"Duration: (\d+):(\d+):(\d+\.\d+)"#,
                                      options: .regularExpression) else { return nil }
@@ -189,11 +203,11 @@ enum AudioSplitter {
         return hours * 3600 + minutes * 60 + seconds
     }
 
-    /// Paart `silence_start:` mit `silence_end:`.
+    /// Pairs `silence_start:` with `silence_end:`.
     ///
-    /// Die Werte kommen manchmal ohne Nachkommastelle (`silence_start: 0`),
-    /// deshalb ist der Nachkommateil im Muster optional. Und sie können
-    /// negativ sein — ffmpeg meldet gelegentlich `-0.00478...`.
+    /// The values sometimes come without decimals (`silence_start: 0`), so the
+    /// decimal part in the pattern is optional. And they can be negative —
+    /// ffmpeg occasionally reports `-0.00478...`.
     static func parseSilences(_ text: String) -> [SilenceInterval] {
         var starts: [Double] = []
         var ends: [Double] = []
@@ -216,42 +230,43 @@ enum AudioSplitter {
         return Double(line[numberRange])
     }
 
-    // MARK: - Grenzen
+    // MARK: - Boundaries
 
-    /// Stillen, die weniger als das auseinanderliegen, gelten als eine — was
-    /// dazwischen klingt, ist ein Knacken oder ein Atmer in der Pause.
+    /// Silences less than this far apart count as one — whatever sounds in
+    /// between is a click or a breath in the pause.
     static let noiseLength: Double = 1.0
 
-    /// Unterhalb davon gilt ein Wert beim Suchen der tiefsten Stille als
-    /// Boden, auch wenn die Datei nirgends ganz still ist (−60 dBFS).
+    /// Below this, a value counts as floor when searching for the deepest
+    /// silence, even if the file is nowhere completely silent (−60 dBFS).
     static let floorLevel: Float = 0.001
 
-    /// Ein möglicher Schnitt: wo, und wie überzeugend. Je länger die Stille,
-    /// desto wahrscheinlicher liegt dort wirklich eine Trackgrenze.
+    /// A possible cut: where, and how convincing. The longer the silence, the
+    /// more likely there really is a track boundary there.
     struct Cut: Equatable, Sendable {
         var position: Double
         var strength: Double
     }
 
-    /// Macht aus gefundener Stille lückenlos aneinanderliegende Tracks.
+    /// Turns the silence found into tracks that lie against each other without
+    /// gaps.
     ///
-    /// **Nichts wird verworfen.** Der erste Anlauf ließ die Pausen zwischen den
-    /// Tracks weg — und mit ihnen alles, was leiser als die Schwelle war. Am
-    /// echten Album gemessen: 66 s in keiner Datei, darunter das leise Intro
-    /// von „Slider" (−35 bis −49 dB, sechs Sekunden). Jetzt gehört eine Pause
-    /// zum Ende des vorigen Tracks, wie bei CD-Rippern üblich.
+    /// **Nothing is discarded.** The first attempt left out the pauses between
+    /// the tracks — and with them everything quieter than the threshold.
+    /// Measured on the real album: 66 s in no file, including the quiet intro
+    /// of "Slider" (−35 to −49 dB, six seconds). Now a pause belongs to the end
+    /// of the previous track, as is usual with CD rippers.
     ///
-    /// `levels` ist die Hüllkurve der Datei. Mit ihr wird am Ende der
-    /// **tiefsten** Stille geschnitten statt am Ende der Schwellen-Stille — das
-    /// ist der Unterschied zwischen einem Intro, das zum richtigen Track gehört,
-    /// und einem, das der vorige bekommt. Ohne Hüllkurve wird am Ende der
-    /// Stille geschnitten.
+    /// `levels` is the envelope of the file. With it, the cut goes at the end
+    /// of the **deepest** silence instead of at the end of the threshold
+    /// silence — that is the difference between an intro that belongs to the
+    /// right track and one the previous track gets. Without an envelope the
+    /// cut goes at the end of the silence.
     static func trackRanges(duration: Double,
                             silences: [SilenceInterval],
                             minimumLength: Double = defaultMinimumTrackLength,
                             levels: WaveformSampler.Waveform? = nil) -> [TrackRange] {
         let regions = bridge(silences.sorted { $0.start < $1.start }, within: noiseLength)
-            // Stille ganz am Anfang oder Ende ist Leerlauf, keine Grenze.
+            // Silence right at the start or end is dead air, not a boundary.
             .filter { $0.start >= edgeBuffer && $0.end <= duration - edgeBuffer }
         guard !regions.isEmpty else { return [] }
 
@@ -271,7 +286,7 @@ enum AudioSplitter {
         return ranges
     }
 
-    /// Fasst Stillen zusammen, zwischen denen nur ein kurzes Geräusch liegt.
+    /// Merges silences with only a short noise between them.
     static func bridge(_ silences: [SilenceInterval], within gap: Double) -> [SilenceInterval] {
         var result: [SilenceInterval] = []
         for silence in silences {
@@ -285,13 +300,12 @@ enum AudioSplitter {
         return result
     }
 
-    /// Wo in einer Stille geschnitten wird: am Ende ihres **tiefsten**
-    /// Abschnitts.
+    /// Where a silence is cut: at the end of its **deepest** stretch.
     ///
-    /// Die Schwelle allein reicht nicht. Ein leises Intro liegt unter ihr und
-    /// gehört trotzdem zum nächsten Stück; ein Ausklang ebenso zum vorigen.
-    /// Der tiefste Abschnitt — oft digitale Null — ist die eigentliche Fuge.
-    /// Gibt es mehrere, zählt der längste.
+    /// The threshold alone is not enough. A quiet intro lies below it and still
+    /// belongs to the next piece; a fade-out likewise to the previous one. The
+    /// deepest stretch — often digital zero — is the actual seam. If there are
+    /// several, the longest counts.
     static func cutPosition(in region: SilenceInterval, levels: WaveformSampler.Waveform?) -> Double {
         guard let levels, !levels.peaks.isEmpty, levels.duration > 0 else { return region.end }
         let rate = Double(levels.peaks.count) / levels.duration
@@ -301,7 +315,7 @@ enum AudioSplitter {
 
         let window = levels.peaks[from..<to]
         let quietest = window.min() ?? 0
-        let floor = max(quietest * 2, floorLevel)   // etwa +6 dB über dem Tiefsten
+        let floor = max(quietest * 2, floorLevel)   // about +6 dB above the deepest point
 
         var bestEnd = to, bestLength = 0
         var runStart: Int?
@@ -318,25 +332,26 @@ enum AudioSplitter {
         return min(max(Double(bestEnd) / rate, region.start), region.end)
     }
 
-    /// Dünnt die Schnitte aus, bis kein Track kürzer ist als die Mindestlänge.
+    /// Thins out the cuts until no track is shorter than the minimum length.
     ///
-    /// Liegen zwischen zwei langen Tracks mehrere zu kurze Stücke, bleibt von
-    /// den Schnitten dort **genau einer**: der an der längsten Stille. Was
-    /// davor liegt, gehört zum vorigen Track, was danach liegt, zum nächsten.
+    /// If there are several pieces that are too short between two long tracks,
+    /// **exactly one** of the cuts there remains: the one at the longest
+    /// silence. Whatever lies before it belongs to the previous track, whatever
+    /// lies after it to the next.
     ///
-    /// So landet Applaus direkt nach einem Live-Stück beim Stück — die lange
-    /// Pause kommt erst danach — und ein zerklüftetes Intro nach einer langen
-    /// Pause beim nächsten Stück. Die erste Fassung hängte alles an den
-    /// Vorgänger; am echten Album gehörte so das Intro von „LUV" plötzlich zum
-    /// Track davor, 15 s daneben.
+    /// That way applause right after a live piece stays with the piece — the
+    /// long pause only comes afterwards — and a jagged intro after a long pause
+    /// goes to the next piece. The first version attached everything to the
+    /// predecessor; on the real album the intro of "LUV" suddenly belonged to
+    /// the track before, 15 s off.
     static func thin(_ cuts: [Cut], duration: Double, minimumLength: Double) -> [Cut] {
         guard minimumLength > 0, !cuts.isEmpty else { return cuts }
 
-        // Stücke i = 0…n; Schnitt j trennt Stück j−1 von Stück j (j = 1…n).
+        // Pieces i = 0…n; cut j separates piece j−1 from piece j (j = 1…n).
         let bounds = [0.0] + cuts.map(\.position) + [duration]
         let pieceCount = cuts.count + 1
         let short = (0..<pieceCount).map { bounds[$0 + 1] - bounds[$0] < minimumLength }
-        var keep = [Bool](repeating: true, count: cuts.count + 1)   // Index 1…n
+        var keep = [Bool](repeating: true, count: cuts.count + 1)   // index 1…n
 
         var piece = 0
         while piece < pieceCount {
@@ -346,12 +361,12 @@ enum AudioSplitter {
 
             let candidates = (piece...(last + 1)).filter { $0 >= 1 && $0 <= cuts.count }
             if piece == 0 && last == pieceCount - 1 {
-                candidates.forEach { keep[$0] = false }          // alles zu kurz
+                candidates.forEach { keep[$0] = false }          // everything too short
             } else if piece == 0 || last == pieceCount - 1 {
-                candidates.forEach { keep[$0] = false }          // nur ein Nachbar
+                candidates.forEach { keep[$0] = false }          // only one neighbour
             } else {
-                // Bei Gleichstand der spätere — kurze Stücke bleiben dann beim
-                // Vorgänger.
+                // On a tie the later one — short pieces then stay with the
+                // predecessor.
                 let strongest = candidates.max {
                     let a = cuts[$0 - 1].strength, b = cuts[$1 - 1].strength
                     return a == b ? $0 < $1 : a < b
@@ -363,17 +378,18 @@ enum AudioSplitter {
         return cuts.indices.filter { keep[$0 + 1] }.map { cuts[$0] }
     }
 
-    // MARK: - Schneiden
+    // MARK: - Cutting
 
-    /// Schneidet einen Abschnitt heraus, ohne neu zu kodieren.
+    /// Cuts out a section without re-encoding.
     ///
-    /// `-ss`/`-to` vor `-c copy` landet bei komprimierten Formaten auf der
-    /// nächsten Frame-Grenze statt auf dem Sample genau — an einer echten MP3
-    /// gemessen im Bereich einiger Millisekunden, nicht hörbar. Das ist so und
-    /// kein Fehler, dem man nachjagen sollte.
-    /// Steckt ein Bild in der Quelle, wandert nur die Tonspur mit
-    /// (`-map 0:a:0`). Nachgemessen: die so herausgezogene Spur ist mit der
-    /// im Video **bitgleich** — es wird nichts neu kodiert.
+    /// With compressed formats, `-ss`/`-to` before `-c copy` lands on the next
+    /// frame boundary rather than on the exact sample — measured on a real MP3
+    /// in the range of a few milliseconds, not audible. That is how it is and
+    /// not a bug to chase.
+    ///
+    /// If the source contains a picture, only the audio stream comes along
+    /// (`-map 0:a:0`). Verified: the stream extracted this way is
+    /// **bit-identical** to the one in the video — nothing is re-encoded.
     static func cut(source: URL,
                     range: TrackRange,
                     to destination: URL,
@@ -400,8 +416,8 @@ enum AudioSplitter {
             guard let encoder = ffmpeg.encoder(for: format) else {
                 throw SplitError.missingEncoder(format)
             }
-            // Ein Coverbild ist ein Videostream; `-vn` wirft es mit heraus.
-            // Getaggt wird hinterher über TagLib, wie überall in Sleeve.
+            // A cover picture is a video stream; `-vn` throws it out as well.
+            // Tagging happens afterwards via TagLib, as everywhere in Sleeve.
             arguments += ["-vn", "-map_metadata", "-1", "-c:a", encoder]
             if AudioFormat.experimentalEncoders.contains(encoder) {
                 arguments += ["-strict", "-2"]
@@ -417,8 +433,8 @@ enum AudioSplitter {
         do {
             result = try await ProcessRunner.run(ffmpeg.url, arguments: arguments)
         } catch {
-            // Abgebrochen: die halbfertige Datei muss weg, anders als die
-            // vorher fertig gewordenen.
+            // Cancelled: the half-finished file has to go, unlike the ones
+            // finished before it.
             try? FileManager.default.removeItem(at: destination)
             throw error
         }
@@ -431,10 +447,10 @@ enum AudioSplitter {
     }
 }
 
-// MARK: - Zeitangaben
+// MARK: - Time values
 
-/// `mm:ss.s` lesen und schreiben — für die Felder, in denen sich Grenzen von
-/// Hand nachjustieren lassen.
+/// Reading and writing `mm:ss.s` — for the fields in which boundaries can be
+/// adjusted by hand.
 enum Timecode {
 
     static func format(_ seconds: Double) -> String {
@@ -444,9 +460,8 @@ enum Timecode {
         return String(format: "%02d:%04.1f", minutes, rest)
     }
 
-    /// Ganze Sekunden, wie Tracklisten sie schreiben: „5:00", „1:02:03".
-    /// Für Vergleiche mit einer Quelle — die Zehntel stehen dort in der
-    /// Abweichung.
+    /// Whole seconds, as track lists write them: "5:00", "1:02:03". For
+    /// comparisons with a source — the tenths show in the deviation there.
     static func short(_ seconds: Double) -> String {
         let total = Int(max(0, seconds).rounded())
         let hours = total / 3600, minutes = total / 60 % 60, rest = total % 60
@@ -455,7 +470,7 @@ enum Timecode {
             : String(format: "%d:%02d", minutes, rest)
     }
 
-    /// Nimmt `mm:ss.s`, `h:mm:ss.s` und blanke Sekunden entgegen.
+    /// Accepts `mm:ss.s`, `h:mm:ss.s` and bare seconds.
     static func parse(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }

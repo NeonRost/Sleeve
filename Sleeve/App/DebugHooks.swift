@@ -2,15 +2,30 @@
 //  DebugHooks.swift
 //  Sleeve
 //
-//  Nur in Debug-Builds. Öffnet Fenster in einem definierten Zustand, damit
-//  sich die Oberfläche per Bildschirmfoto prüfen lässt — statt sie aus dem
-//  Code heraus für richtig zu halten.
+//  Copyright (C) 2026 NeonRost
 //
-//  Anlass: die Hüllkurve im Track Splitter war „fertig", geprüft war aber nur
-//  ihre Berechnung. Zu sehen war sie nie.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//      Sleeve -SleeveDebugSplit /pfad/zur/datei [-SleeveDebugSelect 3]
-//      Sleeve -SleeveDebugTagLookup /pfad/zum/ordner [-SleeveDebugPick 1]
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Debug builds only. Opens windows in a defined state so that the UI can
+//  be checked with a screenshot — instead of assuming from the code that it
+//  is right.
+//
+//  The reason: the waveform in the Track Splitter was "done", but only its
+//  computation had been checked. Nobody had ever seen it.
+//
+//      Sleeve -SleeveDebugSplit /path/to/file [-SleeveDebugSelect 3]
+//      Sleeve -SleeveDebugTagLookup /path/to/folder [-SleeveDebugPick 1]
 //
 
 #if DEBUG
@@ -19,10 +34,10 @@ import SwiftUI
 @MainActor
 enum DebugHooks {
 
-    /// „Album nachschlagen" mit einem Ordner voller Dateien öffnen, optional
-    /// gleich einen Treffer wählen:
+    /// Opens "Look Up Album" with a folder full of files, optionally picking
+    /// a result right away:
     ///
-    ///     Sleeve -SleeveDebugTagLookup /pfad/zum/ordner [-SleeveDebugPick 1]
+    ///     Sleeve -SleeveDebugTagLookup /path/to/folder [-SleeveDebugPick 1]
     private static func tagLookup(state: AppState, defaults: UserDefaults) async {
         guard let path = defaults.string(forKey: "SleeveDebugTagLookup") else { return }
         await state.addFiles([URL(fileURLWithPath: path)])
@@ -33,7 +48,7 @@ enum DebugHooks {
 
     static func run(state: AppState, openWindow: OpenWindowAction) async {
         let defaults = UserDefaults.standard
-        // „Über Sleeve", auf Wunsch mit dem Lizenzfenster daneben.
+        // "About Sleeve", optionally with the licenses window next to it.
         if defaults.bool(forKey: "SleeveDebugAbout") {
             openWindow(id: SleeveApp.aboutWindowID)
         }
@@ -47,7 +62,7 @@ enum DebugHooks {
         openWindow(id: SleeveApp.splitWindowID)
         state.loadSplitSource(URL(fileURLWithPath: path))
 
-        // Warten, bis Untersuchung und Hüllkurve durch sind.
+        // Wait until probing and the waveform are done.
         for _ in 0..<600 where state.splitSourceInfo == nil || state.isLoadingWaveform {
             try? await Task.sleep(for: .milliseconds(100))
         }
@@ -61,17 +76,17 @@ enum DebugHooks {
             state.selectSplitTrack(state.splitTracks[select - 1].id)
         }
 
-        // Ende eines Tracks anspielen — zeigt den Abspielkopf in der Lupe.
+        // Play the end of a track — shows the playhead in the magnifier.
         if defaults.bool(forKey: "SleeveDebugPlayEnd") {
             state.jumpToEndBoundary()
         }
-        // Eine Trackliste aus einer Datei einfügen und das Blatt zeigen.
+        // Paste a track list from a file and show the sheet.
         if let pasted = defaults.string(forKey: "SleeveDebugPaste"),
            let text = try? String(contentsOfFile: pasted, encoding: .utf8) {
             state.splitLookupMode = .pasted
             state.splitPasteText = text
             state.isShowingSplitLookup = true
-            // …oder gleich übernehmen, um das Ergebnis im Fenster zu sehen.
+            // …or apply it right away, to see the result in the window.
             if defaults.bool(forKey: "SleeveDebugApply") {
                 state.isShowingSplitLookup = false
                 state.applyListing(TrackListing(pasted: text), alignBoundaries: true)
@@ -81,7 +96,7 @@ enum DebugHooks {
                 }
             }
         }
-        // „Titel nachschlagen" mit einer eigenen Suche öffnen.
+        // Open "Look Up Titles" with a search of its own.
         if let search = defaults.string(forKey: "SleeveDebugSearch") {
             let parts = search.components(separatedBy: "|")
             var query = DiscogsClient.SearchQuery()
@@ -96,12 +111,12 @@ enum DebugHooks {
         if defaults.bool(forKey: "SleeveDebugLookup") {
             state.isShowingSplitLookup = true
         }
-        // Wirklich aufteilen, in einen Ordner nach Wahl.
+        // Really split, into a folder of choice.
         if let target = defaults.string(forKey: "SleeveDebugSplitTo") {
             state.splitDestination = URL(fileURLWithPath: target)
             state.startSplit()
         }
-        // Ende um einige Sekunden verschieben — zeigt die gezogene Grenze.
+        // Move the end by a few seconds — shows the dragged boundary.
         let shift = defaults.double(forKey: "SleeveDebugShiftEnd")
         if shift != 0, let track = state.selectedSplitTrack {
             state.moveSelectedEnd(to: track.range.end + shift)

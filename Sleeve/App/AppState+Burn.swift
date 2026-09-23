@@ -2,12 +2,27 @@
 //  AppState+Burn.swift
 //  Sleeve
 //
-//  Ein Abbild zurück auf CD (Spec §6.10).
+//  Copyright (C) 2026 NeonRost
 //
-//  **Ungeprüft bis zum ersten Rohling** — der Brennvorgang selbst ist die
-//  einzige Stelle in Sleeve, die nie an echter Hardware lief. Was geprüft ist,
-//  steht in §6.10.1. Deshalb ist der Probelauf der voreingestellte Weg und der
-//  echte Brand braucht eine ausdrückliche Zustimmung.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  An image back onto CD (spec §6.10).
+//
+//  **Untested until the first blank** — the burn itself is the only place
+//  in Sleeve that has never run on real hardware. What has been checked is
+//  listed in §6.10.1. That is why the test run is the default route and the
+//  real burn needs explicit consent.
 //
 
 import AppKit
@@ -22,7 +37,7 @@ enum BurnStage: Sendable, Equatable {
 
 extension AppState {
 
-    // MARK: - Abbild wählen
+    // MARK: - Choosing the image
 
     func showBurnSheet() {
         burnError = nil
@@ -41,7 +56,7 @@ extension AppState {
         loadBurnImage(url)
     }
 
-    /// Wertet das Cue Sheet aus und sucht die Audiodatei daneben.
+    /// Parses the cue sheet and looks for the audio file next to it.
     func loadBurnImage(_ cueURL: URL) {
         burnError = nil
         burnCue = nil
@@ -73,14 +88,14 @@ extension AppState {
             return
         }
 
-        // BIN hat keinen Kopf, WAV die üblichen 44 Byte. FLAC müsste erst
-        // ausgepackt werden — das macht `prepareBurn` vor dem Brennen.
+        // BIN has no header, WAV the usual 44 bytes. FLAC would have to be
+        // unpacked first — `prepareBurn` does that before burning.
         let ext = audioURL.pathExtension.lowercased()
         let header: Int
         switch ext {
         case "bin":  header = 0
         case "wav":  header = 44
-        case "flac": header = 0      // gilt erst nach dem Auspacken
+        case "flac": header = 0      // only valid after unpacking
         default:
             burnError = String(localized: "Sleeve can burn BIN, WAV and FLAC images.")
             return
@@ -88,14 +103,14 @@ extension AppState {
         burnNeedsDecoding = ext == "flac"
 
         let totalSectors = burnNeedsDecoding
-            ? cue.tracks.last.map { $0.startLBA + 1 } ?? 0      // erst nach dem Auspacken genau
+            ? cue.tracks.last.map { $0.startLBA + 1 } ?? 0      // only exact after unpacking
             : (size - header) / CDGeometry.bytesPerSector
         burnLayout = CDBurner.Layout(imageURL: audioURL, headerBytes: header,
                                      tracks: cue.tracks,
                                      sectorCounts: cue.sectorCounts(totalSectors: totalSectors))
     }
 
-    // MARK: - Medium
+    // MARK: - Media
 
     func refreshBurnMedia() {
         let device = CDBurner.firstDevice()
@@ -103,7 +118,7 @@ extension AppState {
         burnMedia = CDBurner.mediaState(of: device)
     }
 
-    /// Was den Brand gerade verhindert.
+    /// What currently prevents burning.
     var burnBlocker: String? {
         guard let layout = burnLayout, !layout.tracks.isEmpty else {
             return String(localized: "Pick a cue sheet first.")
@@ -123,7 +138,7 @@ extension AppState {
         .seconds(Double(burnLayout?.totalSectors ?? 0) / Double(CDGeometry.sectorsPerSecond))
     }
 
-    // MARK: - Brennen
+    // MARK: - Burning
 
     func startBurn(simulated: Bool) {
         guard var layout = burnLayout, burnBlocker == nil, burnTask == nil else { return }
@@ -133,8 +148,7 @@ extension AppState {
         burnStage = .running(simulated: simulated)
 
         burnTask = Task {
-            // FLAC muss vorher ausgepackt werden — das Laufwerk nimmt nur
-            // rohes PCM.
+            // FLAC has to be unpacked first — the drive only takes raw PCM.
             if burnNeedsDecoding {
                 guard let decoded = await decodeImageForBurn(layout.imageURL) else {
                     burnError = String(localized: "The FLAC image could not be unpacked.")
@@ -171,8 +185,8 @@ extension AppState {
         burnProgress = 0
     }
 
-    /// Packt ein FLAC-Abbild in eine WAV-Datei aus, damit der Brenner rohe
-    /// Sektoren bekommt.
+    /// Unpacks a FLAC image into a WAV file so that the burner gets raw
+    /// sectors.
     private func decodeImageForBurn(_ url: URL) async -> URL? {
         guard let ffmpeg else { return nil }
         let target = FileManager.default.temporaryDirectory

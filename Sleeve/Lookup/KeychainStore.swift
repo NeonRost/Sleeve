@@ -2,8 +2,23 @@
 //  KeychainStore.swift
 //  Sleeve
 //
-//  Der Discogs-Token gehört nicht in die Voreinstellungen, sondern in den
-//  Schlüsselbund (Spec §2, §4.6).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The Discogs token does not belong in the preferences but in the keychain
+//  (spec §2, §4.6).
 //
 
 import Foundation
@@ -27,7 +42,7 @@ enum KeychainStore {
             kSecValueData as String: Data(value.utf8),
         ]
 
-        // Erst aktualisieren; gibt es den Eintrag noch nicht, anlegen.
+        // Update first; if the entry does not exist yet, create it.
         if SecItemUpdate(query as CFDictionary, attributes as CFDictionary) == errSecItemNotFound {
             var insert = query
             insert[kSecValueData as String] = Data(value.utf8)

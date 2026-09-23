@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 #
-# run-smoketest.sh — kompiliert und startet den TagLib-Smoketest.
-# Prüft, dass der statische TagLib-Build + Module-Map aus Swift heraus tragen.
+# run-smoketest.sh — compiles and runs the TagLib smoke test.
+# Checks that the static TagLib build and module map work from Swift.
+#
+# Copyright (C) 2026 NeonRost
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 set -euo pipefail
 
@@ -10,7 +13,7 @@ ROOT="$(dirname "$SCRIPT_DIR")"
 VENDOR="$ROOT/Vendor/taglib"
 OUT="${TMPDIR:-/tmp}/sleeve-taglib-smoketest"
 
-[ -f "$VENDOR/lib/libtag.a" ] || { echo "libtag.a fehlt — erst Scripts/build-taglib.sh laufen lassen"; exit 1; }
+[ -f "$VENDOR/lib/libtag.a" ] || { echo "libtag.a is missing — run Scripts/build-taglib.sh first"; exit 1; }
 
 swiftc -O \
   -swift-version 6 \

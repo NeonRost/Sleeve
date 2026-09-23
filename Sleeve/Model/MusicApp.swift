@@ -2,7 +2,22 @@
 //  MusicApp.swift
 //  Sleeve
 //
-//  Music.app-Anbindung (Spec §4.7). Bewusst klein — reines Convenience.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Music app integration (spec §4.7). Deliberately small — pure convenience.
 //
 
 import Foundation
@@ -20,11 +35,11 @@ enum MusicApp {
         }
     }
 
-    /// Fügt die Dateien der Music-Mediathek hinzu.
+    /// Adds the files to the Music library.
     ///
-    /// Braucht `NSAppleEventsUsageDescription` in der Info.plist und
-    /// `com.apple.security.automation.apple-events` in den Entitlements —
-    /// ohne beides scheitert das im Sandbox stumm.
+    /// Needs `NSAppleEventsUsageDescription` in Info.plist and
+    /// `com.apple.security.automation.apple-events` in the entitlements —
+    /// without both, this fails silently in the sandbox.
     @MainActor
     static func add(_ urls: [URL]) throws {
         guard !urls.isEmpty else { return }
@@ -51,8 +66,8 @@ enum MusicApp {
         }
     }
 
-    /// Anführungszeichen und Backslashes im Pfad maskieren, sonst bricht das
-    /// AppleScript bei einem Album wie `Best Of "Live"` auseinander.
+    /// Escape quotes and backslashes in the path, or the AppleScript falls apart
+    /// on an album like `Best Of "Live"`.
     private static func escape(_ path: String) -> String {
         path
             .replacingOccurrences(of: "\\", with: "\\\\")

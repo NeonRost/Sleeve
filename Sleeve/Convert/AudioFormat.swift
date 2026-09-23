@@ -2,7 +2,22 @@
 //  AudioFormat.swift
 //  Sleeve
 //
-//  Zielformate für den Konvertieren-Modus (Spec §5).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Target formats for the Convert mode (spec §5).
 //
 
 import Foundation
@@ -45,12 +60,12 @@ enum AudioFormat: String, CaseIterable, Identifiable, Hashable, Sendable {
         }
     }
 
-    /// Encoder in der Reihenfolge, in der sie bevorzugt werden.
+    /// Encoders in order of preference.
     ///
-    /// AAC zuerst über AudioToolbox: Apple hat die Patente lizenziert, und ein
-    /// LGPL-ffmpeg bringt oft gar keinen brauchbaren AAC-Encoder mit (Spec §6.4).
-    /// ALAC dagegen ist offen und patentfrei — da ist der native Encoder die
-    /// verlässlichere Wahl.
+    /// AAC via AudioToolbox first: Apple has licensed the patents, and an LGPL
+    /// ffmpeg often has no usable AAC encoder at all (spec §6.7). ALAC, on the
+    /// other hand, is open and patent-free — there the native encoder is the
+    /// more reliable choice.
     var encoderCandidates: [String] {
         switch self {
         case .mp3:    ["libmp3lame"]
@@ -64,8 +79,8 @@ enum AudioFormat: String, CaseIterable, Identifiable, Hashable, Sendable {
         }
     }
 
-    /// Encoder, die ffmpeg nur mit `-strict -2` zulässt. Ohne das bricht der
-    /// Aufruf mit „is experimental and might produce bad results" ab.
+    /// Encoders ffmpeg only allows with `-strict -2`. Without it the call
+    /// aborts with "is experimental and might produce bad results".
     static let experimentalEncoders: Set<String> = ["opus", "vorbis"]
 
     var supportsBitrate: Bool { !isLossless }
@@ -87,10 +102,10 @@ enum AudioFormat: String, CaseIterable, Identifiable, Hashable, Sendable {
         }
     }
 
-    /// Nur FLAC kennt eine einstellbare Packdichte.
+    /// Only FLAC has an adjustable compression level.
     var supportsCompressionLevel: Bool { self == .flac }
 
-    /// Warum ein Format fehlen kann — für die Erklärung in der Oberfläche.
+    /// Why a format may be unavailable — for the explanation in the UI.
     var missingEncoderHint: String {
         switch self {
         case .mp3:
@@ -107,15 +122,15 @@ enum AudioFormat: String, CaseIterable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// Einstellungen eines Konvertierungslaufs.
+/// Settings of one conversion run.
 struct ConversionSettings: Equatable, Sendable {
     var format: AudioFormat = .mp3
     var bitrate: Int = 256
-    /// FLAC-Packdichte, 0–12.
+    /// FLAC compression level, 0–12.
     var compressionLevel: Int = 5
-    /// `nil` bedeutet: neben das Original legen.
+    /// `nil` means: next to the original.
     var destinationFolder: URL?
-    /// Leer bedeutet: Dateiname des Originals behalten.
+    /// Empty means: keep the original's file name.
     var filenamePattern: String = ""
     var keepsOriginals = true
 }

@@ -18,9 +18,9 @@
   </defs>
   <g id="background">
     <rect x="0" y="0" width="1024" height="1024" fill="url(#bgGradient)"/>
-    <!-- Kristallfacetten: bei 1024 px spürbar, ab 128 px unsichtbar.
-         Weichgezeichnet, damit keine Kante übrig bleibt, die das Verkleinern
-         unbeschadet übersteht. -->
+    <!-- Crystal facets: noticeable at 1024 px, invisible from 128 px down.
+         Blurred, so that no edge is left that survives scaling down
+         unscathed. -->
     <g filter="url(#facetBlur)" transform="translate(512.0,512.0) scale(1.242718) translate(-512.0,-512.0)">
       <polygon points="100,556 476,100 648,100 100,748" fill="#FFFFFF" opacity="0.05"/>
       <polygon points="924,262 924,486 596,924 372,924" fill="#FFFFFF" opacity="0.032"/>

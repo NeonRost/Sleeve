@@ -25,10 +25,10 @@
       <rect x="150" y="277" width="470"
             height="470" rx="20"
             fill="url(#sleeveGradient)"/>
-      <!-- Glanzkante, an der Hüllenform beschnitten -->
+      <!-- Gloss edge, clipped to the sleeve shape -->
       <rect x="150" y="277" width="470" height="46"
             fill="url(#glossGradient)" clip-path="url(#sleeveClip)"/>
-      <!-- Öffnungsschlitz, aus dem die CD kommt -->
+      <!-- Opening slit the CD comes out of -->
       <rect x="602" y="297" width="16"
             height="430" rx="8"
             fill="#031F33" opacity="0.45"/>

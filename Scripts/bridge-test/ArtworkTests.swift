@@ -1,13 +1,27 @@
 //
 //  ArtworkTests.swift
 //
-//  Coverbild-Verarbeitung (§4.5).
+//  Copyright (C) 2026 NeonRost
 //
-//  Diese Sammlung entstand nach einem Fehler, der in Betrieb aufgefallen ist:
-//  eingefügte Cover kamen **schwarz** an. Ursache war ein `NSBitmapImageRep`
-//  mit 24 Bit pro Pixel, das CoreGraphics nicht als Zeichenkontext hinterlegen
-//  kann — es wurde ins Leere gezeichnet. Die Helligkeitsprüfung unten hätte
-//  das sofort gezeigt.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Cover picture processing (§4.5).
+//
+//  This collection came out of a bug noticed in use: added covers arrived
+//  **black**. The cause was an `NSBitmapImageRep` with 24 bits per pixel,
+//  which CoreGraphics cannot back with a drawing context — drawing went
+//  nowhere. The brightness check below would have shown it immediately.
 //
 
 import AppKit
@@ -30,12 +44,12 @@ enum ArtworkTests {
     }
 
     static func equal<T: Equatable>(_ actual: T, _ expected: T, _ label: String) {
-        check(actual == expected, label, detail: "ist \(actual), erwartet \(expected)")
+        check(actual == expected, label, detail: "is \(actual), expected \(expected)")
     }
 
     static func section(_ title: String) { print("\n━━ \(title)") }
 
-    /// Mittlere Helligkeit über ein Raster. Ein schwarzes Bild liegt bei 0.
+    /// Mean brightness over a grid. A black picture is at 0.
     static func brightness(of data: Data) -> Double? {
         guard let image = NSImage(data: data),
               let tiff = image.tiffRepresentation,
@@ -59,8 +73,8 @@ enum ArtworkTests {
         return (rep.pixelsWide, rep.pixelsHigh)
     }
 
-    /// Erzeugt ein farbiges Testbild über ffmpeg — verlässlicher als ein
-    /// selbstgemalter Verlauf, und es liegt ohnehin im Projekt vor.
+    /// Creates a colorful test picture via ffmpeg — more reliable than a
+    /// self-painted gradient, and it is part of the project anyway.
     static func makeImage(size: String, format: String, into folder: String) throws -> Data {
         let path = "\(folder)/probe-\(size).\(format)"
         let process = Process()
@@ -79,99 +93,98 @@ enum ArtworkTests {
         try FileManager.default.createDirectory(atPath: work, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: work) }
 
-        let gross = try makeImage(size: "1400x1400", format: "jpg", into: work)
-        let quer = try makeImage(size: "1400x900", format: "png", into: work)
-        let klein = try makeImage(size: "600x600", format: "jpg", into: work)
+        let large = try makeImage(size: "1400x1400", format: "jpg", into: work)
+        let landscape = try makeImage(size: "1400x900", format: "png", into: work)
+        let small = try makeImage(size: "600x600", format: "jpg", into: work)
 
-        // MARK: - Der Fehler, der das hier ausgelöst hat
+        // MARK: - The bug that started this
 
-        section("Skalieren macht das Bild nicht schwarz")
-        let original = brightness(of: gross) ?? 0
-        check(original > 0.05, "Ausgangsbild ist nicht schwarz", detail: "\(original)")
+        section("Scaling does not turn the picture black")
+        let original = brightness(of: large) ?? 0
+        check(original > 0.05, "source picture is not black", detail: "\(original)")
 
-        let optionen = ArtworkProcessor.Options(maximumEdge: 1000, jpegQuality: 0.85,
-                                                output: .jpeg)
-        guard let skaliert = ArtworkProcessor.prepare(gross, options: optionen) else {
-            check(false, "prepare lieferte ein Ergebnis")
+        let options = ArtworkProcessor.Options(maximumEdge: 1000, jpegQuality: 0.85,
+                                               output: .jpeg)
+        guard let scaled = ArtworkProcessor.prepare(large, options: options) else {
+            check(false, "prepare returned a result")
             return 1
         }
-        let nachher = brightness(of: skaliert.data) ?? 0
-        check(nachher > 0.05, "Ergebnis ist nicht schwarz", detail: "Helligkeit \(nachher)")
-        check(abs(nachher - original) < 0.08,
-              "Helligkeit bleibt erhalten",
-              detail: "vorher \(String(format: "%.3f", original)), nachher \(String(format: "%.3f", nachher))")
+        let after = brightness(of: scaled.data) ?? 0
+        check(after > 0.05, "result is not black", detail: "brightness \(after)")
+        check(abs(after - original) < 0.08,
+              "brightness is preserved",
+              detail: "before \(String(format: "%.3f", original)), after \(String(format: "%.3f", after))")
 
-        // MARK: - Maße
+        // MARK: - Dimensions
 
-        section("Maße")
-        let masse = dimensions(of: skaliert.data)
-        equal(masse?.width, 1000, "Längste Kante auf das Maximum gebracht")
-        equal(masse?.height, 1000, "Quadratisch bleibt quadratisch")
+        section("Dimensions")
+        let size = dimensions(of: scaled.data)
+        equal(size?.width, 1000, "longest edge brought to the maximum")
+        equal(size?.height, 1000, "square stays square")
 
-        guard let querSkaliert = ArtworkProcessor.prepare(quer, options: optionen) else {
-            check(false, "Querformat verarbeitet"); return 1
+        guard let landscapeScaled = ArtworkProcessor.prepare(landscape, options: options) else {
+            check(false, "landscape processed"); return 1
         }
-        let querMasse = dimensions(of: querSkaliert.data)
-        equal(querMasse?.width, 1000, "Querformat: Breite auf das Maximum")
-        check((querMasse?.height ?? 0) == 643, "Seitenverhältnis bleibt erhalten",
-              detail: "\(querMasse?.height ?? 0) statt 643")
-        check((brightness(of: querSkaliert.data) ?? 0) > 0.05, "Querformat nicht schwarz")
+        let landscapeSize = dimensions(of: landscapeScaled.data)
+        equal(landscapeSize?.width, 1000, "landscape: width to the maximum")
+        check((landscapeSize?.height ?? 0) == 643, "aspect ratio is preserved",
+              detail: "\(landscapeSize?.height ?? 0) instead of 643")
+        check((brightness(of: landscapeScaled.data) ?? 0) > 0.05, "landscape not black")
 
         // MARK: - Format
 
         section("Format")
-        equal(skaliert.mimeType, "image/jpeg", "JPEG bleibt JPEG")
-        equal(querSkaliert.mimeType, "image/jpeg", "PNG wird zu JPEG")
-        equal(Artwork.detectMimeType(of: quer), "image/png", "PNG wird als solches erkannt")
+        equal(scaled.mimeType, "image/jpeg", "JPEG stays JPEG")
+        equal(landscapeScaled.mimeType, "image/jpeg", "PNG becomes JPEG")
+        equal(Artwork.detectMimeType(of: landscape), "image/png", "PNG is recognized as such")
 
-        let unberuehrt = ArtworkProcessor.prepare(quer, options: .passthrough)
-        equal(unberuehrt?.data, quer, "Ohne Skalieren und Umwandeln bleibt das Original")
-        equal(unberuehrt?.mimeType, "image/png", "… samt seinem MIME-Typ")
+        let untouched = ArtworkProcessor.prepare(landscape, options: .passthrough)
+        equal(untouched?.data, landscape, "without scaling and converting the original stays")
+        equal(untouched?.mimeType, "image/png", "… with its MIME type")
 
-        // Der Fehler, der bei der Umstellung auffiel: ein PNG wurde beim
-        // Verkleinern stillschweigend zu JPEG, obwohl „Format beibehalten"
-        // gewählt war.
-        var pngVerkleinern = ArtworkProcessor.Options(maximumEdge: 500, output: .keepSource)
-        let pngKlein = ArtworkProcessor.prepare(quer, options: pngVerkleinern)
-        equal(pngKlein?.mimeType, "image/png", "PNG bleibt beim Verkleinern ein PNG")
-        equal(dimensions(of: pngKlein?.data ?? Data())?.width, 500, "… und wird wirklich kleiner")
-        check((brightness(of: pngKlein?.data ?? Data()) ?? 0) > 0.05, "… und ist nicht schwarz")
+        // The bug noticed during the change: a PNG silently became a JPEG
+        // when scaled down, although "keep format" was chosen.
+        var pngScaleDown = ArtworkProcessor.Options(maximumEdge: 500, output: .keepSource)
+        let pngSmall = ArtworkProcessor.prepare(landscape, options: pngScaleDown)
+        equal(pngSmall?.mimeType, "image/png", "a PNG stays a PNG when scaled down")
+        equal(dimensions(of: pngSmall?.data ?? Data())?.width, 500, "… and really gets smaller")
+        check((brightness(of: pngSmall?.data ?? Data()) ?? 0) > 0.05, "… and is not black")
 
-        pngVerkleinern.output = .jpeg
-        equal(ArtworkProcessor.prepare(quer, options: pngVerkleinern)?.mimeType, "image/jpeg",
-              "Mit ausdrücklicher Wahl wird daraus ein JPEG")
+        pngScaleDown.output = .jpeg
+        equal(ArtworkProcessor.prepare(landscape, options: pngScaleDown)?.mimeType, "image/jpeg",
+              "with an explicit choice it becomes a JPEG")
 
-        equal(ArtworkProcessor.pixelSize(of: quer)?.width, 1400, "Pixelmaße direkt aus den Daten")
+        equal(ArtworkProcessor.pixelSize(of: landscape)?.width, 1400, "pixel dimensions straight from the data")
 
-        let kleinBleibt = ArtworkProcessor.prepare(klein, options: optionen)
-        equal(kleinBleibt?.data, klein, "Bild unter dem Maximum wird nicht neu gepackt")
+        let smallStays = ArtworkProcessor.prepare(small, options: options)
+        equal(smallStays?.data, small, "a picture below the maximum is not re-encoded")
 
-        // MARK: - Randfälle
+        // MARK: - Edge cases
 
-        section("Randfälle")
-        check(ArtworkProcessor.prepare(Data("kein bild".utf8), options: optionen) == nil,
-              "Nicht-Bild liefert nil")
-        check(ArtworkProcessor.prepare(Data(), options: optionen) == nil,
-              "Leere Daten liefern nil")
+        section("Edge cases")
+        check(ArtworkProcessor.prepare(Data("not a picture".utf8), options: options) == nil,
+              "non-picture yields nil")
+        check(ArtworkProcessor.prepare(Data(), options: options) == nil,
+              "empty data yields nil")
 
-        var winzig = optionen
-        winzig.maximumEdge = 64
-        guard let sehrKlein = ArtworkProcessor.prepare(gross, options: winzig) else {
-            check(false, "Sehr kleine Zielgröße verarbeitet"); return 1
+        var tiny = options
+        tiny.maximumEdge = 64
+        guard let verySmall = ArtworkProcessor.prepare(large, options: tiny) else {
+            check(false, "very small target size processed"); return 1
         }
-        equal(dimensions(of: sehrKlein.data)?.width, 64, "Auch 64 px werden getroffen")
-        check((brightness(of: sehrKlein.data) ?? 0) > 0.05, "… und sind nicht schwarz")
-        check(sehrKlein.data.count < gross.count / 4, "Die Datei wird deutlich kleiner",
-              detail: "\(sehrKlein.data.count) statt \(gross.count)")
+        equal(dimensions(of: verySmall.data)?.width, 64, "64 px are hit as well")
+        check((brightness(of: verySmall.data) ?? 0) > 0.05, "… and are not black")
+        check(verySmall.data.count < large.count / 4, "the file gets much smaller",
+              detail: "\(verySmall.data.count) instead of \(large.count)")
 
-        equal(sehrKlein.pictureType, .frontCover, "Bildtyp voreingestellt auf Front Cover")
+        equal(verySmall.pictureType, .frontCover, "picture type preset to Front Cover")
 
-        print("\n\(checks - failures)/\(checks) Prüfungen bestanden")
+        print("\n\(checks - failures)/\(checks) checks passed")
         if failures > 0 {
-            print("✗ \(failures) fehlgeschlagen")
+            print("✗ \(failures) failed")
             return 1
         }
-        print("✓ Alles grün.")
+        print("✓ All green.")
         return 0
     }
 }

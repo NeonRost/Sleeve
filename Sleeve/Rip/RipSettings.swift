@@ -2,19 +2,34 @@
 //  RipSettings.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import Foundation
 
 enum RipMode: String, CaseIterable, Identifiable, Sendable {
-    /// Ein Durchgang, keine Prüfung. Für saubere Scheiben und Eile.
+    /// One pass, no verification. For clean discs and when in a hurry.
     case burst
-    /// Jeder Block wird mindestens zweimal gelesen und verglichen; bei
-    /// Abweichung wird wiederholt, bis sich eine Mehrheit findet.
+    /// Every block is read at least twice and compared; on a mismatch
+    /// reading is repeated until a majority emerges.
     case secure
 
     var id: String { rawValue }
 
-    /// Kurz — der Text steht im Auswahlmenü und wird sonst abgeschnitten.
+    /// Short — the text sits in the picker and would be cut off otherwise.
     var label: LocalizedStringResource {
         switch self {
         case .burst:  "Burst"
@@ -22,7 +37,7 @@ enum RipMode: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Die Erklärung steht unter der Auswahl, nicht darin.
+    /// The explanation sits below the picker, not in it.
     var explanation: LocalizedStringResource {
         switch self {
         case .burst:  "One pass, no verification. For clean discs and when time matters."
@@ -33,45 +48,45 @@ enum RipMode: String, CaseIterable, Identifiable, Sendable {
 
 struct RipSettings: Equatable, Sendable {
     var mode: RipMode = .secure
-    /// Wie oft ein strittiger Block höchstens neu gelesen wird.
+    /// How often a disputed block is re-read at most.
     var maxRetries: Int = 20
-    /// C2-Fehlerzeiger mitlesen. Nicht jedes Laufwerk liefert sie
-    /// zuverlässig, deshalb abschaltbar.
+    /// Read C2 error pointers as well. Not every drive delivers them
+    /// reliably, so this can be switched off.
     var usesC2 = false
-    /// Leseversatz des Laufwerks in Samples. Wird beim Lesen herausgerechnet.
+    /// The drive's read offset in samples. Corrected for while reading.
     var readOffset = 0
-    /// Lesegeschwindigkeit als Vielfaches; `nil` überlässt sie dem Laufwerk.
+    /// Read speed as a multiple; `nil` leaves it to the drive.
     var speedMultiplier: Int?
-    /// Jede Spur zweimal vollständig lesen und die Prüfsummen vergleichen.
-    /// Kostet die doppelte Zeit und braucht keine fremde Datenbank.
+    /// Read every track twice completely and compare the checksums. Takes
+    /// twice as long and needs no external database.
     var testBeforeCopy = false
-    /// ISRC und MCN aus dem Subchannel lesen. Manche Laufwerke brauchen
-    /// dafür spürbar lange.
+    /// Read ISRC and MCN from the subchannel. Some drives take noticeably
+    /// long for it.
     var readsSubchannel = true
     var writesLog = true
     var writesCueSheet = false
     var ejectsWhenDone = false
 
-    // MARK: Ausgabe
+    // MARK: Output
 
-    /// Zielformat. WAV heißt: so ablegen, wie von der Scheibe gelesen — dann
-    /// wird ffmpeg gar nicht gebraucht.
+    /// Target format. WAV means: store as read from the disc — then ffmpeg
+    /// is not needed at all.
     var format: AudioFormat = .flac
     var bitrate = 256
     var compressionLevel = 5
-    /// Leer heißt: nur die zweistellige Tracknummer.
+    /// Empty means: just the two-digit track number.
     var filenamePattern = RipSettings.defaultFilenamePattern
 
-    /// Bewusst knapp. Interpret und Album stehen schon im Ordnernamen; sie
-    /// in jeden Dateinamen zu wiederholen macht lange Namen ohne Gewinn.
+    /// Deliberately short. Artist and album are already in the folder name;
+    /// repeating them in every file name makes long names for no gain.
     static let defaultFilenamePattern = "%track% - %title%"
 
     var needsFFmpeg: Bool { format != .wav }
-    /// Wird beim Rippen gesetzt, wenn C2 gewünscht war, das Laufwerk es aber
-    /// nicht liefert. Gehört ins Protokoll, nicht in die Voreinstellungen.
+    /// Set while ripping when C2 was requested but the drive does not
+    /// deliver it. Belongs in the log, not in the preferences.
     var c2WasRequestedButUnavailable = false
 
-    // MARK: - Sichern
+    // MARK: - Persistence
 
     private enum Key {
         static let mode = "rip.mode"
@@ -100,7 +115,7 @@ struct RipSettings: Equatable, Sendable {
         }
         settings.usesC2 = defaults.bool(forKey: Key.c2)
         settings.readOffset = defaults.integer(forKey: Key.offset)
-        // 0 ist ein gültiger Wert für „automatisch", deshalb über object(forKey:).
+        // 0 is a valid value meaning "automatic", hence via object(forKey:).
         settings.speedMultiplier = defaults.object(forKey: Key.speed) as? Int
         settings.testBeforeCopy = defaults.bool(forKey: Key.test)
         settings.readsSubchannel = defaults.object(forKey: Key.subchannel) as? Bool ?? true

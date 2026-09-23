@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 #
-# build-icon.sh — baut das komplette App-Icon aus den SVG-Quellen.
+# build-icon.sh — builds the complete app icon from the SVG sources.
 #
-# Erzeugt:  Icon/*.svg, Icon/layers/, Icon/Sleeve.icon/, Icon/Sleeve.icns,
+# Produces: Icon/*.svg, Icon/layers/, Icon/Sleeve.icon/, Icon/Sleeve.icns,
 #           Icon/preview-sizes.png
 #
-# Voraussetzung: rsvg-convert (brew install librsvg), iconutil (Xcode).
+# Requires: rsvg-convert (brew install librsvg), iconutil (Xcode).
+#
+# Copyright (C) 2026 NeonRost
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 set -euo pipefail
 
@@ -14,14 +17,14 @@ ROOT="$(dirname "$SCRIPT_DIR")"
 ICON="$ROOT/Icon"
 ICONSET="$ICON/Sleeve.iconset"
 
-command -v rsvg-convert >/dev/null || { echo "rsvg-convert fehlt — 'brew install librsvg'"; exit 1; }
+command -v rsvg-convert >/dev/null || { echo "rsvg-convert is missing — 'brew install librsvg'"; exit 1; }
 
-# ── 1. SVG-Quellen erzeugen ─────────────────────────────────────────────────
+# ── 1. Generate the SVG sources ─────────────────────────────────────────────
 python3 "$SCRIPT_DIR/make-icon-svg.py"
 
-# ── 2. Klassisches .icns ────────────────────────────────────────────────────
-# iconutil erwartet genau diese Dateinamen. 16–512 jeweils @1x und @2x; das
-# 1024er ist per Konvention icon_512x512@2x.
+# ── 2. Classic .icns ────────────────────────────────────────────────────────
+# iconutil expects exactly these file names. 16–512 each @1x and @2x; the
+# 1024 one is icon_512x512@2x by convention.
 echo "iconset:"
 rm -rf "$ICONSET"
 mkdir -p "$ICONSET"
@@ -35,9 +38,9 @@ iconutil -c icns "$ICONSET" -o "$ICON/Sleeve.icns"
 rm -rf "$ICONSET"
 echo "   Icon/Sleeve.icns ($(du -h "$ICON/Sleeve.icns" | cut -f1))"
 
-# ── 3. Kontaktabzug für die Abnahme ─────────────────────────────────────────
-echo "Kontaktabzug:"
+# ── 3. Contact sheet for review ─────────────────────────────────────────────
+echo "contact sheet:"
 python3 "$SCRIPT_DIR/make-icon-preview.py"
 
 echo
-echo "✓ Fertig."
+echo "✓ Done."

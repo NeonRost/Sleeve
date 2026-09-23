@@ -2,7 +2,22 @@
 //  ConvertInspector.swift
 //  Sleeve
 //
-//  Modus „Konvertieren" (Spec §5).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The Convert mode (spec §5).
 //
 
 import AppKit
@@ -15,9 +30,9 @@ struct ConvertInspector: View {
         @Bindable var state = state
 
         Form {
-            // Fehlt ffmpeg, steht die Erklärung oben und allein — dann ist sie
-            // das Einzige, was zählt. Ist es da, interessiert es niemanden
-            // mehr und rutscht nach ganz unten.
+            // If ffmpeg is missing, the explanation sits at the top and alone —
+            // then it is the only thing that matters. If it is there, nobody
+            // cares any more and it moves to the very bottom.
             if state.ffmpeg == nil {
                 FFmpegMissingSection()
             }
@@ -30,8 +45,8 @@ struct ConvertInspector: View {
                                 .tag(format)
                         }
                     }
-                    // Formate, die dieses ffmpeg nicht kann, bleiben sichtbar
-                    // und werden erklärt — verschwinden wäre verwirrend.
+                    // Formats this ffmpeg cannot do stay visible and are
+                    // explained — disappearing would be confusing.
                     if !ffmpeg.supports(state.conversionSettings.format) {
                         Label(state.conversionSettings.format.missingEncoderHint,
                               systemImage: "exclamationmark.triangle.fill")
@@ -80,8 +95,8 @@ struct ConvertInspector: View {
 
 // MARK: - ffmpeg
 
-/// Das gefundene ffmpeg. Steht am Ende der Liste — nach der Installation
-/// interessiert es nicht mehr.
+/// The ffmpeg that was found. Sits at the end of the list — after
+/// installation nobody cares about it any more.
 private struct FFmpegSection: View {
     @Environment(AppState.self) private var state
 
@@ -125,9 +140,9 @@ private struct FFmpegSection: View {
     }
 }
 
-/// Was zu tun ist, wenn ffmpeg fehlt. Stumm scheitern soll der Modus nie
-/// (Spec §2.2) — und die Anleitung muss zum Rechner passen: ohne Homebrew
-/// bringt `brew install ffmpeg` niemanden weiter.
+/// What to do when ffmpeg is missing. The mode must never fail silently
+/// (spec §2.2) — and the instructions have to fit the machine: without
+/// Homebrew, `brew install ffmpeg` gets nobody anywhere.
 private struct FFmpegMissingSection: View {
     @Environment(AppState.self) private var state
 
@@ -148,7 +163,7 @@ private struct FFmpegMissingSection: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if state.homebrew == nil {
-                    // Erst der Paketverwalter, dann das Programm.
+                    // The package manager first, then the program.
                     Text("Step 1 — install Homebrew, a package manager for macOS:")
                         .font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
@@ -188,8 +203,8 @@ private struct FFmpegMissingSection: View {
     }
 }
 
-/// Ein Befehl zum Auswählen und Kopieren. Ausgeführt wird hier nichts —
-/// das bleibt bewusst beim Nutzer im Terminal.
+/// A command to select and copy. Nothing is run here — that
+/// deliberately stays with the user in the Terminal.
 private struct CommandRow: View {
     let command: String
 
@@ -214,7 +229,7 @@ private struct CommandRow: View {
     }
 }
 
-// MARK: - Ziel
+// MARK: - Target
 
 private struct DestinationSection: View {
     @Environment(AppState.self) private var state
@@ -292,8 +307,8 @@ private struct RunSection: View {
                 }
             }
 
-            // Tags werden nach der Umwandlung selbst geschrieben — das ist der
-            // Grund, warum es diesen Modus überhaupt gibt (Spec §5).
+            // Tags are written by Sleeve itself after conversion — that is the
+            // reason this mode exists at all (spec §5).
             Text("Tags and artwork are read before converting and written back afterwards, so nothing gets lost on the way.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

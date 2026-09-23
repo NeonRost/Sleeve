@@ -2,23 +2,38 @@
 //  FFmpegLocator.swift
 //  Sleeve
 //
-//  ffmpeg wird nicht mitgeliefert, sondern vom System erwartet (Spec §2.2).
-//  Damit der Konvertieren-Modus nicht stumm scheitert, wird es gesucht,
-//  geprüft und sein Encoder-Bestand einmalig erfasst.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  ffmpeg is not shipped but expected on the system (spec §2.2). So that
+//  the Convert mode does not fail silently, it is located, checked, and its
+//  encoders are listed once.
 //
 
 import Foundation
 
 struct FFmpegTool: Sendable, Equatable {
     var url: URL
-    /// Nur die Versionsnummer, z. B. "9.0.1".
+    /// Just the version number, e.g. "9.0.1".
     var version: String
-    /// Vollständige erste Zeile von `ffmpeg -version`.
+    /// Full first line of `ffmpeg -version`.
     var banner: String
-    /// Alle verfügbaren Audio-Encoder, einmalig abgefragt und gehalten.
+    /// All available audio encoders, queried once and kept.
     var audioEncoders: Set<String>
 
-    /// Der erste Encoder, den dieses ffmpeg für das Format anbietet.
+    /// The first encoder this ffmpeg offers for the format.
     func encoder(for format: AudioFormat) -> String? {
         format.encoderCandidates.first { audioEncoders.contains($0) }
     }
@@ -34,16 +49,16 @@ struct FFmpegTool: Sendable, Equatable {
 
 actor FFmpegLocator {
 
-    /// Suchreihenfolge nach Spec §2.2. `PATH` allein reicht nicht: eine per
-    /// Finder gestartete App erbt die Shell-Umgebung nicht und sieht die
-    /// Homebrew-Pfade dort gar nicht.
+    /// Search order as in spec §2.2. `PATH` alone is not enough: an app
+    /// launched from the Finder does not inherit the shell environment and
+    /// does not see the Homebrew paths there at all.
     static let wellKnownPaths = [
-        "/opt/homebrew/bin/ffmpeg",   // Apple-Silicon-Homebrew
-        "/usr/local/bin/ffmpeg",      // Intel-Homebrew oder von Hand installiert
+        "/opt/homebrew/bin/ffmpeg",   // Apple Silicon Homebrew
+        "/usr/local/bin/ffmpeg",      // Intel Homebrew or installed by hand
     ]
 
-    /// Sucht ffmpeg und prüft es gleich mit.
-    /// - Parameter preferred: Pfad aus den Einstellungen, falls gesetzt.
+    /// Looks for ffmpeg and checks it right away.
+    /// - Parameter preferred: path from the settings, if set.
     func locate(preferred: URL? = nil) async -> FFmpegTool? {
         for candidate in candidates(preferred: preferred) {
             if let tool = await probe(candidate) { return tool }
@@ -51,11 +66,12 @@ actor FFmpegLocator {
         return nil
     }
 
-    /// Wo Homebrew selbst liegt — wenn überhaupt.
+    /// Where Homebrew itself lives — if anywhere.
     ///
-    /// Ohne diese Prüfung würde die Erklärkarte `brew install ffmpeg`
-    /// vorschlagen, auch wenn gar kein brew installiert ist. Dann läuft die
-    /// Anleitung ins Leere, und der Nutzer sucht den Fehler bei sich.
+    /// Without this check the explanation card would suggest
+    /// `brew install ffmpeg` even when brew is not installed at all. The
+    /// instructions then lead nowhere, and the user looks for the mistake
+    /// on their side.
     static let homebrewPaths = [
         "/opt/homebrew/bin/brew",   // Apple Silicon
         "/usr/local/bin/brew",      // Intel
@@ -69,7 +85,7 @@ actor FFmpegLocator {
         return nil
     }
 
-    /// Prüft genau einen Pfad — für „Manuell auswählen…".
+    /// Checks exactly one path — for "Choose Manually…".
     func probe(_ url: URL) async -> FFmpegTool? {
         guard FileManager.default.isExecutableFile(atPath: url.path(percentEncoded: false))
         else { return nil }
@@ -90,14 +106,14 @@ actor FFmpegLocator {
         )
     }
 
-    // MARK: - Intern
+    // MARK: - Internal
 
     private func candidates(preferred: URL?) -> [URL] {
         var result: [URL] = []
         if let preferred { result.append(preferred) }
         result += Self.wellKnownPaths.map { URL(fileURLWithPath: $0) }
         result += Self.pathEntries()
-        // Reihenfolge erhalten, Doppelte entfernen.
+        // Keep the order, drop duplicates.
         var seen: Set<String> = []
         return result.filter { seen.insert($0.standardizedFileURL.path).inserted }
     }
@@ -108,9 +124,10 @@ actor FFmpegLocator {
             .map { URL(fileURLWithPath: String($0)).appendingPathComponent("ffmpeg") }
     }
 
-    /// `ffmpeg -encoders` listet Zeilen der Form
+    /// `ffmpeg -encoders` lists lines of the form
     /// ` A....D libmp3lame           libmp3lame MP3 …`.
-    /// Das erste Zeichen des Flag-Blocks sagt, ob es ein Audio-Encoder ist.
+    /// The first character of the flag block says whether it is an audio
+    /// encoder.
     private func audioEncoders(of url: URL) async -> Set<String> {
         guard let run = try? await ProcessRunner.run(url, arguments: ["-hide_banner", "-encoders"]),
               run.succeeded
@@ -128,7 +145,7 @@ actor FFmpegLocator {
     }
 
     static func parseVersion(from banner: String) -> String {
-        // "ffmpeg version 9.0.1 Copyright …" oder "ffmpeg version n7.1-… "
+        // "ffmpeg version 9.0.1 Copyright …" or "ffmpeg version n7.1-… "
         let parts = banner.split(separator: " ")
         guard parts.count >= 3 else { return "?" }
         return String(parts[2])

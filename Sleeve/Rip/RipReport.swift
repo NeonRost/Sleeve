@@ -2,11 +2,26 @@
 //  RipReport.swift
 //  Sleeve
 //
-//  Das Protokoll eines Durchgangs — und das Cue Sheet.
+//  Copyright (C) 2026 NeonRost
 //
-//  Ein Rip-Log ist kein Beiwerk: es ist der einzige Nachweis, unter welchen
-//  Bedingungen gelesen wurde und ob etwas nicht sauber ankam. Deshalb steht
-//  dort auch, was *nicht* geprüft wurde.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The log of one pass — and the cue sheet.
+//
+//  A rip log is no accessory: it is the only record of the conditions under
+//  which reading happened and whether something did not arrive cleanly.
+//  That is why it also states what was *not* checked.
 //
 
 import Foundation
@@ -46,28 +61,28 @@ struct RipReport: Sendable {
 
     var allAccurate: Bool { entries.allSatisfy(\.isAccurate) }
 
-    // MARK: - Protokoll
+    // MARK: - Log
 
     func logText(albumTitle: String? = nil, albumArtist: String? = nil) -> String {
         var lines: [String] = []
         let stamp = started.formatted(date: .numeric, time: .shortened)
 
-        lines.append("Sleeve — CD-Rip-Protokoll")
+        lines.append("Sleeve — CD rip log")
         lines.append(stamp)
         lines.append("")
-        if let albumArtist { lines.append("Interpret:   \(albumArtist)") }
+        if let albumArtist { lines.append("Artist:      \(albumArtist)") }
         if let albumTitle { lines.append("Album:       \(albumTitle)") }
-        lines.append("Laufwerk:    \(drive.displayName) \(drive.revision)")
+        lines.append("Drive:       \(drive.displayName) \(drive.revision)")
         lines.append("")
-        lines.append("Modus:       \(settings.mode == .secure ? "Sicher" : "Burst")")
-        lines.append("Leseversatz: \(settings.readOffset) Samples")
+        lines.append("Mode:        \(settings.mode == .secure ? "Secure" : "Burst")")
+        lines.append("Read offset: \(settings.readOffset) samples")
         if settings.c2WasRequestedButUnavailable {
-            lines.append("C2:          angefordert, vom Laufwerk nicht geliefert")
+            lines.append("C2:          requested, not delivered by the drive")
         } else {
-            lines.append("C2:          \(settings.usesC2 ? "genutzt" : "nicht genutzt")")
+            lines.append("C2:          \(settings.usesC2 ? "used" : "not used")")
         }
-        lines.append("Geschwind.:  \(settings.speedMultiplier.map { "\($0)×" } ?? "automatisch")")
-        lines.append("Doppelrip:   \(settings.testBeforeCopy ? "ja" : "nein")")
+        lines.append("Speed:       \(settings.speedMultiplier.map { "\($0)×" } ?? "automatic")")
+        lines.append("Second pass: \(settings.testBeforeCopy ? "yes" : "no")")
         lines.append("")
         lines.append("Disc ID:     \(toc.musicBrainzDiscID)")
         lines.append("FreeDB:      \(toc.freeDBID)")
@@ -79,49 +94,48 @@ struct RipReport: Sendable {
             lines.append("    CRC32            \(String(format: "%08X", entry.crc))")
             if let verification = entry.verificationCRC {
                 let verdict = verification == entry.crc
-                    ? "stimmt überein" : "WEICHT AB"
-                lines.append("    Zweiter Durchgang \(String(format: "%08X", verification))  \(verdict)")
+                    ? "matches" : "DIFFERS"
+                lines.append("    Second pass      \(String(format: "%08X", verification))  \(verdict)")
             }
             if let isrc = entry.isrc { lines.append("    ISRC             \(isrc)") }
             if entry.retryCount > 0 {
-                lines.append("    Wiederholungen   \(entry.retryCount)")
+                lines.append("    Retries          \(entry.retryCount)")
             }
             if !entry.c2ErrorSectors.isEmpty {
-                lines.append("    C2-Fehler        \(entry.c2ErrorSectors.count) Sektoren")
+                lines.append("    C2 errors        \(entry.c2ErrorSectors.count) sectors")
             }
             if !entry.suspiciousSectors.isEmpty {
-                lines.append("    UNGEKLÄRT        \(entry.suspiciousSectors.count) Sektoren ab "
+                lines.append("    UNRESOLVED       \(entry.suspiciousSectors.count) sectors from "
                     + "\(entry.suspiciousSectors[0])")
             }
-            lines.append("    \(entry.isAccurate ? "ohne Beanstandung" : "NICHT SAUBER GELESEN")")
+            lines.append("    \(entry.isAccurate ? "no problems" : "NOT READ CLEANLY")")
             lines.append("")
         }
 
         lines.append(allAccurate
-            ? "Alle Spuren ohne Beanstandung."
-            : "Mindestens eine Spur konnte nicht sicher gelesen werden.")
+            ? "All tracks read without problems."
+            : "At least one track could not be read reliably.")
         lines.append("")
-        // Ehrlich bleiben: ohne Abgleich gegen fremde Rips ist das eine
-        // Aussage über die Wiederholbarkeit, nicht über die Richtigkeit.
-        lines.append("Hinweis: Sleeve gleicht nicht gegen eine externe Datenbank ab.")
-        lines.append("Geprüft wurde, ob sich dieselbe Scheibe in diesem Laufwerk")
-        lines.append("reproduzierbar lesen lässt — nicht, ob der Leseversatz stimmt.")
+        // Stay honest: without comparing against other people's rips this
+        // is a statement about repeatability, not about correctness.
+        lines.append("Note: Sleeve does not compare against an external database.")
+        lines.append("What was checked is whether the same disc reads reproducibly")
+        lines.append("in this drive — not whether the read offset is correct.")
 
         return lines.joined(separator: "\n")
     }
 
-    // MARK: - Cue Sheet
+    // MARK: - Cue sheet
 
-    /// `fileType` ist `WAVE` für alles mit Kopf und `BINARY` für den rohen
-    /// Strom eines BIN-Abbilds — steht es falsch da, findet das
-    /// Abspielprogramm die Trackgrenzen um 44 Byte verschoben.
+    /// `fileType` is `WAVE` for anything with a header and `BINARY` for the
+    /// raw stream of a BIN image — if it is wrong, the player finds the track
+    /// boundaries shifted by 44 bytes.
     ///
-    /// Bekannte Einschränkung: geschrieben wird nur `INDEX 01`. Die Pausen
-    /// zwischen den Spuren stecken im Abbild, aber wo genau eine Pause
-    /// beginnt (`INDEX 00`), sagt die TOC nicht — dafür bräuchte es den
-    /// Subchannel, den das Testlaufwerk nicht verlässlich liefert (§6.1.1).
-    /// Für die üblichen Zwecke genügt INDEX 01; lückenlos bleibt es ohnehin,
-    /// weil nichts herausgeschnitten wird.
+    /// Known limitation: only `INDEX 01` is written. The pauses between the
+    /// tracks are in the image, but where exactly a pause begins (`INDEX 00`)
+    /// the TOC does not say — that would need the subchannel, which the test
+    /// drive does not deliver reliably (§6.1.1). INDEX 01 is enough for the
+    /// usual purposes; it stays gapless anyway, because nothing is cut out.
     func cueSheet(albumTitle: String?, albumArtist: String?,
                   audioFileName: String, fileType: String = "WAVE",
                   titles: [Int: String] = [:]) -> String {
@@ -146,7 +160,7 @@ struct RipReport: Sendable {
         text.replacingOccurrences(of: "\"", with: "'")
     }
 
-    /// Cue Sheets zählen in Minuten:Sekunden:Frames ab Track 1.
+    /// Cue sheets count in minutes:seconds:frames from track 1.
     static func msf(_ lba: Int) -> String {
         let frames = max(0, lba)
         return String(format: "%02d:%02d:%02d",

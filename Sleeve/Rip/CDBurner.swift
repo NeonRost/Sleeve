@@ -2,15 +2,31 @@
 //  CDBurner.swift
 //  Sleeve
 //
-//  Ein Abbild zurück auf eine CD-R schreiben (Spec §6.10).
+//  Copyright (C) 2026 NeonRost
 //
-//  **Ungeprüft bis zum ersten Rohling.** Alles andere in diesem Projekt ist am
-//  Gerät nachgemessen; hier fehlte die leere Scheibe. Was geprüft ist und was
-//  nicht, steht in §6.10.1 — bitte nachlesen, bevor man sich darauf verlässt.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 //
-//  Über DiscRecording, ohne Fremdbibliothek. Die Zahlen passen ohne
-//  Umrechnung: `kDRBlockSizeAudio` ist 2352, also genau die Sektorgröße, mit
-//  der auch gelesen wird.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Writing an image back onto a CD-R (spec §6.10).
+//
+//  **Untested until the first blank.** Everything else in this project has
+//  been measured on the device; here the blank disc was missing. What has
+//  been checked and what has not is in §6.10.1 — please read it before
+//  relying on this.
+//
+//  Via DiscRecording, without a third-party library. The numbers fit
+//  without conversion: `kDRBlockSizeAudio` is 2352, exactly the sector size
+//  used for reading as well.
 //
 
 import DiscRecording
@@ -19,8 +35,8 @@ import Foundation
 enum BurnMediaState: Equatable, Sendable {
     case noDrive
     case noDisc
-    /// Eine Scheibe liegt drin, taugt aber nicht — schon beschrieben, oder
-    /// gar keine CD-R.
+    /// A disc is inserted but unsuitable — already written, or not a CD-R
+    /// at all.
     case unusable(reason: String)
     case blank(sectors: Int)
 
@@ -30,8 +46,8 @@ enum BurnMediaState: Equatable, Sendable {
 struct BurnDeviceInfo: Equatable, Sendable {
     var vendor: String
     var product: String
-    /// Apple unterscheidet „nicht unterstützt, wird aber versucht" von „kann
-    /// nicht benutzt werden". Nur das Zweite ist ein Hindernis.
+    /// Apple distinguishes "unsupported, but will be tried" from "cannot be
+    /// used". Only the latter is an obstacle.
     var supportLevel: String
     var isUsable: Bool
 
@@ -40,7 +56,7 @@ struct BurnDeviceInfo: Equatable, Sendable {
     }
 }
 
-// MARK: - Nachschauen
+// MARK: - Inspection
 
 enum CDBurner {
 
@@ -56,8 +72,9 @@ enum CDBurner {
             vendor: (info[DRDeviceVendorNameKey] as? String) ?? "",
             product: (info[DRDeviceProductNameKey] as? String) ?? "",
             supportLevel: level,
-            // `…LevelNone` heißt laut Apples Header ausdrücklich „cannot be
-            // used"; `…LevelUnsupported` dagegen „will try to use it anyway".
+            // According to Apple's header, `…LevelNone` explicitly means "cannot
+            // be used"; `…LevelUnsupported`, on the other hand, "will try to use
+            // it anyway".
             isUsable: level != (kDRDeviceSupportLevelNone as String))
     }
 
@@ -79,9 +96,9 @@ enum CDBurner {
             || type == (kDRDeviceMediaTypeCDRW as String)
 
         guard writable else {
-            // Den Typ mitnennen. „Kein beschreibbarer Rohling" ist bei einer
-            // eingelegten leeren DVD-R schlicht verwirrend — sie *ist* ja
-            // beschreibbar, nur eben nicht für eine Audio-CD.
+            // Name the type. "No writable blank" is plainly confusing with an
+            // empty DVD-R inserted — it *is* writable, just not for an
+            // audio CD.
             let name = Self.mediaName(type)
             return .unusable(reason: isBlank
                 ? String(localized: "This is a \(name). An audio CD needs a CD-R or CD-RW.")
@@ -96,25 +113,27 @@ enum CDBurner {
     }
 }
 
-// MARK: - Daten nachschieben
+// MARK: - Supplying data
 
-/// Liefert während des Brennens die Bytes einer Spur aus dem Abbild.
+/// Supplies the bytes of one track from the image while burning.
 ///
-/// Die heikelste Stelle des ganzen Vorgangs: ein Fehler um einen Sektor
-/// erzeugt eine Scheibe, auf der jede Spur versetzt beginnt — und das merkt
-/// man erst beim Anhören. Deshalb ist die Rechnung hier eine reine Funktion
-/// (`byteOffset(forAddress:)`) und als solche geprüft, auch ohne Laufwerk.
+/// The most delicate spot of the whole process: an error of one sector
+/// produces a disc on which every track starts shifted — and one only
+/// notices when listening. That is why the computation here is a pure
+/// function (`byteOffset(forAddress:)`) and tested as such, even without
+/// a drive.
 ///
-/// `address` ist laut Apples Dokumentation „the sector address on the disc
-/// **from the start of the track**" — also trackrelativ, nicht absolut.
+/// According to Apple's documentation, `address` is "the sector address on
+/// the disc **from the start of the track**" — i.e. relative to the track,
+/// not absolute.
 ///
-/// Nicht `Sendable`: die Rückrufe kommen auf dem Brenn-Thread, aber immer
-/// nacheinander und nur für diese eine Spur. Gehalten wird das Objekt
-/// ausschließlich von `CDBurner.burn`.
+/// Not `Sendable`: the callbacks arrive on the burn thread, but always one
+/// after the other and only for this one track. Only `CDBurner.burn` ever
+/// holds the object.
 final class ImageTrackProducer: NSObject, DRTrackDataProduction {
 
-    /// Anfang der Spur in der Abbilddatei, in Byte — enthält bereits einen
-    /// etwaigen Dateikopf.
+    /// Start of the track in the image file, in bytes — already includes a
+    /// file header, if any.
     let baseOffset: Int
     let sectorCount: Int
     private let url: URL
@@ -126,7 +145,7 @@ final class ImageTrackProducer: NSObject, DRTrackDataProduction {
         self.sectorCount = sectorCount
     }
 
-    /// Reine Rechnung, damit sie ohne Brenner prüfbar ist.
+    /// Pure computation, so that it can be tested without a burner.
     func byteOffset(forAddress address: UInt64) -> Int {
         baseOffset + Int(address) * CDGeometry.bytesPerSector
     }
@@ -158,8 +177,8 @@ final class ImageTrackProducer: NSObject, DRTrackDataProduction {
                                   count: data.count)
                 }
             }
-            // Am Dateiende auf ein Vielfaches der Blockgröße mit Stille
-            // auffüllen — das Laufwerk nimmt keine halben Sektoren.
+            // At the end of the file, pad with silence to a multiple of the
+            // block size — the drive does not take half sectors.
             if data.count < Int(bufferLength) {
                 let padding = Int(bufferLength) - data.count
                 let rounded = (data.count + Int(blockSize) - 1) / Int(blockSize) * Int(blockSize)
@@ -173,9 +192,9 @@ final class ImageTrackProducer: NSObject, DRTrackDataProduction {
         }
     }
 
-    // Die übrigen Anforderungen der Schnittstelle. Prüfen nach dem Brennen
-    // überlassen wir dem System (`kDRBurnVerifyDiscKey`), deshalb hier keine
-    // eigene Logik.
+    // The remaining requirements of the interface. We leave verification
+    // after burning to the system (`kDRBurnVerifyDiscKey`), hence no logic
+    // of our own here.
     func producePreGap(for track: DRTrack!, intoBuffer buffer: UnsafeMutablePointer<CChar>!,
                        length bufferLength: UInt32, atAddress address: UInt64,
                        blockSize: UInt32, ioFlags flags: UnsafeMutablePointer<UInt32>!) -> UInt32 { 0 }
@@ -189,7 +208,7 @@ final class ImageTrackProducer: NSObject, DRTrackDataProduction {
     func cleanupTrack(afterVerification track: DRTrack!) -> Bool { true }
 }
 
-// MARK: - Brennen
+// MARK: - Burning
 
 extension CDBurner {
 
@@ -201,7 +220,7 @@ extension CDBurner {
 
     struct Layout: Sendable {
         var imageURL: URL
-        /// Wie viele Byte vor den Audiodaten stehen — 0 bei BIN, 44 bei WAV.
+        /// How many bytes precede the audio data — 0 for BIN, 44 for WAV.
         var headerBytes: Int
         var tracks: [CueSheet.Track]
         var sectorCounts: [Int: Int]
@@ -209,8 +228,8 @@ extension CDBurner {
         var totalSectors: Int { sectorCounts.values.reduce(0, +) }
     }
 
-    /// Baut die Spurliste, ohne zu brennen. Ohne Laufwerk prüfbar, deshalb
-    /// getrennt vom eigentlichen Vorgang.
+    /// Builds the track list without burning. Testable without a drive, hence
+    /// separate from the actual process.
     static func makeTracks(_ layout: Layout) -> [DRTrack] {
         layout.tracks.compactMap { track in
             guard let count = layout.sectorCounts[track.number], count > 0 else { return nil }
@@ -226,19 +245,19 @@ extension CDBurner {
                 DRDataFormKey: NSNumber(value: kDRDataFormAudio),
                 DRTrackModeKey: NSNumber(value: kDRTrackModeAudio),
                 DRSessionFormatKey: NSNumber(value: kDRSessionFormatAudio),
-                // Die Pause vor Track 1 legt das System an; zwischen den
-                // Spuren soll keine entstehen, das Abbild trägt sie schon.
+                // The system adds the pause before track 1; between the tracks
+                // there must be none, the image already carries them.
                 DRPreGapLengthKey: DRMSF(frames: track.number == 1 ? 150 : 0) as Any,
             ])
             return drTrack
         }
     }
 
-    /// Schreibt das Abbild auf den eingelegten Rohling.
+    /// Writes the image onto the inserted blank.
     ///
-    /// `simulated` lässt den Laser aus: der ganze Ablauf läuft durch, es wird
-    /// nichts geschrieben, der Rohling bleibt unbeschrieben. Das ist der Weg,
-    /// auf dem sich alles außer dem letzten Schritt prüfen lässt.
+    /// `simulated` keeps the laser off: the whole process runs through,
+    /// nothing is written, the blank stays unwritten. That is the way to check
+    /// everything except the last step.
     static func burn(_ layout: Layout, simulated: Bool) -> AsyncStream<BurnEvent> {
         AsyncStream { continuation in
             let task = Task.detached {
@@ -269,7 +288,7 @@ extension CDBurner {
                 let burn = DRBurn(device: device)!
                 burn.setProperties([
                     DRBurnTestingKey: NSNumber(value: simulated),
-                    // Lückenlos: alle Spuren in einem Durchgang, Scheibe zu.
+                    // Gapless: all tracks in one pass, disc closed.
                     DRBurnStrategyKey: kDRBurnStrategyCDSAO as String,
                     DRBurnAppendableKey: NSNumber(value: false),
                     DRBurnCompletionActionKey: kDRBurnCompletionActionEject as String,
@@ -277,9 +296,8 @@ extension CDBurner {
                 ])
                 burn.writeLayout(tracks)
 
-                // Statt Benachrichtigungen abzufangen wird der Zustand
-                // abgefragt — weniger beweglich, und der Fortschritt kommt
-                // ohnehin nur grob.
+                // Instead of intercepting notifications the state is polled —
+                // less flexible, and progress only comes coarsely anyway.
                 while !Task.isCancelled {
                     let status = burn.status() ?? [:]
                     let state = (status[DRStatusStateKey] as? String) ?? ""
@@ -312,10 +330,10 @@ extension CDBurner {
         }
     }
 
-    /// Lesbarer Name für das, was im Laufwerk liegt.
+    /// Readable name for what is in the drive.
     static func mediaName(_ type: String) -> String {
-        // Die Konstanten sind `CFString?` und taugen deshalb nicht als
-        // `case`-Muster — also eine Zuordnung, die einmal aufgebaut wird.
+        // The constants are `CFString?` and therefore unusable as `case`
+        // patterns — hence a mapping that is built once.
         let names: [(CFString?, String)] = [
             (kDRDeviceMediaTypeCDROM, "CD-ROM"),
             (kDRDeviceMediaTypeCDR, "CD-R"),

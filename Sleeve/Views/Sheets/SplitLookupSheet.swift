@@ -2,14 +2,28 @@
 //  SplitLookupSheet.swift
 //  Sleeve
 //
-//  „Titel nachschlagen" im Track Splitter (Spec §7.12) — aus MusicBrainz,
-//  Discogs oder einer eingefügten Trackliste. Aufgebaut wie „Album
-//  nachschlagen" beim Taggen: links suchen, rechts vergleichen, unten
-//  übernehmen.
+//  Copyright (C) 2026 NeonRost
 //
-//  Vor dem Übernehmen steht die Liste neben dem, was Sleeve gefunden hat. Passt
-//  die Anzahl nicht, sieht man es hier — und nicht erst an falsch benannten
-//  Dateien.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  "Look Up Titles" in the Track Splitter (spec §7.12) — from MusicBrainz,
+//  Discogs or a pasted track list. Built like "Look Up Album" when tagging:
+//  search on the left, compare on the right, take over at the bottom.
+//
+//  Before anything is applied, the list stands next to what Sleeve found. If
+//  the count does not match, one sees it here — and not only in wrongly
+//  named files.
 //
 
 import SwiftUI
@@ -89,11 +103,11 @@ struct SplitLookupSheet: View {
         .task { await prepareSearch() }
     }
 
-    // MARK: - Suchen
+    // MARK: - Search
 
-    /// Beim ersten Öffnen gleich mit dem Vorschlag aus dem Dateinamen suchen —
-    /// ist das Album nirgends zu finden, steht der Hinweis aufs Einfügen
-    /// sofort da, statt erst nach einem Klick.
+    /// On first opening, search right away with the suggestion from the file
+    /// name — if the album is nowhere to be found, the hint to paste a list is
+    /// there immediately instead of only after a click.
     private func prepareSearch() async {
         if state.splitSearch == nil {
             let guess = state.suggestedSplitSearch
@@ -121,7 +135,7 @@ struct SplitLookupSheet: View {
         Task { await search.switchProvider(to: provider) }
     }
 
-    // MARK: - Eingefügt
+    // MARK: - Pasted
 
     private var pastePane: some View {
         @Bindable var state = state
@@ -138,7 +152,7 @@ struct SplitLookupSheet: View {
         .padding(12)
     }
 
-    // MARK: - Vergleich
+    // MARK: - Comparison
 
     private func comparison(_ listing: TrackListing) -> some View {
         let found = state.splitTracks
@@ -179,7 +193,7 @@ struct SplitLookupSheet: View {
         }
     }
 
-    // MARK: - Übernehmen
+    // MARK: - Take over
 
     private func takeOver(_ listing: TrackListing) -> some View {
         TakeOverSection(fields: TrackListing.takeOverFields, selection: $fields,
@@ -202,24 +216,24 @@ struct SplitLookupSheet: View {
         listing.hasStarts || listing.hasDurations
     }
 
-    /// Startzeiten sind verlässlich — dann ausrichten. Bei Längen nur, wenn die
-    /// Anzahl nicht passt: stimmt sie, liegen Sleeves Grenzen meist schon
-    /// richtig, und ein CD-Maß auf einen YouTube-Mitschnitt zu legen, schadet
-    /// eher.
+    /// Start times are reliable — then align. With lengths only when the count
+    /// does not match: if it does, Sleeve's boundaries are usually right
+    /// already, and laying a CD's measure onto a YouTube recording tends to do
+    /// harm.
     private func align(_ listing: TrackListing) -> Bool {
         didChooseAlignment
             ? alignBoundaries
             : listing.hasStarts || listing.entries.count != state.splitTracks.count
     }
 
-    // MARK: - Fuß
+    // MARK: - Footer
 
     private var footer: some View {
         HStack(spacing: 12) {
             if let listing {
                 let count = listing.entries.count, found = state.splitTracks.count
-                // Die Anzahl allein beruhigt zu früh: am echten Album passten
-                // 13 zu 13, und doch lag eine Grenze 106 s daneben.
+                // The count alone reassures too early: on the real album 13
+                // matched 13, and still one boundary was 106 s off.
                 if count != found {
                     LookupStatus(text: Text("\(count) titles, but \(found) tracks found"),
                                  isWarning: true)
@@ -253,7 +267,7 @@ struct SplitLookupSheet: View {
             || (canAlign(listing) && align(listing))
     }
 
-    /// Wie viele Zeilen mehr als die Toleranz von der Liste abweichen.
+    /// How many rows deviate from the list by more than the tolerance.
     private func deviations(_ listing: TrackListing) -> Int {
         zip(listing.entries, state.splitTracks).filter { entry, track in
             if let start = entry.start {

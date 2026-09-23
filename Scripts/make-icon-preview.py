@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 NeonRost
+# SPDX-License-Identifier: GPL-3.0-or-later
 """
-make-icon-preview.py — Kontaktabzug für die Abnahme (ICON-BRIEF §7).
+make-icon-preview.py — contact sheet for review (ICON-BRIEF §7).
 
-Zeigt das Icon bei 1024, 256, 128, 64, 32 und 16 px, helle und dunkle Fassung
-nebeneinander, jeweils in Originalgröße.
+Shows the icon at 1024, 256, 128, 64, 32 and 16 px, light and dark version
+side by side, each at actual size.
 
-Mit --zoom entsteht zusätzlich eine Prüfansicht, in der die kleinen Größen
-pixelgenau vergrößert sind — nur zum Hinsehen, nicht Teil der Lieferung.
+With --zoom an additional check view is produced in which the small sizes are
+enlarged pixel-exact — only for looking, not part of the delivery.
 """
 
 import os
@@ -75,8 +77,8 @@ def build(zoom=False):
 
         sheet = Image.new("RGB", (width, height), LIGHT_BG)
         draw = ImageDraw.Draw(sheet)
-        # Rechte Hälfte dunkel — so ist auch zu sehen, wie das Icon auf einem
-        # dunklen Dock sitzt.
+        # Right half dark — so one also sees how the icon sits on a dark
+        # Dock.
         split = margin + col_w + gap
         draw.rectangle([split - gap // 2, 0, width, height], fill=DARK_BG)
 

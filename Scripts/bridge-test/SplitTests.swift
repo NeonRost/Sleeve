@@ -1,10 +1,25 @@
 //
 //  SplitTests.swift
 //
-//  Track Splitter (§7). Der Durchstich arbeitet mit einer selbst gebauten
-//  Datei — drei Töne, dazwischen Stille —, weil dort jede Grenze vorher
-//  bekannt ist. An echter Musik wäre „stimmt ungefähr" das Beste, was man
-//  prüfen könnte.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Track Splitter (§7). The end-to-end run works with a self-built file —
+//  three tones with silence in between — because there every boundary is
+//  known beforehand. With real music "roughly right" would be the best one
+//  could check.
 //
 
 import Foundation
@@ -26,13 +41,13 @@ enum SplitTests {
     }
 
     static func equal<T: Equatable>(_ actual: T, _ expected: T, _ label: String) {
-        check(actual == expected, label, detail: "ist \(actual), erwartet \(expected)")
+        check(actual == expected, label, detail: "is \(actual), expected \(expected)")
     }
 
     static func close(_ actual: Double, _ expected: Double, _ tolerance: Double,
                       _ label: String) {
         check(abs(actual - expected) <= tolerance, label,
-              detail: String(format: "ist %.3f, erwartet %.3f ± %.3f", actual, expected, tolerance))
+              detail: String(format: "is %.3f, expected %.3f ± %.3f", actual, expected, tolerance))
     }
 
     static func run() async throws -> Int32 {
@@ -50,14 +65,14 @@ enum SplitTests {
         await applyingListing()
         await waveform()
 
-        print("\n  \(checks) Prüfungen, \(failures) Fehler")
+        print("\n  \(checks) checks, \(failures) failures")
         return failures == 0 ? 0 : 1
     }
 
-    // MARK: - ffmpegs Ausgabe lesen
+    // MARK: - Reading ffmpeg's output
 
     static func parsing() {
-        print("\n— ffmpeg-Ausgabe auswerten —")
+        print("\n— Parsing ffmpeg output —")
 
         let sample = """
         Input #0, mp3, from 'album.mp3':
@@ -67,25 +82,25 @@ enum SplitTests {
         [silencedetect @ 0x14e704080] silence_start: 184.729
         [silencedetect @ 0x14e704080] silence_end: 187 | silence_duration: 2.271
         """
-        close(AudioSplitter.parseDuration(sample) ?? 0, 3149.57, 0.01, "Dauer aus dem Banner")
+        close(AudioSplitter.parseDuration(sample) ?? 0, 3149.57, 0.01, "duration from the banner")
 
         let silences = AudioSplitter.parseSilences(sample)
-        equal(silences.count, 2, "zwei Stillen gepaart")
-        // ffmpeg meldet gelegentlich einen leicht negativen Start.
-        close(silences[0].start, 0, 0.001, "negativer Start wird auf null gezogen")
-        close(silences[0].end, 2.03175, 0.001, "Ende mit Nachkommastellen")
-        close(silences[1].start, 184.729, 0.001, "zweiter Start")
-        // Und manchmal ohne Nachkommastelle — „187", nicht „187.0".
-        close(silences[1].end, 187, 0.001, "Ende ohne Nachkommastelle")
+        equal(silences.count, 2, "two silences paired")
+        // ffmpeg occasionally reports a slightly negative start.
+        close(silences[0].start, 0, 0.001, "a negative start is pulled to zero")
+        close(silences[0].end, 2.03175, 0.001, "end with decimals")
+        close(silences[1].start, 184.729, 0.001, "second start")
+        // And sometimes without decimals — "187", not "187.0".
+        close(silences[1].end, 187, 0.001, "end without decimals")
 
-        check(AudioSplitter.parseDuration("kein Banner") == nil, "ohne Banner keine Dauer")
-        equal(AudioSplitter.parseSilences("nichts").count, 0, "ohne Fundstellen keine Stille")
+        check(AudioSplitter.parseDuration("no banner") == nil, "no banner, no duration")
+        equal(AudioSplitter.parseSilences("nothing").count, 0, "no findings, no silence")
     }
 
-    // MARK: - Was steckt in der Datei
+    // MARK: - What is in the file
 
     static func sourceInfo() {
-        print("\n— Quelle erkennen —")
+        print("\n— Recognizing the source —")
 
         let video = """
         Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'album.mp4':
@@ -93,202 +108,203 @@ enum SplitTests {
           Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p, 854x480
           Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 128 kb/s
         """
-        equal(AudioSplitter.parseAudioCodec(video), "aac", "AAC im Video erkannt")
-        close(AudioSplitter.parseDuration(video) ?? 0, 2689.3, 0.01, "Dauer des Videos")
+        equal(AudioSplitter.parseAudioCodec(video), "aac", "AAC in the video recognized")
+        close(AudioSplitter.parseDuration(video) ?? 0, 2689.3, 0.01, "duration of the video")
 
         let mp3 = """
         Input #0, mp3, from 'album.mp3':
           Duration: 00:52:29.57, start: 0.025057, bitrate: 320 kb/s
           Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 320 kb/s
         """
-        equal(AudioSplitter.parseAudioCodec(mp3), "mp3", "MP3 erkannt")
+        equal(AudioSplitter.parseAudioCodec(mp3), "mp3", "MP3 recognized")
 
         let silent = """
-        Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'stumm.mp4':
+        Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'silent.mp4':
           Duration: 00:00:10.00, start: 0.000000, bitrate: 50 kb/s
           Stream #0:0[0x1](und): Video: h264 (High), yuv420p, 320x180
         """
-        check(AudioSplitter.parseAudioCodec(silent) == nil, "Video ohne Ton hat keinen Codec")
+        check(AudioSplitter.parseAudioCodec(silent) == nil, "a video without sound has no codec")
 
-        print("\n— Behälter für die Stücke —")
+        print("\n— Containers for the pieces —")
         func ext(_ codec: String) -> String {
             AudioSplitter.SourceInfo(duration: 1, audioCodec: codec, hasVideo: true)
                 .outputExtension
         }
-        // Aus einem Video wird nie wieder ein Video — gefragt ist die Musik.
-        equal(ext("aac"), "m4a", "AAC landet in m4a")
-        equal(ext("alac"), "m4a", "ALAC ebenso")
-        equal(ext("mp3"), "mp3", "MP3 bleibt MP3")
-        equal(ext("opus"), "opus", "Opus bleibt Opus")
-        equal(ext("vorbis"), "ogg", "Vorbis kommt in ogg")
-        equal(ext("flac"), "flac", "FLAC bleibt FLAC")
-        equal(ext("pcm_s16le"), "wav", "rohes PCM kommt in wav")
-        equal(ext("irgendwas"), "m4a", "Unbekanntes kommt in m4a")
+        // A video never becomes a video again — the music is what is wanted.
+        equal(ext("aac"), "m4a", "AAC ends up in m4a")
+        equal(ext("alac"), "m4a", "ALAC likewise")
+        equal(ext("mp3"), "mp3", "MP3 stays MP3")
+        equal(ext("opus"), "opus", "Opus stays Opus")
+        equal(ext("vorbis"), "ogg", "Vorbis goes into ogg")
+        equal(ext("flac"), "flac", "FLAC stays FLAC")
+        equal(ext("pcm_s16le"), "wav", "raw PCM goes into wav")
+        equal(ext("whatever"), "m4a", "anything unknown goes into m4a")
 
-        check(AudioSplitter.acceptedExtensions.contains("mp4"), "mp4 wird angenommen")
-        check(AudioSplitter.acceptedExtensions.contains("webm"), "webm ebenso")
-        check(AudioSplitter.acceptedExtensions.contains("mp3"), "mp3 weiterhin")
-        check(!AudioSplitter.acceptedExtensions.contains("txt"), "Textdateien nicht")
+        check(AudioSplitter.acceptedExtensions.contains("mp4"), "mp4 is accepted")
+        check(AudioSplitter.acceptedExtensions.contains("webm"), "webm likewise")
+        check(AudioSplitter.acceptedExtensions.contains("mp3"), "mp3 still")
+        check(!AudioSplitter.acceptedExtensions.contains("txt"), "text files not")
     }
 
-    // MARK: - Aus Stille werden Grenzen
+    // MARK: - Silence becomes boundaries
 
     static func boundaries() {
-        print("\n— Grenzen aus Stille —")
+        print("\n— Boundaries from silence —")
 
-        // Stille am Anfang und Ende ist Leerlauf, keine Grenze.
+        // Silence at the start and end is dead air, not a boundary.
         let edges = AudioSplitter.trackRanges(
             duration: 100,
             silences: [.init(start: 0, end: 1.5), .init(start: 40, end: 42),
                        .init(start: 99, end: 100)],
             minimumLength: 0)
-        equal(edges.count, 2, "Randstille zählt nicht als Grenze")
-        close(edges[0].start, 0, 0.001, "erster Track beginnt bei null")
-        // Ohne Hüllkurve wird am Ende der Stille geschnitten: die Pause gehört
-        // zum vorigen Track, wie bei CD-Rippern.
-        close(edges[0].end, 42, 0.001, "die Pause gehört zum Ende des vorigen Tracks")
-        close(edges[1].start, 42, 0.001, "der nächste beginnt dort, wo die Musik einsetzt")
-        close(edges[1].end, 100, 0.001, "letzter Track reicht bis zum Ende")
+        equal(edges.count, 2, "edge silence does not count as a boundary")
+        close(edges[0].start, 0, 0.001, "the first track starts at zero")
+        // Without an envelope the cut goes at the end of the silence: the
+        // pause belongs to the previous track, as with CD rippers.
+        close(edges[0].end, 42, 0.001, "the pause belongs to the end of the previous track")
+        close(edges[1].start, 42, 0.001, "the next one starts where the music sets in")
+        close(edges[1].end, 100, 0.001, "the last track reaches to the end")
 
         equal(AudioSplitter.trackRanges(duration: 100, silences: []).count, 0,
-              "ohne Stille keine Aufteilung")
+              "no silence, no splitting")
 
-        print("\n— Nichts geht verloren —")
-        // Der erste Anlauf ließ die Pausen weg — und mit ihnen alles, was
-        // leiser als die Schwelle war. Am echten Album 66 s in keiner Datei.
+        print("\n— Nothing gets lost —")
+        // The first attempt left out the pauses — and with them everything
+        // quieter than the threshold. On the real album 66 s in no file.
         let many = AudioSplitter.trackRanges(
             duration: 600,
             silences: [.init(start: 100, end: 105), .init(start: 250, end: 258),
                        .init(start: 400, end: 401)],
             minimumLength: 10)
         check(zip(many, many.dropFirst()).allSatisfy { abs($0.end - $1.start) < 0.0001 },
-              "die Tracks liegen lückenlos aneinander")
-        close(many.first!.start, 0, 0.0001, "vom Dateianfang")
-        close(many.last!.end, 600, 0.0001, "bis zum Dateiende")
+              "the tracks lie against each other without gaps")
+        close(many.first!.start, 0, 0.0001, "from the start of the file")
+        close(many.last!.end, 600, 0.0001, "to the end of the file")
         close(many.reduce(0) { $0 + $1.duration }, 600, 0.0001,
-              "zusammen genau so lang wie die Datei")
+              "together exactly as long as the file")
 
-        print("\n— Die tiefste Stille —")
-        // Hüllkurve: 10 s laut, 3 s digitale Null, 4 s leises Intro
-        // (−40 dB, unter der Schwelle), dann laut. Die Schwellen-Stille reicht
-        // bis 17 s — geschnitten werden muss aber bei 13 s, sonst bekommt der
-        // vorige Track das Intro.
-        var peaks = [Float](repeating: 0.8, count: 1000)       // 100 je Sekunde
+        print("\n— The deepest silence —")
+        // Envelope: 10 s loud, 3 s digital zero, 4 s quiet intro (−40 dB,
+        // below the threshold), then loud. The threshold silence reaches to
+        // 17 s — but the cut has to go at 13 s, or the previous track gets
+        // the intro.
+        var peaks = [Float](repeating: 0.8, count: 1000)       // 100 per second
         for i in 1000..<1300 { peaks.append(0) }               // 10–13 s
         for _ in 1300..<1700 { peaks.append(0.01) }            // 13–17 s, −40 dB
         for _ in 1700..<3000 { peaks.append(0.8) }             // 17–30 s
         let levels = WaveformSampler.Waveform(peaks: peaks, duration: 30)
         let region = SilenceInterval(start: 10, end: 17)
         close(AudioSplitter.cutPosition(in: region, levels: levels), 13, 0.02,
-              "geschnitten wird am Ende der digitalen Null, nicht der Schwelle")
+              "the cut goes at the end of the digital zero, not of the threshold")
         close(AudioSplitter.cutPosition(in: region, levels: nil), 17, 0.001,
-              "ohne Hüllkurve am Ende der Stille")
+              "without an envelope at the end of the silence")
 
-        // Ohne digitale Null — Rauschen einer Kassette, −55 dB — zählt alles
-        // unter −60 dB bzw. knapp über dem Tiefsten als Boden.
+        // Without digital zero — a cassette's hiss, −55 dB — everything below
+        // −60 dB or just above the deepest point counts as floor.
         var hiss = [Float](repeating: 0.8, count: 500)
-        hiss += [Float](repeating: 0.0018, count: 300)          // 5–8 s Rauschen
-        hiss += [Float](repeating: 0.02, count: 200)            // 8–10 s leises Intro
+        hiss += [Float](repeating: 0.0018, count: 300)          // 5–8 s hiss
+        hiss += [Float](repeating: 0.02, count: 200)            // 8–10 s quiet intro
         hiss += [Float](repeating: 0.8, count: 500)
         close(AudioSplitter.cutPosition(in: .init(start: 5, end: 10),
                                         levels: WaveformSampler.Waveform(peaks: hiss, duration: 15)),
-              8, 0.02, "auch bei Rauschen statt Null am Ende des Tiefsten")
+              8, 0.02, "with hiss instead of zero too, at the end of the deepest stretch")
 
-        print("\n— Kurze Stücke zwischen zwei Tracks —")
-        // Der Fall vom Album: vor „LUV" eine lange Pause, dann drei kurze
-        // Klangstücke mit kleinen Pausen — das Intro. Es gehört zum nächsten
-        // Track, nicht zum vorigen.
+        print("\n— Short pieces between two tracks —")
+        // The case from the album: before "LUV" a long pause, then three short
+        // bits of sound with small pauses — the intro. It belongs to the next
+        // track, not to the previous one.
         let intro = AudioSplitter.trackRanges(
             duration: 1500,
-            silences: [.init(start: 1132.5, end: 1136.7),       // lange Pause
+            silences: [.init(start: 1132.5, end: 1136.7),       // long pause
                        .init(start: 1139.0, end: 1140.0),
                        .init(start: 1143.7, end: 1145.0),
                        .init(start: 1148.2, end: 1149.9)],
             minimumLength: 10)
-        equal(intro.count, 2, "das Intro wird kein eigener Track")
-        close(intro[1].start, 1136.7, 0.001, "sondern beginnt den nächsten, nach der langen Pause")
+        equal(intro.count, 2, "the intro does not become a track of its own")
+        close(intro[1].start, 1136.7, 0.001, "but starts the next one, after the long pause")
 
-        // Applaus nach einem Live-Stück: kurze Lücke, dann die lange Pause.
+        // Applause after a live piece: a short gap, then the long pause.
         let applause = AudioSplitter.trackRanges(
             duration: 300,
             silences: [.init(start: 92.5, end: 93.0), .init(start: 97.0, end: 101.0)],
             minimumLength: 10)
-        equal(applause.count, 2, "Applaus wird kein eigener Track")
-        close(applause[0].end, 101.0, 0.001, "sondern bleibt beim Stück davor")
+        equal(applause.count, 2, "applause does not become a track of its own")
+        close(applause[0].end, 101.0, 0.001, "but stays with the piece before")
 
-        // Ein Knacken in der Pause trennt sie nicht.
+        // A click in the pause does not split it.
         let click = AudioSplitter.bridge(
             [.init(start: 92.5, end: 96.9), .init(start: 97.1, end: 97.6)], within: 1.0)
-        equal(click.count, 1, "zwei Stillen mit einem Knacken dazwischen sind eine")
-        close(click[0].end, 97.6, 0.001, "und reichen bis zum Ende der zweiten")
+        equal(click.count, 1, "two silences with a click between them are one")
+        close(click[0].end, 97.6, 0.001, "and reach to the end of the second")
 
-        // Am Dateianfang gibt es keinen Vorgänger — kurze Stücke gehen nach hinten.
+        // At the start of the file there is no predecessor — short pieces go
+        // backwards.
         let opener = AudioSplitter.thin(
             [.init(position: 3, strength: 1), .init(position: 100, strength: 4)],
             duration: 300, minimumLength: 10)
-        equal(opener.count, 1, "ein zu kurzes erstes Stück hat nur einen Nachbarn")
-        close(opener[0].position, 100, 0.001, "und geht in ihn auf")
+        equal(opener.count, 1, "a too-short first piece has only one neighbour")
+        close(opener[0].position, 100, 0.001, "and merges into it")
 
         let tail = AudioSplitter.thin(
             [.init(position: 100, strength: 4), .init(position: 295, strength: 1)],
             duration: 300, minimumLength: 10)
-        close(tail.last!.position, 100, 0.001, "ein zu kurzes letztes Stück ebenso")
+        close(tail.last!.position, 100, 0.001, "a too-short last piece likewise")
 
         equal(AudioSplitter.thin(
             [.init(position: 1, strength: 1), .init(position: 2, strength: 1)],
             duration: 300, minimumLength: 0).count, 2,
-              "abgeschaltete Mindestlänge dünnt nichts aus")
+              "a switched-off minimum length thins out nothing")
     }
 
-    // MARK: - Zeitangaben
+    // MARK: - Time values
 
     static func timecodes() {
-        print("\n— Zeitangaben —")
-        equal(Timecode.format(0), "00:00.0", "null")
-        equal(Timecode.format(61.26), "01:01.3", "eine Minute und etwas")
-        // Genau .x5 ist binär ein Gleichstand; `%.1f` rundet dann zur geraden
-        // Ziffer. Festgehalten, damit es niemand für einen Fehler hält.
-        equal(Timecode.format(61.25), "01:01.2", "Gleichstand rundet zur geraden Ziffer")
-        equal(Timecode.short(300.3), "5:00", "Vergleichstabellen: ganze Sekunden")
-        equal(Timecode.short(993.6), "16:34", "gerundet")
-        equal(Timecode.short(3723), "1:02:03", "mit Stunden")
-        equal(Timecode.format(3599.9), "59:59.9", "knapp eine Stunde")
+        print("\n— Time values —")
+        equal(Timecode.format(0), "00:00.0", "zero")
+        equal(Timecode.format(61.26), "01:01.3", "a minute and a bit")
+        // Exactly .x5 is a tie in binary; `%.1f` then rounds to the even
+        // digit. Recorded so that nobody takes it for a bug.
+        equal(Timecode.format(61.25), "01:01.2", "a tie rounds to the even digit")
+        equal(Timecode.short(300.3), "5:00", "comparison tables: whole seconds")
+        equal(Timecode.short(993.6), "16:34", "rounded")
+        equal(Timecode.short(3723), "1:02:03", "with hours")
+        equal(Timecode.format(3599.9), "59:59.9", "just under an hour")
 
-        close(Timecode.parse("01:01.3") ?? 0, 61.3, 0.001, "zurückgelesen")
-        close(Timecode.parse("90") ?? 0, 90, 0.001, "blanke Sekunden")
-        close(Timecode.parse("1:02:03") ?? 0, 3723, 0.001, "mit Stunden")
-        close(Timecode.parse("01:01,3") ?? 0, 61.3, 0.001, "Komma statt Punkt")
-        check(Timecode.parse("") == nil, "leer ergibt nichts")
-        check(Timecode.parse("Unsinn") == nil, "Unsinn ergibt nichts")
-        check(Timecode.parse("1:2:3:4") == nil, "vier Teile ergeben nichts")
+        close(Timecode.parse("01:01.3") ?? 0, 61.3, 0.001, "read back")
+        close(Timecode.parse("90") ?? 0, 90, 0.001, "bare seconds")
+        close(Timecode.parse("1:02:03") ?? 0, 3723, 0.001, "with hours")
+        close(Timecode.parse("01:01,3") ?? 0, 61.3, 0.001, "comma instead of point")
+        check(Timecode.parse("") == nil, "empty yields nothing")
+        check(Timecode.parse("nonsense") == nil, "nonsense yields nothing")
+        check(Timecode.parse("1:2:3:4") == nil, "four parts yield nothing")
 
-        // Rundlauf über viele Werte — hier fällt ein Rundungsfehler auf.
+        // A round trip over many values — this is where a rounding error shows.
         var roundTripOK = true
         for tenths in stride(from: 0, through: 6000, by: 7) {
             let seconds = Double(tenths) / 10
             guard let back = Timecode.parse(Timecode.format(seconds)),
                   abs(back - seconds) < 0.06 else { roundTripOK = false; break }
         }
-        check(roundTripOK, "Rundlauf über 860 Werte")
+        check(roundTripOK, "round trip over 860 values")
     }
 
-    // MARK: - Zielformat
+    // MARK: - Target format
 
     static func targetFormat() {
-        print("\n— Zielformat —")
-        check(!SplitOutput.keepSource.reencodes, "wie die Quelle kodiert nicht neu")
-        check(SplitOutput.convert(.mp3).reencodes, "MP3 kodiert neu")
+        print("\n— Target format —")
+        check(!SplitOutput.keepSource.reencodes, "same as source does not re-encode")
+        check(SplitOutput.convert(.mp3).reencodes, "MP3 re-encodes")
         check(SplitOutput.convert(.flac).reencodes,
-              "auch FLAC kodiert neu — verlustfrei heißt nicht unverändert")
-        check(SplitOutput.keepSource != SplitOutput.convert(.mp3), "beide unterscheidbar")
+              "FLAC re-encodes too — lossless does not mean unchanged")
+        check(SplitOutput.keepSource != SplitOutput.convert(.mp3), "both distinguishable")
     }
 
-    // MARK: - Hineinhören
+    // MARK: - Listening
 
     @MainActor
     static func preview() async {
-        print("\n— Hineinhören —")
-        // Das Fenster liegt um die Grenze, nicht dahinter.
+        print("\n— Listening —")
+        // The window lies around the boundary, not behind it.
         let player = SplitPreview()
         player.length = 12
         func window(trackStart: Double, fileDuration: Double) -> (Double, Double) {
@@ -296,18 +312,18 @@ enum SplitTests {
             return (from, min(fileDuration, from + player.length))
         }
         var w = window(trackStart: 100, fileDuration: 600)
-        close(w.0, 96, 0.001, "beginnt ein Drittel der Probe vor dem Track")
-        close(w.1, 108, 0.001, "und läuft die volle Länge")
+        close(w.0, 96, 0.001, "starts a third of the preview before the track")
+        close(w.1, 108, 0.001, "and runs the full length")
 
         w = window(trackStart: 0, fileDuration: 600)
-        close(w.0, 0, 0.001, "bei Track 1 nicht vor den Dateianfang")
-        close(w.1, 12, 0.001, "und dann die volle Länge")
+        close(w.0, 0, 0.001, "for track 1 not before the start of the file")
+        close(w.1, 12, 0.001, "and then the full length")
 
         w = window(trackStart: 598, fileDuration: 600)
-        close(w.1, 600, 0.001, "am Dateiende wird abgeschnitten")
-        check(w.1 > w.0, "das Fenster bleibt sinnvoll")
+        close(w.1, 600, 0.001, "cut off at the end of the file")
+        check(w.1 > w.0, "the window stays sensible")
 
-        // Und an echten Dateien: AVFoundation muss sie annehmen.
+        // And on real files: AVFoundation has to accept them.
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("sleeve-preview-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -324,37 +340,37 @@ enum SplitTests {
             ])
             let preview = SplitPreview()
             await preview.check(file)
-            check(preview.unplayableReason == nil, "\(ext) lässt sich abspielen")
+            check(preview.unplayableReason == nil, "\(ext) can be played")
         }
     }
 
-    // MARK: - Grenzen bearbeiten
+    // MARK: - Editing boundaries
 
     @MainActor
     static func editing() {
-        print("\n— Grenzen eines Tracks —")
+        print("\n— A track's boundaries —")
         let track = SplitTrack(range: TrackRange(start: 100, end: 220))
-        check(!track.isAdjusted, "frisch erkannt heißt unverändert")
+        check(!track.isAdjusted, "freshly detected means unchanged")
 
         track.assign(start: 97.5)
-        close(track.range.start, 97.5, 0.001, "Anfang wird gespeichert")
-        equal(track.startText, "01:37.5", "das Zeitfeld zieht mit")
-        check(track.isAdjusted, "die Zeile gilt als verändert")
+        close(track.range.start, 97.5, 0.001, "the start is stored")
+        equal(track.startText, "01:37.5", "the time field follows")
+        check(track.isAdjusted, "the row counts as changed")
 
         track.assign(start: 100)
-        check(!track.isAdjusted, "zurück auf die Erkennung heißt unverändert")
+        check(!track.isAdjusted, "back to the detection means unchanged")
 
-        // Nach Teilen oder Zusammenlegen ist der neue Stand der Ausgangspunkt.
+        // After splitting or merging, the new state is the starting point.
         track.assign(end: 150)
         track.detected = track.range
-        check(!track.isAdjusted, "ein neuer Ausgangspunkt gilt als unverändert")
+        check(!track.isAdjusted, "a new starting point counts as unchanged")
     }
 
-    /// Marke, Auswahl, Teilen und Zusammenlegen — so, wie das Fenster sie
-    /// benutzt: über den Zustand der App, nicht über Einzelteile.
+    /// Mark, selection, splitting and merging — the way the window uses them:
+    /// through the app's state, not through individual parts.
     @MainActor
     static func windowModel() {
-        print("\n— Marke und Auswahl —")
+        print("\n— Mark and selection —")
         let state = AppState()
         state.splitSourceInfo = AudioSplitter.SourceInfo(duration: 300, audioCodec: "aac",
                                                          hasVideo: false)
@@ -363,36 +379,36 @@ enum SplitTests {
             SplitTrack(range: TrackRange(start: 97.6, end: 200)),
             SplitTrack(range: TrackRange(start: 203, end: 300)),
         ]
-        state.splitPreview.length = 15   // Vorlauf also 5 s
+        state.splitPreview.length = 15   // so the lead-in is 5 s
         state.selectSplitTrack(state.splitTracks[1].id)
 
-        // Ohne eigene Setzung steht die Marke am Trackanfang — wer einen Track
-        // abspielt, erwartet ihn ab seinem Anfang, nicht vier Sekunden davor.
-        close(state.splitMarkPosition, 97.6, 0.001, "Marke steht am Anfang des Tracks")
-        close(state.splitCurrentPosition, 97.6, 0.001, "ohne Wiedergabe gilt die Marke")
+        // Unless set by hand, the mark sits at the start of the track — whoever
+        // plays a track expects it from its start, not four seconds before.
+        close(state.splitMarkPosition, 97.6, 0.001, "the mark sits at the start of the track")
+        close(state.splitCurrentPosition, 97.6, 0.001, "without playback the mark applies")
 
-        // Über die Grenze hinweg hören ist ein eigener Knopf.
+        // Playing across the boundary is a button of its own.
         state.jumpToStartBoundary()
         state.splitPreview.stop()
-        close(state.splitMarkPosition, 92.6, 0.001, "⏮ setzt die Marke um den Vorlauf davor")
+        close(state.splitMarkPosition, 92.6, 0.001, "⏮ puts the mark the lead-in before")
         state.selectSplitTrack(state.splitTracks[2].id)
         state.selectSplitTrack(state.splitTracks[1].id)
 
         state.setSplitMark(150)
-        close(state.splitMarkPosition, 150, 0.001, "Marke lässt sich setzen")
+        close(state.splitMarkPosition, 150, 0.001, "the mark can be set")
         state.setSplitMark(-10)
-        close(state.splitMarkPosition, 0, 0.001, "nicht vor den Dateianfang")
+        close(state.splitMarkPosition, 0, 0.001, "not before the start of the file")
         state.setSplitMark(9999)
-        close(state.splitMarkPosition, 300, 0.001, "nicht hinter das Dateiende")
+        close(state.splitMarkPosition, 300, 0.001, "not beyond the end of the file")
 
-        // Eine andere Zeile wählen setzt die Marke zurück an deren Anfang.
+        // Selecting another row puts the mark back at its start.
         state.selectSplitTrack(state.splitTracks[2].id)
-        close(state.splitMarkPosition, 203, 0.001, "neue Zeile, neue Marke an ihrem Anfang")
+        close(state.splitMarkPosition, 203, 0.001, "new row, new mark at its start")
 
-        print("\n— Gemeinsame Grenzen —")
-        // Grenze 1 ist das Ende von Track 0 und der Anfang von Track 1. Wer sie
-        // verschiebt, verschiebt beides — sonst entstünde eine Lücke, und was
-        // darin liegt, stünde in keiner Datei.
+        print("\n— Shared boundaries —")
+        // Boundary 1 is the end of track 0 and the start of track 1. Whoever
+        // moves it moves both — otherwise a gap would open, and whatever lies
+        // in it would end up in no file.
         state.splitTracks = [
             SplitTrack(range: TrackRange(start: 0, end: 97.6)),
             SplitTrack(range: TrackRange(start: 97.6, end: 203)),
@@ -401,89 +417,88 @@ enum SplitTests {
         state.selectSplitTrack(state.splitTracks[1].id)
         state.setSplitMark(99)
         state.setSelectedStartHere()
-        close(state.splitTracks[1].range.start, 99, 0.001, "„Anfang hierher“ nimmt die Marke")
-        close(state.splitTracks[0].range.end, 99, 0.001, "und der vorige Track endet mit")
+        close(state.splitTracks[1].range.start, 99, 0.001, "\"Start Here\" takes the mark")
+        close(state.splitTracks[0].range.end, 99, 0.001, "and the previous track ends with it")
 
         state.setSplitMark(195)
         state.setSelectedEndHere()
-        close(state.splitTracks[1].range.end, 195, 0.001, "„Ende hierher“ ebenso")
-        close(state.splitTracks[2].range.start, 195, 0.001, "und der nächste beginnt mit")
+        close(state.splitTracks[1].range.end, 195, 0.001, "\"End Here\" likewise")
+        close(state.splitTracks[2].range.start, 195, 0.001, "and the next one starts with it")
 
         func contiguous() -> Bool {
             zip(state.splitTracks, state.splitTracks.dropFirst())
                 .allSatisfy { abs($0.range.end - $1.range.start) < 0.0001 }
         }
-        check(contiguous(), "keine Lücke nach dem Verschieben")
+        check(contiguous(), "no gap after moving")
 
-        // Eine Grenze kann nicht über den Nachbarn hinausgeschoben werden.
+        // A boundary cannot be pushed beyond the neighbour.
         state.moveSelectedStart(to: -50)
         check(state.splitTracks[0].range.duration >= SplitTrack.minimumLength - 0.0001,
-              "der vorige Track verschwindet nicht")
-        check(contiguous(), "und es bleibt lückenlos")
+              "the previous track does not disappear")
+        check(contiguous(), "and it stays gapless")
 
-        // Zurücksetzen nimmt die Nachbarn mit.
+        // Resetting takes the neighbours along.
         state.selectSplitTrack(state.splitTracks[1].id)
         state.resetSelectedBoundaries()
-        close(state.splitTracks[1].range.start, 97.6, 0.001, "Zurücksetzen stellt den Anfang her")
-        close(state.splitTracks[0].range.end, 97.6, 0.001, "samt Ende des vorigen")
-        check(contiguous(), "lückenlos")
+        close(state.splitTracks[1].range.start, 97.6, 0.001, "reset restores the start")
+        close(state.splitTracks[0].range.end, 97.6, 0.001, "including the end of the previous one")
+        check(contiguous(), "gapless")
 
-        // Nur an den Dateirändern lässt sich etwas abschneiden.
+        // Only at the edges of the file can something be cut off.
         state.selectSplitTrack(state.splitTracks[0].id)
         state.moveSelectedStart(to: 4)
         close(state.splitTracks[0].range.start, 4, 0.001,
-              "am Dateianfang lässt sich eine Ansage abschneiden")
-        close(state.splitTracks[0].range.end, 97.6, 0.001, "ohne dass sich sonst etwas bewegt")
+              "at the start of the file an announcement can be cut off")
+        close(state.splitTracks[0].range.end, 97.6, 0.001, "without anything else moving")
         state.moveSelectedStart(to: 0)
         state.selectSplitTrack(state.splitTracks[1].id)
 
-
-        print("\n— Teilen und Zusammenlegen —")
+        print("\n— Splitting and merging —")
         state.setSplitMark(150)
-        check(state.canSplitHere, "mitten im Track lässt sich teilen")
+        check(state.canSplitHere, "the middle of a track can be split")
         state.splitHere()
-        equal(state.splitTracks.count, 4, "aus drei Tracks werden vier")
-        close(state.splitTracks[1].range.end, 150, 0.001, "der erste Teil endet an der Marke")
-        close(state.splitTracks[2].range.start, 150, 0.001, "der zweite beginnt dort")
-        equal(state.splitSelectionID, state.splitTracks[2].id, "der neue Teil ist gewählt")
-        check(contiguous(), "lückenlos")
+        equal(state.splitTracks.count, 4, "three tracks become four")
+        close(state.splitTracks[1].range.end, 150, 0.001, "the first part ends at the mark")
+        close(state.splitTracks[2].range.start, 150, 0.001, "the second starts there")
+        equal(state.splitSelectionID, state.splitTracks[2].id, "the new part is selected")
+        check(contiguous(), "gapless")
 
-        // Nach dem Teilen führt Zurücksetzen nicht mehr an die alte Grenze —
-        // die gibt es nicht mehr.
+        // After splitting, reset no longer leads to the old boundary — it no
+        // longer exists.
         state.selectSplitTrack(state.splitTracks[1].id)
         state.resetSelectedBoundaries()
         close(state.splitTracks[1].range.end, 150, 0.001,
-              "Zurücksetzen nach dem Teilen hält die neue Grenze")
+              "reset after splitting keeps the new boundary")
 
         state.selectSplitTrack(state.splitTracks[2].id)
         state.mergeSelectedWithPrevious()
-        equal(state.splitTracks.count, 3, "Zusammenlegen macht es rückgängig")
-        equal(state.splitSelectionID, state.splitTracks[1].id, "der Vorgänger ist nun gewählt")
-        check(contiguous(), "lückenlos")
+        equal(state.splitTracks.count, 3, "merging undoes it")
+        equal(state.splitSelectionID, state.splitTracks[1].id, "the predecessor is selected now")
+        check(contiguous(), "gapless")
 
         state.selectSplitTrack(state.splitTracks[0].id)
         state.mergeSelectedWithPrevious()
-        equal(state.splitTracks.count, 3, "der erste Track hat keinen Vorgänger")
+        equal(state.splitTracks.count, 3, "the first track has no predecessor")
     }
 
-    /// Eine Trackliste übernehmen — so, wie das Blatt es tut.
+    /// Applying a track list — the way the sheet does it.
     @MainActor
     static func applyingListing() async {
-        print("\n— Trackliste übernehmen —")
+        print("\n— Applying a track list —")
         let state = AppState()
         state.splitSource = URL(fileURLWithPath:
             "/x/BEAST - IMagination∞lenS (Full Album) (486p_30fps_H264-128kbit_AAC).mp4")
         state.splitSourceInfo = AudioSplitter.SourceInfo(duration: 1370, audioCodec: "aac",
                                                          hasVideo: true)
 
-        // Vorschlag für die Suche aus dem Dateinamen, ohne die Klammern, die
-        // Uploader anhängen.
+        // Search suggestion from the file name, without the parentheses
+        // uploaders append.
         let guess = state.suggestedSplitSearch
-        equal(guess.artist, "BEAST", "Interpret aus dem Dateinamen")
-        equal(guess.album, "IMagination∞lenS", "Album ohne „(Full Album)“ und Auflösung")
+        equal(guess.artist, "BEAST", "artist from the file name")
+        equal(guess.album, "IMagination∞lenS", "album without \"(Full Album)\" and resolution")
 
-        // Erkennung wie am echten Album: die Pause in „48k" ist eine Grenze,
-        // Lynch fehlt.
+        // Detection as on the real album: the pause in "48k" is a boundary,
+        // Lynch is missing.
         state.splitAnalysis = SilenceAnalysis(duration: 1370, silences: [
             .init(start: 92.5, end: 95.8), .init(start: 312.0, end: 316.5),
             .init(start: 568.0, end: 573.0), .init(start: 837.0, end: 848.1),
@@ -503,84 +518,84 @@ enum SplitTests {
             LUV 18:55
             """)
 
-        // Nur Titel: die Grenzen bleiben, wie sie sind.
+        // Titles only: the boundaries stay as they are.
         state.applyListing(listing, alignBoundaries: false)
-        equal(state.splitTracks.count, 7, "ohne Ausrichten bleiben sieben Tracks")
-        equal(state.splitTracks[5].title, "Lynch", "Titel der Reihe nach")
-        close(state.splitTracks[5].range.start, 886.4, 0.001, "die Grenze bleibt, wo sie war")
+        equal(state.splitTracks.count, 7, "without aligning, seven tracks remain")
+        equal(state.splitTracks[5].title, "Lynch", "titles in order")
+        close(state.splitTracks[5].range.start, 886.4, 0.001, "the boundary stays where it was")
 
-        // Mit Ausrichten: die Liste setzt die Grenzen.
+        // With aligning: the list sets the boundaries.
         state.applyListing(listing, alignBoundaries: true)
-        equal(state.splitTracks.count, 7, "sieben Tracks aus sieben Einträgen")
-        close(state.splitTracks[4].range.start, 848.1, 0.001, "14:07 rastet an der Stille ein")
-        close(state.splitTracks[5].range.start, 993, 0.001, "Lynch bei 16:33 — ohne Stille gilt die Liste")
+        equal(state.splitTracks.count, 7, "seven tracks from seven entries")
+        close(state.splitTracks[4].range.start, 848.1, 0.001, "14:07 snaps to the silence")
+        close(state.splitTracks[5].range.start, 993, 0.001, "Lynch at 16:33 — without silence the list applies")
         close(state.splitTracks[4].range.duration, 144.9, 0.01,
-              "„48k“ ist wieder ein Track, die Pause darin trennt nicht mehr")
-        equal(state.splitTracks[5].title, "Lynch", "und heißt richtig")
+              "\"48k\" is one track again, the pause in it no longer splits")
+        equal(state.splitTracks[5].title, "Lynch", "and is named correctly")
         check(zip(state.splitTracks, state.splitTracks.dropFirst())
-                .allSatisfy { abs($0.range.end - $1.range.start) < 0.0001 }, "lückenlos")
-        equal(state.splitSelectionID, state.splitTracks.first?.id, "der erste Track ist gewählt")
+                .allSatisfy { abs($0.range.end - $1.range.start) < 0.0001 }, "gapless")
+        equal(state.splitSelectionID, state.splitTracks.first?.id, "the first track is selected")
         check(!state.splitTracks[5].isAdjusted,
-              "die ausgerichteten Grenzen gelten als Ausgangspunkt")
-        check(state.splitMetadata == nil, "eine eingefügte Liste liefert kein Album")
+              "the aligned boundaries count as the starting point")
+        check(state.splitMetadata == nil, "a pasted list provides no album")
 
-        // Aus MusicBrainz kommen Album, Interpret und Jahr mit.
+        // From MusicBrainz, album, artist and year come along.
         let release = LookupRelease(provider: .musicBrainz, id: "x", title: "IMagination∞lenS",
                                     albumArtist: "BEAST", year: 2022,
                                     tracks: [LookupTrack(position: "1", title: "Beast City",
                                                          duration: "1:36")])
         let fromRelease = TrackListing(release: release)
-        close(fromRelease.entries[0].duration ?? 0, 96, 0.001, "Länge aus MusicBrainz gelesen")
+        close(fromRelease.entries[0].duration ?? 0, 96, 0.001, "length read from MusicBrainz")
         state.applyListing(fromRelease, alignBoundaries: false)
-        equal(state.splitMetadata?.album, "IMagination∞lenS", "Album wird gemerkt")
-        equal(state.splitMetadata?.artist, "BEAST", "Interpret ebenso")
-        equal(state.splitMetadata?.year, 2022, "und das Jahr")
+        equal(state.splitMetadata?.album, "IMagination∞lenS", "the album is kept")
+        equal(state.splitMetadata?.artist, "BEAST", "the artist likewise")
+        equal(state.splitMetadata?.year, 2022, "and the year")
 
-        // Übernommen wird nur, was angehakt ist — wie beim Taggen.
-        let mitGenre = LookupRelease(provider: .discogs, id: "y", title: "Anderes Album",
-                                     albumArtist: "Jemand", year: 1999,
-                                     genres: ["Electronic"], styles: ["Breakbeat"],
-                                     tracks: [LookupTrack(position: "A1", title: "Neu",
-                                                          duration: "1:36")])
-        let genreListe = TrackListing(release: mitGenre)
-        equal(genreListe.genre, "Breakbeat", "Genre nach der Genre-Wahl — Style voreingestellt")
-        equal(TrackListing(release: mitGenre, genreSource: .genre).genre, "Electronic",
-              "oder das Genre, wenn so gewählt")
-        equal(genreListe.availableFields, [.title, .artist, .album, .year, .genre],
-              "Ein Album liefert alle fünf Felder")
-        equal(listing.availableFields, [.title], "Eine eingefügte Liste nur Titel")
-        let titelVorher = state.splitTracks[0].title
-        state.applyListing(genreListe, fields: [.album, .genre], alignBoundaries: false)
-        equal(state.splitTracks[0].title, titelVorher, "Titel nicht angehakt: bleibt")
-        equal(state.splitMetadata?.album, "Anderes Album", "Album angehakt: übernommen")
-        equal(state.splitMetadata?.genre, "Breakbeat", "Genre ebenso")
-        equal(state.splitMetadata?.artist, "BEAST", "Interpret nicht angehakt: bleibt, wie er war")
-        equal(state.splitMetadata?.year, 2022, "Jahr ebenso")
-        state.applyListing(genreListe, fields: [], alignBoundaries: false)
-        equal(state.splitMetadata?.album, "Anderes Album", "Nichts angehakt ändert nichts")
+        // Only what is ticked is taken over — as when tagging.
+        let withGenre = LookupRelease(provider: .discogs, id: "y", title: "Another Album",
+                                      albumArtist: "Someone", year: 1999,
+                                      genres: ["Electronic"], styles: ["Breakbeat"],
+                                      tracks: [LookupTrack(position: "A1", title: "New",
+                                                           duration: "1:36")])
+        let genreListing = TrackListing(release: withGenre)
+        equal(genreListing.genre, "Breakbeat", "genre by the genre choice — style is the default")
+        equal(TrackListing(release: withGenre, genreSource: .genre).genre, "Electronic",
+              "or the genre, if so chosen")
+        equal(genreListing.availableFields, [.title, .artist, .album, .year, .genre],
+              "an album provides all five fields")
+        equal(listing.availableFields, [.title], "a pasted list only titles")
+        let titleBefore = state.splitTracks[0].title
+        state.applyListing(genreListing, fields: [.album, .genre], alignBoundaries: false)
+        equal(state.splitTracks[0].title, titleBefore, "title not ticked: stays")
+        equal(state.splitMetadata?.album, "Another Album", "album ticked: taken over")
+        equal(state.splitMetadata?.genre, "Breakbeat", "genre likewise")
+        equal(state.splitMetadata?.artist, "BEAST", "artist not ticked: stays as it was")
+        equal(state.splitMetadata?.year, 2022, "year likewise")
+        state.applyListing(genreListing, fields: [], alignBoundaries: false)
+        equal(state.splitMetadata?.album, "Another Album", "nothing ticked changes nothing")
 
-        // Und live: liefert MusicBrainz wirklich Längen?
+        // And live: does MusicBrainz really deliver lengths?
         do {
             let live = try await MusicBrainzClient()
                 .release(id: "f922ec87-4758-421d-a839-3193455345ff")
             let listing = TrackListing(release: live)
-            check(listing.entries.count >= 12, "echtes Release: alle Tracks",
+            check(listing.entries.count >= 12, "real release: all tracks",
                   detail: "\(listing.entries.count)")
-            check(listing.hasDurations, "mit Längen für jeden Track")
+            check(listing.hasDurations, "with lengths for every track")
             check((listing.entries.first?.duration ?? 0) > 290,
-                  "„Smells Like Teen Spirit“ ist rund fünf Minuten lang")
+                  "\"Smells Like Teen Spirit\" is about five minutes long")
         } catch {
-            print("  … Live-Abfrage übersprungen: \(error)")
+            print("  … live query skipped: \(error)")
         }
     }
 
-    /// Läuft der Abspielkopf wirklich mit? Ein Balken, der sich nicht bewegt,
-    /// sieht aus wie ein hängendes Programm.
+    /// Does the playhead really move along? A bar that does not move looks
+    /// like a hanging program.
     @MainActor
     static func playhead() async {
-        print("\n— Abspielkopf —")
+        print("\n— Playhead —")
         guard let ffmpeg = await FFmpegLocator().locate() else {
-            print("  … übersprungen, kein ffmpeg")
+            print("  … skipped, no ffmpeg")
             return
         }
         let folder = FileManager.default.temporaryDirectory
@@ -598,7 +613,7 @@ enum SplitTests {
         let preview = SplitPreview()
         await preview.check(file)
         guard preview.unplayableReason == nil else {
-            check(false, "Probe abspielbar"); return
+            check(false, "probe playable"); return
         }
         preview.length = 12
         let id = UUID()
@@ -609,69 +624,69 @@ enum SplitTests {
             try? await Task.sleep(for: .milliseconds(400))
             if let position = preview.position { samples.append(position) }
         }
-        check(samples.count >= 4, "der Kopf meldet sich regelmäßig",
-              detail: "\(samples.count) Meldungen")
+        check(samples.count >= 4, "the head reports regularly",
+              detail: "\(samples.count) reports")
         let moved = (samples.last ?? 0) - (samples.first ?? 0)
-        check(moved > 1.2, "und wandert in Echtzeit",
-              detail: String(format: "%.2f s in rund 2 s", moved))
-        check((samples.first ?? 0) >= 4.9, "beginnt an der gesetzten Stelle",
+        check(moved > 1.2, "and moves in real time",
+              detail: String(format: "%.2f s in about 2 s", moved))
+        check((samples.first ?? 0) >= 4.9, "starts at the set position",
               detail: String(format: "%.2f", samples.first ?? 0))
 
         preview.stop()
-        check(preview.position == nil, "nach dem Anhalten kein Kopf mehr")
-        check(preview.playingID == nil, "und keine spielende Zeile")
+        check(preview.position == nil, "after stopping no head any more")
+        check(preview.playingID == nil, "and no playing row")
     }
 
     @MainActor
     static func previewLength() {
-        print("\n— Länge der Hörprobe —")
+        print("\n— Length of the preview —")
         let preview = SplitPreview()
         preview.length = 15
-        close(preview.lead, 5, 0.001, "ein Drittel liegt vor der Grenze")
-        close(preview.tail, 10, 0.001, "zwei Drittel danach")
-        close(preview.lead + preview.tail, preview.length, 0.001, "zusammen die volle Länge")
+        close(preview.lead, 5, 0.001, "a third lies before the boundary")
+        close(preview.tail, 10, 0.001, "two thirds after it")
+        close(preview.lead + preview.tail, preview.length, 0.001, "together the full length")
 
         preview.length = 30
-        close(preview.lead, 10, 0.001, "wächst mit")
+        close(preview.lead, 10, 0.001, "grows along")
     }
 
-    // MARK: - Hüllkurve
+    // MARK: - Envelope
 
     static func waveform() async {
-        print("\n— Hüllkurve —")
+        print("\n— Envelope —")
 
-        // Spitzenwert je Eimer, nicht Mittelwert: der Mittelwert zöge kurze
-        // laute Stellen glatt, und genau die will man sehen.
+        // Peak per bucket, not the mean: the mean would smooth out short loud
+        // spots, and those are exactly what one wants to see.
         var samples = [Int16](repeating: 0, count: 1000)
         samples[500] = 20000
         let data = samples.withUnsafeBufferPointer { Data(buffer: $0) }
         let peaks = WaveformSampler.reduce(data, into: 10)
-        equal(peaks.count, 10, "zehn Eimer")
-        check(peaks[5] > 0.5, "der laute Ausschlag bleibt sichtbar")
-        check(peaks[0] == 0, "stille Eimer bleiben still")
-        equal(WaveformSampler.reduce(Data(), into: 10).count, 0, "leere Daten ergeben nichts")
+        equal(peaks.count, 10, "ten buckets")
+        check(peaks[5] > 0.5, "the loud spike stays visible")
+        check(peaks[0] == 0, "silent buckets stay silent")
+        equal(WaveformSampler.reduce(Data(), into: 10).count, 0, "empty data yields nothing")
 
-        // Normiert wird auf den lautesten Punkt der **ganzen Datei**, auch in
-        // einer Lupe. Normierte jede Lupe auf sich selbst, sähe ein leises
-        // Ausklingen so laut aus wie der Refrain.
+        // Normalized to the loudest point of the **whole file**, even in a
+        // magnifier. If every magnifier normalized to itself, a quiet fade-out
+        // would look as loud as the chorus.
         let quiet = WaveformSampler.Waveform(peaks: [0.02, 0.10, 0.05, 0.00], duration: 4)
         let whole = quiet.envelope(from: 0, to: 4, columns: 4)
-        close(Double(whole[1]), 1.0, 0.001, "der lauteste Punkt füllt die Höhe")
-        close(Double(whole[0]), 0.2, 0.001, "die übrigen im Verhältnis dazu")
-        close(Double(whole[3]), 0, 0.001, "Stille bleibt Stille")
+        close(Double(whole[1]), 1.0, 0.001, "the loudest point fills the height")
+        close(Double(whole[0]), 0.2, 0.001, "the others in proportion to it")
+        close(Double(whole[3]), 0, 0.001, "silence stays silence")
         let lens = quiet.envelope(from: 0, to: 1, columns: 1)
-        close(Double(lens[0]), 0.2, 0.001, "auch im Ausschnitt bezogen auf die ganze Datei")
+        close(Double(lens[0]), 0.2, 0.001, "in a detail, too, relative to the whole file")
 
         let silent = WaveformSampler.Waveform(peaks: [0, 0, 0], duration: 3)
         check(silent.envelope(from: 0, to: 3, columns: 3).allSatisfy { $0 == 0 },
-              "eine stille Datei ergibt keine Division durch null")
+              "a silent file causes no division by zero")
 
-        // Mehr Spalten als Werte: jede Spalte bekommt trotzdem ihren Wert.
+        // More columns than values: every column still gets its value.
         let fine = quiet.envelope(from: 1, to: 2, columns: 8)
-        equal(fine.count, 8, "eine Lupe darf feiner auflösen als die Werte")
-        check(fine.allSatisfy { abs($0 - 1.0) < 0.001 }, "und zeigt dabei den richtigen Wert")
+        equal(fine.count, 8, "a magnifier may resolve finer than the values")
+        check(fine.allSatisfy { abs($0 - 1.0) < 0.001 }, "and shows the right value doing so")
 
-        // Und an einer echten Datei.
+        // And on a real file.
         guard let ffmpeg = await FFmpegLocator().locate() else { return }
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("sleeve-wave-\(UUID().uuidString)")
@@ -686,29 +701,29 @@ enum SplitTests {
             "-map", "[out]", "-c:a", "libmp3lame", file.path(percentEncoded: false),
         ])
         guard let shape = try? await WaveformSampler.load(file, duration: 16, ffmpeg: ffmpeg) else {
-            check(false, "Hüllkurve einer echten Datei"); return
+            check(false, "envelope of a real file"); return
         }
-        // Feste Auflösung: hundert Werte je Sekunde, also 10 ms je Wert.
-        close(Double(shape.peaks.count), 1600, 30, "hundert Werte je Sekunde")
+        // Fixed resolution: a hundred values per second, i.e. 10 ms per value.
+        close(Double(shape.peaks.count), 1600, 30, "a hundred values per second")
         let view = shape.envelope(from: 0, to: 16, columns: 16)
-        check(view[1] > 0.7, "die erste Hälfte ist laut")
-        check(view[8] < 0.1, "die Stille dazwischen ist erkennbar",
+        check(view[1] > 0.7, "the first half is loud")
+        check(view[8] < 0.1, "the silence in between is recognizable",
               detail: String(format: "%.3f", view[8]))
-        check(view[13] > 0.7, "danach wird es wieder laut")
+        check(view[13] > 0.7, "then it gets loud again")
 
-        // Die Lupe trifft die Stille auf eine Zehntelsekunde genau — dafür
-        // ist die feine Auflösung da.
+        // The magnifier hits the silence to a tenth of a second — that is what
+        // the fine resolution is for.
         let edge = shape.envelope(from: 5.5, to: 6.5, columns: 10)
-        check(edge[0] > 0.5, "0,5 s vor der Stille ist es laut")
-        check(edge[9] < 0.1, "0,5 s danach still")
+        check(edge[0] > 0.5, "0.5 s before the silence it is loud")
+        check(edge[9] < 0.1, "0.5 s after it silent")
     }
 
-    // MARK: - Durchstich mit einem Album-Video
+    // MARK: - End to end with an album video
 
-    /// Ein heruntergeladenes „ganzes Album" ist oft ein Video. Geprüft wird,
-    /// dass die Tonspur **unverändert** herauskommt — nicht neu kodiert.
+    /// A downloaded "full album" is often a video. What is checked is that the
+    /// audio stream comes out **unchanged** — not re-encoded.
     static func videoEndToEnd(ffmpeg: FFmpegTool, folder: URL) async throws {
-        print("\n— Album als Video —")
+        print("\n— Album as a video —")
         let video = folder.appendingPathComponent("album.mp4")
         let build = try await ProcessRunner.run(ffmpeg.url, arguments: [
             "-hide_banner", "-loglevel", "error", "-y",
@@ -722,37 +737,37 @@ enum SplitTests {
             video.path(percentEncoded: false),
         ])
         guard build.succeeded else {
-            check(false, "Album-Video gebaut", detail: build.standardError.prefix(120).description)
+            check(false, "album video built", detail: build.standardError.prefix(120).description)
             return
         }
 
         let info = try await AudioSplitter.probe(file: video, ffmpeg: ffmpeg)
-        check(info.hasVideo, "Bildspur erkannt")
-        equal(info.audioCodec, "aac", "Tonspur ist AAC")
-        equal(info.outputExtension, "m4a", "Stücke werden m4a, nicht mp4")
-        close(info.duration, 27, 0.3, "Dauer erkannt")
+        check(info.hasVideo, "picture stream recognized")
+        equal(info.audioCodec, "aac", "the audio stream is AAC")
+        equal(info.outputExtension, "m4a", "pieces become m4a, not mp4")
+        close(info.duration, 27, 0.3, "duration recognized")
 
         let analysis = try await AudioSplitter.analyze(
             file: video, thresholdDB: -30, minDuration: 0.5, ffmpeg: ffmpeg)
         let ranges = AudioSplitter.trackRanges(
             duration: analysis.duration, silences: analysis.silences, minimumLength: 10)
-        equal(ranges.count, 2, "zwei Tracks im Video gefunden")
+        equal(ranges.count, 2, "two tracks found in the video")
 
-        let piece = folder.appendingPathComponent("aus-video.m4a")
+        let piece = folder.appendingPathComponent("from-video.m4a")
         try await AudioSplitter.cut(source: video, range: ranges[0], to: piece,
                                     audioOnly: true, ffmpeg: ffmpeg)
 
-        // Im Ergebnis darf kein Bild mehr stecken.
+        // No picture may be left in the result.
         let probe = try await ProcessRunner.run(ffmpeg.url, arguments: [
             "-hide_banner", "-i", piece.path(percentEncoded: false), "-f", "null", "-",
         ])
-        check(!probe.standardError.contains("Video:"), "im Stück steckt kein Bild mehr")
+        check(!probe.standardError.contains("Video:"), "no picture left in the piece")
         equal(AudioSplitter.parseAudioCodec(probe.standardError), "aac",
-              "und der Ton ist unverändert AAC")
+              "and the sound is unchanged AAC")
 
-        // Der eigentliche Beweis: die ganze Tonspur herausgezogen muss mit der
-        // im Video bitgleich sein.
-        let whole = folder.appendingPathComponent("ganz.m4a")
+        // The actual proof: the whole audio stream extracted has to be
+        // bit-identical to the one in the video.
+        let whole = folder.appendingPathComponent("whole.m4a")
         _ = try await ProcessRunner.run(ffmpeg.url, arguments: [
             "-hide_banner", "-loglevel", "error", "-y",
             "-i", video.path(percentEncoded: false),
@@ -768,10 +783,10 @@ enum SplitTests {
         let fromVideo = try await samples(video, mapAudio: true)
         let fromFile = try await samples(whole, mapAudio: false)
         check(!fromVideo.isEmpty && fromVideo == fromFile,
-              "herausgezogene Tonspur ist bitgleich mit der im Video")
+              "the extracted audio stream is bit-identical to the one in the video")
 
-        // Und derselbe Schnitt mit Umwandlung: aus AAC wird MP3.
-        let asMP3 = folder.appendingPathComponent("umgewandelt.mp3")
+        // And the same cut with conversion: AAC becomes MP3.
+        let asMP3 = folder.appendingPathComponent("converted.mp3")
         try await AudioSplitter.cut(source: video, range: ranges[0], to: asMP3,
                                     audioOnly: true, output: .convert(.mp3),
                                     bitrate: 192, ffmpeg: ffmpeg)
@@ -779,17 +794,17 @@ enum SplitTests {
             "-hide_banner", "-i", asMP3.path(percentEncoded: false), "-f", "null", "-",
         ])
         equal(AudioSplitter.parseAudioCodec(mp3Probe.standardError), "mp3",
-              "umgewandeltes Stück ist MP3")
+              "the converted piece is MP3")
         close(AudioSplitter.parseDuration(mp3Probe.standardError) ?? 0,
-              ranges[0].duration, 0.35, "und hat die richtige Länge")
+              ranges[0].duration, 0.35, "and has the right length")
     }
 
-    // MARK: - Durchstich
+    // MARK: - End to end
 
     static func endToEnd() async throws {
-        print("\n— Durchstich mit einer gebauten Datei —")
+        print("\n— End to end with a built file —")
         guard let ffmpeg = await FFmpegLocator().locate() else {
-            print("  … übersprungen, kein ffmpeg")
+            print("  … skipped, no ffmpeg")
             return
         }
 
@@ -798,7 +813,7 @@ enum SplitTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
 
-        // Drei Töne zu 12 s, dazwischen 3 s Stille. Gesamt 42 s.
+        // Three tones of 12 s, 3 s of silence between them. 42 s in total.
         let source = folder.appendingPathComponent("probe.mp3")
         let filter = "sine=frequency=440:duration=12,"
             + "adelay=0|0[a];"
@@ -813,57 +828,58 @@ enum SplitTests {
             "-b:a", "128k", source.path(percentEncoded: false),
         ])
         guard build.succeeded else {
-            check(false, "Testdatei gebaut", detail: build.standardError.prefix(120).description)
+            check(false, "test file built", detail: build.standardError.prefix(120).description)
             return
         }
-        check(true, "Testdatei gebaut: drei Töne zu 12 s, dazwischen 3 s Stille")
+        check(true, "test file built: three tones of 12 s, 3 s of silence between them")
 
         let analysis = try await AudioSplitter.analyze(
             file: source, thresholdDB: -30, minDuration: 0.5, ffmpeg: ffmpeg)
-        close(analysis.duration, 42, 0.2, "Dauer erkannt")
-        equal(analysis.silences.count, 2, "zwei Stillen gefunden")
+        close(analysis.duration, 42, 0.2, "duration recognized")
+        equal(analysis.silences.count, 2, "two silences found")
 
         let ranges = AudioSplitter.trackRanges(
             duration: analysis.duration, silences: analysis.silences, minimumLength: 10)
-        equal(ranges.count, 3, "drei Tracks")
-        close(ranges[0].start, 0, 0.2, "Track 1 beginnt bei 0 s")
-        // Die Pause gehört zum Ende des vorigen Tracks — nichts wird verworfen.
-        close(ranges[0].end, 15, 0.3, "Track 1 endet, wo Ton 2 einsetzt")
-        close(ranges[1].start, 15, 0.3, "Track 2 beginnt bei 15 s")
-        close(ranges[1].end, 30, 0.3, "Track 2 endet, wo Ton 3 einsetzt")
-        close(ranges[2].start, 30, 0.3, "Track 3 beginnt bei 30 s")
-        close(ranges[2].end, 42, 0.2, "Track 3 endet am Dateiende")
+        equal(ranges.count, 3, "three tracks")
+        close(ranges[0].start, 0, 0.2, "track 1 starts at 0 s")
+        // The pause belongs to the end of the previous track — nothing is
+        // discarded.
+        close(ranges[0].end, 15, 0.3, "track 1 ends where tone 2 sets in")
+        close(ranges[1].start, 15, 0.3, "track 2 starts at 15 s")
+        close(ranges[1].end, 30, 0.3, "track 2 ends where tone 3 sets in")
+        close(ranges[2].start, 30, 0.3, "track 3 starts at 30 s")
+        close(ranges[2].end, 42, 0.2, "track 3 ends at the end of the file")
 
-        // Und wirklich schneiden.
+        // And really cut.
         for (index, range) in ranges.enumerated() {
             let target = folder.appendingPathComponent(String(format: "%02d.mp3", index + 1))
             try await AudioSplitter.cut(source: source, range: range,
                                         to: target, audioOnly: false, ffmpeg: ffmpeg)
             let exists = FileManager.default.fileExists(atPath: target.path(percentEncoded: false))
-            check(exists, "Track \(index + 1) geschrieben")
+            check(exists, "track \(index + 1) written")
             guard exists else { continue }
 
-            // Die geschnittene Datei muss die erwartete Länge haben.
+            // The cut file has to have the expected length.
             let probe = try await ProcessRunner.run(ffmpeg.url, arguments: [
                 "-hide_banner", "-i", target.path(percentEncoded: false),
                 "-f", "null", "-",
             ])
             let cutDuration = AudioSplitter.parseDuration(probe.standardError) ?? 0
             close(cutDuration, range.duration, 0.35,
-                  "Track \(index + 1) ist \(String(format: "%.1f", range.duration)) s lang")
+                  "track \(index + 1) is \(String(format: "%.1f", range.duration)) s long")
         }
 
         try await videoEndToEnd(ffmpeg: ffmpeg, folder: folder)
 
-        // Und die Tags: `-c copy` erbt sie von der Quelle, deshalb muss der
-        // Titel nachträglich gesetzt werden.
+        // And the tags: `-c copy` inherits them from the source, which is why
+        // the title has to be set afterwards.
         let first = folder.appendingPathComponent("01.mp3")
         var tags = AudioTags()
-        tags.title = "Erster Ton"
+        tags.title = "First Tone"
         tags.trackNumber = 1
         try TagLibBridge.write(tags, fields: [.title, .trackNumber], to: first)
         let readBack = try TagLibBridge.read(from: first)
-        equal(readBack.tags.title, "Erster Ton", "Titel steht im geschnittenen Stück")
-        equal(readBack.tags.trackNumber, 1, "Tracknummer ebenso")
+        equal(readBack.tags.title, "First Tone", "the title is in the cut piece")
+        equal(readBack.tags.trackNumber, 1, "the track number likewise")
     }
 }

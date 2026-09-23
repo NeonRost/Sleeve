@@ -2,23 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Keine Sandbox.
-	     Sleeve ruft ffmpeg auf, das nicht mitgeliefert, sondern vom System
-	     erwartet wird (Spec §2.2). Homebrews ffmpeg ist gegen dutzende
-	     dylibs unter /opt/homebrew/lib gelinkt; ein Kindprozess erbt die
-	     Sandbox und darf die nicht lesen — dyld bricht ab, bevor ffmpeg
-	     überhaupt startet.
-	     Hardened Runtime und Notarisierung bleiben davon unberührt. Der Mac
-	     App Store fiele weg, ist mit GPLv3 aber ohnehin nicht vereinbar.
-	     Kommt später ein statisch gelinktes ffmpeg ins Bundle (Spec §6.4),
-	     lässt sich die Sandbox wieder einschalten. -->
+	<!-- No sandbox.
+	     Sleeve calls ffmpeg, which is not shipped but expected on the
+	     system (spec §2.2). Homebrew's ffmpeg is linked against dozens of
+	     dylibs under /opt/homebrew/lib; a child process inherits the
+	     sandbox and may not read them — dyld aborts before ffmpeg even
+	     starts.
+	     Hardened Runtime and notarization are unaffected. The Mac App
+	     Store would be out, but it is incompatible with the GPLv3 anyway.
+	     Should a statically linked ffmpeg ever go into the bundle, the
+	     sandbox can be switched on again. -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
-	<!-- Für Discogs- und MusicBrainz-Abfragen (§4.6, §6.2). -->
+	<!-- For Discogs and MusicBrainz queries (§4.6, §6.2). -->
 	<key>com.apple.security.network.client</key>
 	<true/>
-	<!-- „Zu Music hinzufügen" (§4.7). Ohne das scheitert das AppleScript
-	     im Sandbox stumm. -->
+	<!-- "Add to Music" (§4.7). Without it the AppleScript fails silently
+	     in the sandbox. -->
 	<key>com.apple.security.automation.apple-events</key>
 	<true/>
 </dict>

@@ -2,9 +2,24 @@
 //  ConversionPlanner.swift
 //  Sleeve
 //
-//  Baut aus Einstellungen und Quelldateien die konkreten ffmpeg-Aufrufe und
-//  Zielpfade. Rein rechnend — fasst nichts an, damit sich alles prüfen lässt,
-//  bevor ein Prozess startet.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Turns settings and source files into concrete ffmpeg invocations and
+//  target paths. Pure computation — touches nothing, so everything can be
+//  checked before a process starts.
 //
 
 import Foundation
@@ -23,7 +38,7 @@ struct ConversionPlanner: Sendable {
     struct Job: Sendable, Equatable {
         var trackID: UUID
         var source: URL
-        /// Wunschziel. Ist es belegt, weicht die Ausführung aus.
+        /// Desired target. If it is taken, execution picks another name.
         var destination: URL
         var arguments: [String]
         var tags: AudioTags
@@ -33,7 +48,7 @@ struct ConversionPlanner: Sendable {
         case unsupportedFormat(AudioFormat)
     }
 
-    // MARK: - Aufrufparameter
+    // MARK: - Arguments
 
     func arguments(source: URL, destination: URL) throws -> [String] {
         guard let encoder = tool.encoder(for: settings.format) else {
@@ -41,23 +56,23 @@ struct ConversionPlanner: Sendable {
         }
 
         var args = [
-            "-nostdin",                 // sonst wartet ffmpeg womöglich auf Eingaben
+            "-nostdin",                 // otherwise ffmpeg may wait for input
             "-hide_banner",
             "-loglevel", "error",
             "-y",
             "-i", source.path(percentEncoded: false),
-            // Das Coverbild ist ein Videostream, kein Metadatum: `-map_metadata`
-            // wirft es nicht weg. Wir schreiben es nachher selbst per TagLib,
-            // skaliert nach den Einstellungen.
+            // The cover picture is a video stream, not metadata: `-map_metadata`
+            // does not drop it. We write it ourselves afterwards via TagLib, scaled
+            // according to the settings.
             "-vn",
-            // ffmpegs eigene Tag-Übernahme bewusst abschalten — sie ist über
-            // Formatgrenzen hinweg unzuverlässig (Spec §5).
+            // Deliberately switch off ffmpeg's own tag copying — it is unreliable
+            // across format boundaries (spec §5).
             "-map_metadata", "-1",
             "-c:a", encoder,
         ]
 
         if AudioFormat.experimentalEncoders.contains(encoder) {
-            // Native Opus- und Vorbis-Encoder lässt ffmpeg sonst nicht zu.
+            // ffmpeg does not allow the native Opus and Vorbis encoders otherwise.
             args += ["-strict", "-2"]
         }
         if settings.format.supportsBitrate {
@@ -71,10 +86,10 @@ struct ConversionPlanner: Sendable {
         return args
     }
 
-    // MARK: - Zielpfade
+    // MARK: - Target paths
 
-    /// Wunschname ohne Rücksicht auf Kollisionen — die löst die Ausführung
-    /// auf, weil sich der Bestand auf der Platte bis dahin ändern kann.
+    /// Desired name regardless of collisions — execution resolves those,
+    /// because what is on disk may change until then.
     func destination(for input: Input) -> URL {
         let folder = settings.destinationFolder ?? input.url.deletingLastPathComponent()
 

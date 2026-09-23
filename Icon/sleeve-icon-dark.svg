@@ -38,9 +38,9 @@
   <g id="background" clip-path="url(#squircleClip)">
     <rect x="100" y="100" width="824" height="824"
           rx="184" fill="url(#bgGradient)"/>
-    <!-- Kristallfacetten: bei 1024 px spürbar, ab 128 px unsichtbar.
-         Weichgezeichnet, damit keine Kante übrig bleibt, die das Verkleinern
-         unbeschadet übersteht. -->
+    <!-- Crystal facets: noticeable at 1024 px, invisible from 128 px down.
+         Blurred, so that no edge is left that survives scaling down
+         unscathed. -->
     <g filter="url(#facetBlur)">
       <polygon points="100,556 476,100 648,100 100,748" fill="#FFFFFF" opacity="0.05"/>
       <polygon points="924,262 924,486 596,924 372,924" fill="#FFFFFF" opacity="0.032"/>
@@ -62,10 +62,10 @@
       <rect x="150" y="277" width="470"
             height="470" rx="20"
             fill="url(#sleeveGradient)" filter="url(#softShadow)"/>
-      <!-- Glanzkante, an der Hüllenform beschnitten -->
+      <!-- Gloss edge, clipped to the sleeve shape -->
       <rect x="150" y="277" width="470" height="46"
             fill="url(#glossGradient)" clip-path="url(#sleeveClip)"/>
-      <!-- Öffnungsschlitz, aus dem die CD kommt -->
+      <!-- Opening slit the CD comes out of -->
       <rect x="602" y="297" width="16"
             height="430" rx="8"
             fill="#031F33" opacity="0.45"/>

@@ -2,12 +2,27 @@
 //  AppState+Rip.swift
 //  Sleeve
 //
-//  Modus „Rippen" (Spec §6).
+//  Copyright (C) 2026 NeonRost
 //
-//  Der Ripper ist ein Eingangsweg für die bestehende Pipeline: Spuren werden
-//  als WAV abgelegt, landen in derselben Trackliste wie alle anderen Dateien
-//  und werden von dort aus getaggt und umgewandelt. Deshalb steht hier kein
-//  eigener Konverter.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The Rip mode (spec §6).
+//
+//  The ripper is one more way into the existing pipeline: tracks are stored
+//  as WAV, land in the same track list as all other files, and are tagged
+//  and converted from there. That is why there is no converter of its own
+//  here.
 //
 
 import AppKit
@@ -16,9 +31,9 @@ import Foundation
 
 extension AppState {
 
-    // MARK: - Scheibe erkennen
+    // MARK: - Identifying the disc
 
-    /// Liest TOC, CD-TEXT und Kennungen der eingelegten Scheibe.
+    /// Reads TOC, CD-TEXT and identifiers of the inserted disc.
     func refreshDisc() async {
         isInspectingDisc = true
         defer { isInspectingDisc = false }
@@ -26,9 +41,9 @@ extension AppState {
             let snapshot = try await ripEngine.inspect()
             disc = snapshot
             discError = nil
-            // Alle Audiospuren sind vorausgewählt — das ist der Normalfall.
+            // All audio tracks are preselected — that is the normal case.
             selectedRipTracks = Set(snapshot.toc.audioTracks.map(\.number))
-            // Ein von Hand gesetzter Ordnername gehörte zur vorigen CD.
+            // A folder name set by hand belonged to the previous CD.
             ripFolderName = ""
             applyCDText()
         } catch {
@@ -40,8 +55,8 @@ extension AppState {
         }
     }
 
-    /// Übernimmt, was auf der Scheibe selbst steht. Kostet kein Netz und ist
-    /// für Alben, die in keiner Datenbank stehen, oft die einzige Quelle.
+    /// Takes over what is on the disc itself. Costs no network and is often the
+    /// only source for albums that are in no database.
     func applyCDText() {
         guard let disc, let text = disc.cdText else { return }
         discAlbum = text.albumTitle ?? ""
@@ -51,19 +66,19 @@ extension AppState {
             if let title = text.title(forTrack: track.number) {
                 discTitles[track.number] = title
             }
-            // Nur eintragen, wo die Spur wirklich einen eigenen Interpreten
-            // trägt — sonst stünde bei jedem Track dasselbe.
+            // Only fill in where the track really carries an artist of its
+            // own — otherwise every track would show the same.
             if let performer = text.performers[track.number],
                performer != text.albumArtist {
                 discTrackArtists[track.number] = performer
             }
         }
-        // CD-TEXT kennt weder Jahr noch Genre; beides bleibt, wie es ist.
+        // CD-TEXT knows neither year nor genre; both stay as they are.
         discMetadataSource = .cdText
     }
 
-    /// Sucht die Pressung über die Disc ID. Trifft das nicht, bleibt die
-    /// Textsuche — und notfalls unbenannt rippen und hinterher taggen.
+    /// Looks up the pressing via the disc ID. If that misses, the text search
+    /// remains — and, if need be, ripping unnamed and tagging afterwards.
     func lookupDisc() async {
         guard let disc else { return }
         isLookingUpDisc = true
@@ -71,10 +86,10 @@ extension AppState {
         defer { isLookingUpDisc = false }
 
         do {
-            // Erst die Disc ID — sie trifft genau diese Pressung.
+            // The disc ID first — it hits exactly this pressing.
             var found = try await lookup.musicBrainz.releases(discID: disc.discID)
             if found.isEmpty {
-                // Dann die unschärfere Suche über die rohe TOC.
+                // Then the less exact search via the raw TOC.
                 found = try await lookup.musicBrainz.releases(
                     tocParameter: disc.toc.musicBrainzTOCParameter)
             }
@@ -92,12 +107,12 @@ extension AppState {
         }
     }
 
-    /// Übernimmt eine gefundene Pressung in die Eingabefelder.
+    /// Takes a found pressing over into the input fields.
     func apply(_ release: LookupRelease) {
         discAlbum = release.title
         discArtist = release.albumArtist ?? discArtist
         if let year = release.year { discYear = String(year) }
-        // MusicBrainz führt mehrere Genres; das erste ist das gebräuchlichste.
+        // MusicBrainz lists several genres; the first is the most common.
         if let genre = release.genres.first { discGenre = genre }
 
         for track in release.tracks {
@@ -111,22 +126,22 @@ extension AppState {
         discMetadataSource = .musicBrainz
     }
 
-    // MARK: - Rippen
+    // MARK: - Ripping
 
     var ripDestinationFolder: URL {
         ripDestination ?? FileManager.default.urls(for: .musicDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
     }
 
-    /// Die Tags, die eine gerippte Spur bekommt. Aus ihnen entsteht auch der
-    /// Dateiname — Muster und Tags müssen dieselbe Quelle haben, sonst heißt
-    /// die Datei anders, als in ihr steht.
+    /// The tags a ripped track gets. The file name is made from them too —
+    /// pattern and tags must have the same source, or the file is named
+    /// differently from what it contains.
     func tags(forTrack number: Int) -> AudioTags {
         var tags = AudioTags()
         tags.title = discTitles[number]
         tags.album = discAlbum.isEmpty ? nil : discAlbum
-        // Der Track-Interpret weicht bei Klassik und Samplern ab; der
-        // Album-Interpret bleibt der der Scheibe.
+        // The track artist differs for classical music and compilations;
+        // the album artist stays that of the disc.
         tags.artist = discTrackArtists[number] ?? (discArtist.isEmpty ? nil : discArtist)
         tags.albumArtist = discArtist.isEmpty ? nil : discArtist
         tags.composer = disc?.cdText?.composer(forTrack: number)
@@ -140,7 +155,7 @@ extension AppState {
         return tags
     }
 
-    /// Wie die Dateien heißen werden. Zeigt der Bereich als Vorschau an.
+    /// What the files will be called. The section shows it as a preview.
     func previewFilename(forTrack number: Int) -> String {
         let base = renderedName(forTrack: number)
         return "\(base).\(ripSettings.format.fileExtension)"
@@ -152,12 +167,12 @@ extension AppState {
         guard !pattern.isEmpty else { return String(format: "%02d", number) }
         let rendered = renderer.render(pattern, tags: tags(forTrack: number))
             .trimmingCharacters(in: .whitespaces)
-        // Ohne Titel bleibt vom Muster oft nur ein Trennzeichen übrig.
+        // Without a title, often only a separator is left of the pattern.
         return rendered.isEmpty ? String(format: "%02d", number) : rendered
     }
 
-    /// Was das Rippen gerade verhindert — dieselbe Rolle wie
-    /// `conversionBlocker` beim Konvertieren.
+    /// What currently prevents ripping — the same role as
+    /// `conversionBlocker` for converting.
     var ripBlocker: String? {
         guard disc != nil else { return String(localized: "No audio CD in the drive.") }
         guard !selectedRipTracks.isEmpty else { return String(localized: "No tracks selected.") }
@@ -171,8 +186,8 @@ extension AppState {
         return nil
     }
 
-    /// Gesamtfortschritt über alle ausgewählten Spuren. Beim Lesen der
-    /// Mittelwert, beim Umwandeln der zweite Abschnitt.
+    /// Overall progress across all selected tracks. The mean while reading,
+    /// the second stage while converting.
     var ripOverallProgress: Double {
         switch ripStage {
         case .idle:       return 0
@@ -184,7 +199,7 @@ extension AppState {
         }
     }
 
-    /// Was in der Fußzeile steht, solange gerippt wird.
+    /// What the footer says while ripping.
     var ripStatusText: String {
         switch ripStage {
         case .idle: return ""
@@ -247,8 +262,8 @@ extension AppState {
             }
             ripCurrentTrack = nil
 
-            // Umwandeln, wenn ein anderes Format gewünscht ist. Die WAVs sind
-            // dabei nur Zwischenstand und verschwinden.
+            // Convert, if another format is wanted. The WAVs are only
+            // intermediates then and go away.
             var finalURLs = numbers.compactMap { produced[$0] }
             if settings.needsFFmpeg, !finalURLs.isEmpty, !Task.isCancelled {
                 ripStage = .converting
@@ -269,8 +284,8 @@ extension AppState {
         }
     }
 
-    /// Schickt die gerippten WAVs durch dieselbe Pipeline wie der
-    /// Konvertieren-Bereich. Kein zweiter Konverter, keine zweite Fehlerquelle.
+    /// Sends the ripped WAVs through the same pipeline as the Convert
+    /// section. No second converter, no second source of errors.
     private func convertRipped(_ produced: [Int: URL],
                                tags wanted: [Int: AudioTags],
                                to folder: URL,
@@ -282,10 +297,10 @@ extension AppState {
         conversion.bitrate = settings.bitrate
         conversion.compressionLevel = settings.compressionLevel
         conversion.destinationFolder = folder
-        // Der Name steht schon am WAV; das Muster hier noch einmal anzuwenden
-        // hieße, es doppelt zu rendern.
+        // The name is already on the WAV; applying the pattern here again
+        // would render it twice.
         conversion.filenamePattern = ""
-        // Das WAV ist Zwischenstand, kein Original.
+        // The WAV is an intermediate, not an original.
         conversion.keepsOriginals = false
 
         let planner = ConversionPlanner(tool: ffmpeg, settings: conversion)
@@ -335,9 +350,9 @@ extension AppState {
         ripCurrentTrack = nil
     }
 
-    // MARK: - Nachbereiten
+    // MARK: - Finishing
 
-    /// Protokoll und Cue Sheet neben die Dateien legen.
+    /// Put log and cue sheet next to the files.
     private func writeSidecars(_ report: RipReport, to folder: URL) {
         let album = discAlbum, artist = discArtist
         let name = sanitizedAlbumFolderName
@@ -356,13 +371,12 @@ extension AppState {
         }
     }
 
-    /// Trägt die Angaben in die Liste ein. Beim Umwandeln hat ffmpeg sie
-    /// schon geschrieben; hier geht es darum, dass sie auch in der Ansicht
-    /// stehen.
+    /// Enters the details into the list. When converting, ffmpeg has already
+    /// written them; this is about showing them in the view as well.
     private func applyRippedTags(_ urls: [URL], numbers: [Int],
                                  produced: [Int: URL], wanted: [Int: AudioTags]) {
-        // Zuordnung über die Reihenfolge — nach dem Umwandeln heißen die
-        // Dateien anders, als sie gerippt wurden.
+        // Matching by order — after conversion the files are named
+        // differently from how they were ripped.
         let ordered = numbers.filter { produced[$0] != nil }
         for (index, url) in urls.sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
             .enumerated() {
@@ -377,22 +391,22 @@ extension AppState {
         }
     }
 
-    /// Wie der Ordner heißt, wenn nichts eingetragen ist — zugleich der
-    /// Platzhaltertext im Feld.
+    /// What the folder is called when nothing is entered — also the
+    /// placeholder text in the field.
     var suggestedAlbumFolderName: String {
         let raw = [discArtist, discAlbum].filter { !$0.isEmpty }.joined(separator: " - ")
         return PatternRenderer().sanitize(raw.isEmpty ? "Audio CD" : raw)
     }
 
-    /// Der Name, der wirklich angelegt wird. Ein eigener Eintrag sticht den
-    /// Vorschlag; leer heißt, es bleibt beim Vorschlag.
+    /// The name that is really created. An entry of one's own beats the
+    /// suggestion; empty means the suggestion stays.
     var sanitizedAlbumFolderName: String {
         let custom = ripFolderName.trimmingCharacters(in: .whitespaces)
         return custom.isEmpty ? suggestedAlbumFolderName
                               : PatternRenderer().sanitize(custom)
     }
 
-    // MARK: - Fehlertexte
+    // MARK: - Error messages
 
     static func describeDiscError(_ error: Error) -> String {
         switch error {
@@ -408,17 +422,17 @@ extension AppState {
     }
 }
 
-// MARK: - Scheibenwechsel bemerken
+// MARK: - Noticing disc changes
 
-/// Beobachtet, ob eine Audio-CD eingelegt oder ausgeworfen wird.
+/// Observes whether an audio CD is inserted or ejected.
 ///
-/// `NSWorkspace` meldet das Einbinden des CDDA-Volumes — das genügt, denn
-/// genau dann steht auch die TOC bereit.
+/// `NSWorkspace` reports the mounting of the CDDA volume — that is enough,
+/// because that is exactly when the TOC is ready too.
 @MainActor
 final class DiscWatcher {
-    /// Die Beobachter liegen in einer eigenen kleinen Box, damit `deinit` —
-    /// das außerhalb des Hauptaktors läuft — sie noch abmelden darf. Sie
-    /// werden ausschließlich beim Anmelden angefasst, deshalb ist das sicher.
+    /// The observers live in a small box of their own so that `deinit` —
+    /// which runs outside the main actor — may still unregister them. They
+    /// are only touched when registering, which is why this is safe.
     private final class Storage: @unchecked Sendable {
         let center: NotificationCenter
         var observers: [NSObjectProtocol] = []
@@ -442,8 +456,8 @@ final class DiscWatcher {
     }
 }
 
-/// Woher die angezeigten Metadaten stammen. Der Nutzer soll sehen, ob er
-/// Angaben von der Scheibe selbst oder aus dem Netz vor sich hat.
+/// Where the displayed metadata comes from. The user should see whether
+/// the details come from the disc itself or from the network.
 enum DiscMetadataSource: Sendable {
     case cdText
     case musicBrainz
@@ -456,8 +470,8 @@ enum DiscMetadataSource: Sendable {
     }
 }
 
-/// Woran der Ripper gerade arbeitet. Der Fortschritt steht in der Fußzeile,
-/// nicht im Formular — dort scrollt er weg, genau wenn man ihn braucht.
+/// What the ripper is working on right now. Progress sits in the footer,
+/// not in the form — there it scrolls away exactly when one needs it.
 enum RipStage: Sendable, Equatable {
     case idle
     case reading

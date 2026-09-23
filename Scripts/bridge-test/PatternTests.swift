@@ -1,7 +1,23 @@
 //
 //  PatternTests.swift
 //
-//  Pattern-Engine in beide Richtungen, Schreibweise, Nummerierung (§4.2–4.4).
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  Pattern engine in both directions, capitalization, numbering (§4.2–4.4).
+//  The German test data is deliberate: umlauts and ß are what breaks taggers.
 //
 
 import Foundation
@@ -23,160 +39,160 @@ enum PatternTests {
     }
 
     static func equal<T: Equatable>(_ actual: T, _ expected: T, _ label: String) {
-        check(actual == expected, label, detail: "ist \(actual), erwartet \(expected)")
+        check(actual == expected, label, detail: "is \(actual), expected \(expected)")
     }
 
     static func section(_ title: String) { print("\n━━ \(title)") }
 
-    /// Platzhalter anklicken statt tippen — dabei darf nichts zusammenkleben.
+    /// Clicking placeholders instead of typing — nothing may stick together.
     static func tokenAppending() {
-        print("\n— Platzhalter anhängen —")
+        print("\n— Appending placeholders —")
         equal(PatternToken.track.appended(to: ""), "%track%",
-              "ins leere Muster ohne Trennzeichen")
+              "into the empty pattern without a separator")
         equal(PatternToken.title.appended(to: "%track%"), "%track% - %title%",
-              "zwischen zwei Platzhalter kommt ein Trennzeichen")
+              "a separator goes between two placeholders")
         equal(PatternToken.title.appended(to: "%track% - "), "%track% - %title%",
-              "ein vorhandenes Trennzeichen wird nicht verdoppelt")
+              "an existing separator is not doubled")
         equal(PatternToken.title.appended(to: "%track%_"), "%track%_%title%",
-              "Unterstrich gilt als Trennzeichen")
+              "underscore counts as a separator")
         equal(PatternToken.year.appended(to: "%album% ("), "%album% (%year%",
-              "offene Klammer gilt als Trennzeichen")
+              "an opening parenthesis counts as a separator")
         equal(PatternToken.artist.appended(to: "Best of"), "Best of - %artist%",
-              "auch hinter freiem Text")
+              "after free text too")
     }
 
     static func run() -> Int32 {
         tokenAppending()
         let renderer = PatternRenderer()
 
-        var voll = AudioTags()
-        voll.artist = "Böhse Mädelz"
-        voll.album = "Einzelfälle"
-        voll.title = "Haut bloß ab"
-        voll.trackNumber = 3
-        voll.discNumber = 1
-        voll.year = 1987
-        voll.genre = "Punk"
+        var full = AudioTags()
+        full.artist = "Böhse Mädelz"
+        full.album = "Einzelfälle"
+        full.title = "Haut bloß ab"
+        full.trackNumber = 3
+        full.discNumber = 1
+        full.year = 1987
+        full.genre = "Punk"
 
-        // MARK: - Tags → Dateiname
+        // MARK: - Tags → file name
 
-        section("Rendern")
-        equal(renderer.render("%track% - %artist% - %title%", tags: voll),
-              "03 - Böhse Mädelz - Haut bloß ab", "Führende Nullen und Trenner")
-        equal(renderer.render("%artist%/%album%/%track% - %title%", tags: voll),
+        section("Rendering")
+        equal(renderer.render("%track% - %artist% - %title%", tags: full),
+              "03 - Böhse Mädelz - Haut bloß ab", "leading zeros and separators")
+        equal(renderer.render("%artist%/%album%/%track% - %title%", tags: full),
               "Böhse Mädelz_Einzelfälle_03 - Haut bloß ab",
-              "Schrägstriche werden ersetzt, nicht zu Ordnern")
+              "slashes are replaced, not turned into folders")
 
-        var ohneArtist = voll
-        ohneArtist.artist = nil
-        equal(renderer.render("%track% - %artist% - %title%", tags: ohneArtist),
+        var noArtist = full
+        noArtist.artist = nil
+        equal(renderer.render("%track% - %artist% - %title%", tags: noArtist),
               "03 - Haut bloß ab",
-              "Fehlender Tag nimmt sein Trennzeichen mit (statt „03 -  - Titel\")")
+              "a missing tag takes its separator along (instead of \"03 -  - Title\")")
 
-        var nurTitel = AudioTags()
-        nurTitel.title = "Einzelstück"
-        equal(renderer.render("%track% - %artist% - %title%", tags: nurTitel),
-              "Einzelstück", "Alle führenden Gruppen entfallen sauber")
+        var titleOnly = AudioTags()
+        titleOnly.title = "Einzelstück"
+        equal(renderer.render("%track% - %artist% - %title%", tags: titleOnly),
+              "Einzelstück", "all leading groups drop out cleanly")
 
-        var boese = AudioTags()
-        boese.title = "AC/DC: Live?"
-        boese.trackNumber = 1
-        equal(renderer.render("%track% - %title%", tags: boese),
-              "01 - AC_DC_ Live", "Ungültige Zeichen ersetzt, Rand aufgeräumt")
+        var nasty = AudioTags()
+        nasty.title = "AC/DC: Live?"
+        nasty.trackNumber = 1
+        equal(renderer.render("%track% - %title%", tags: nasty),
+              "01 - AC_DC_ Live", "invalid characters replaced, edges cleaned up")
 
-        var ohnePad = PatternRenderer()
-        ohnePad.padsNumbers = false
-        equal(ohnePad.render("%track% - %title%", tags: voll),
-              "3 - Haut bloß ab", "Führende Nullen abschaltbar")
+        var unpadded = PatternRenderer()
+        unpadded.padsNumbers = false
+        equal(unpadded.render("%track% - %title%", tags: full),
+              "3 - Haut bloß ab", "leading zeros can be switched off")
 
-        equal(renderer.render("100%% %title%", tags: nurTitel),
-              "100% Einzelstück", "%% ist ein wörtliches Prozentzeichen")
+        equal(renderer.render("100%% %title%", tags: titleOnly),
+              "100% Einzelstück", "%% is a literal percent sign")
 
-        section("Kollisionen")
-        var a = AudioTags(); a.title = "Gleich"; a.trackNumber = 1
-        var b = AudioTags(); b.title = "Gleich"; b.trackNumber = 1
-        var c = AudioTags(); c.title = "Gleich"; c.trackNumber = 1
-        let namen = renderer.renderAll("%track% - %title%", for: [
+        section("Collisions")
+        var a = AudioTags(); a.title = "Same"; a.trackNumber = 1
+        var b = AudioTags(); b.title = "Same"; b.trackNumber = 1
+        var c = AudioTags(); c.title = "Same"; c.trackNumber = 1
+        let names = renderer.renderAll("%track% - %title%", for: [
             (URL(fileURLWithPath: "/tmp/x/a.mp3"), a),
             (URL(fileURLWithPath: "/tmp/x/b.mp3"), b),
             (URL(fileURLWithPath: "/tmp/y/c.mp3"), c),
         ])
-        equal(namen[0], "01 - Gleich.mp3", "Erster behält den Namen")
-        equal(namen[1], "01 - Gleich (2).mp3", "Zweiter im selben Ordner bekommt (2)")
-        equal(namen[2], "01 - Gleich.mp3", "Anderer Ordner ist keine Kollision")
+        equal(names[0], "01 - Same.mp3", "the first keeps the name")
+        equal(names[1], "01 - Same (2).mp3", "the second in the same folder gets (2)")
+        equal(names[2], "01 - Same.mp3", "another folder is no collision")
 
-        // MARK: - Dateiname → Tags
+        // MARK: - File name → tags
 
-        section("Parsen")
+        section("Parsing")
         do {
             let parser = try PatternParser(pattern: "%track% - %artist% - %title%")
             let match = parser.match(URL(fileURLWithPath: "/m/03 - Böhse Mädelz - Haut bloß ab.mp3"))
-            equal(match?.values[.trackNumber], "3", "Tracknummer ohne führende Null")
-            equal(match?.values[.artist], "Böhse Mädelz", "Interpret")
-            equal(match?.values[.title], "Haut bloß ab", "Titel")
+            equal(match?.values[.trackNumber], "3", "track number without leading zero")
+            equal(match?.values[.artist], "Böhse Mädelz", "artist")
+            equal(match?.values[.title], "Haut bloß ab", "title")
 
-            check(parser.match(URL(fileURLWithPath: "/m/irgendwas.mp3")) == nil,
-                  "Nicht passender Name liefert nil, statt Unsinn zu raten")
+            check(parser.match(URL(fileURLWithPath: "/m/whatever.mp3")) == nil,
+                  "a non-matching name yields nil instead of guessing nonsense")
         } catch {
-            check(false, "Parser gebaut", detail: "\(error)")
+            check(false, "parser built", detail: "\(error)")
         }
 
         do {
             let parser = try PatternParser(pattern: "%artist%/%album%/%track% - %title%")
-            let url = URL(fileURLWithPath: "/Musik/Böhse Mädelz/Einzelfälle/03 - Haut bloß ab.mp3")
+            let url = URL(fileURLWithPath: "/Music/Böhse Mädelz/Einzelfälle/03 - Haut bloß ab.mp3")
             equal(parser.subject(for: url), "Böhse Mädelz/Einzelfälle/03 - Haut bloß ab",
-                  "Ordnernamen kommen in den Vergleichstext")
+                  "folder names go into the text matched against")
             let match = parser.match(url)
-            equal(match?.values[.artist], "Böhse Mädelz", "Interpret aus dem Ordner")
-            equal(match?.values[.album], "Einzelfälle", "Album aus dem Ordner")
-            equal(match?.values[.title], "Haut bloß ab", "Titel aus dem Dateinamen")
+            equal(match?.values[.artist], "Böhse Mädelz", "artist from the folder")
+            equal(match?.values[.album], "Einzelfälle", "album from the folder")
+            equal(match?.values[.title], "Haut bloß ab", "title from the file name")
         } catch {
-            check(false, "Ordner-Parser gebaut", detail: "\(error)")
+            check(false, "folder parser built", detail: "\(error)")
         }
 
         do {
-            _ = try PatternParser(pattern: "kein token hier")
-            check(false, "Pattern ohne Token wirft")
+            _ = try PatternParser(pattern: "no token here")
+            check(false, "a pattern without tokens throws")
         } catch {
             check(error as? PatternParser.ParserError == .noTokens,
-                  "Pattern ohne Token wirft noTokens")
+                  "a pattern without tokens throws noTokens")
         }
 
-        section("Hin und zurück")
+        section("Round trip")
         do {
             let pattern = "%track% - %artist% - %title%"
-            let name = renderer.render(pattern, tags: voll) + ".mp3"
+            let name = renderer.render(pattern, tags: full) + ".mp3"
             let parser = try PatternParser(pattern: pattern)
             let match = parser.match(URL(fileURLWithPath: "/m/" + name))
-            equal(match?.values[.artist], voll.artist, "Interpret überlebt den Rundlauf")
-            equal(match?.values[.title], voll.title, "Titel überlebt den Rundlauf")
-            equal(match?.values[.trackNumber], "3", "Tracknummer überlebt den Rundlauf")
+            equal(match?.values[.artist], full.artist, "artist survives the round trip")
+            equal(match?.values[.title], full.title, "title survives the round trip")
+            equal(match?.values[.trackNumber], "3", "track number survives the round trip")
         } catch {
-            check(false, "Rundlauf", detail: "\(error)")
+            check(false, "round trip", detail: "\(error)")
         }
 
-        // MARK: - Schreibweise
+        // MARK: - Capitalization
 
-        section("Schreibweise")
+        section("Capitalization")
         equal(TextCase.upperCase.apply(to: "haut bloß ab"), "HAUT BLOSS AB",
-              "GROSSBUCHSTABEN (ß wird SS)")
+              "UPPER CASE (ß becomes SS)")
         equal(TextCase.lowerCase.apply(to: "HAUT BLOSS AB"), "hauT bloss ab".lowercased(),
-              "kleinschreibung")
+              "lower case")
         equal(TextCase.titleCase.apply(to: "the dark side of the moon", language: .english),
-              "The Dark Side of the Moon", "Title Case mit englischer Ausnahmeliste")
+              "The Dark Side of the Moon", "Title Case with the English exception list")
         equal(TextCase.titleCase.apply(to: "der wind der weht", language: .german),
-              "Der Wind der Weht", "Title Case deutsch — letztes Wort bleibt groß")
+              "Der Wind der Weht", "German Title Case — the last word stays capitalized")
         equal(TextCase.titleCase.apply(to: "LIVE (at the bbc)", language: .english),
-              "Live (At the Bbc)", "Klammern werden mitgenommen")
+              "Live (At the Bbc)", "parentheses are handled")
         equal(TextCase.titleCase.apply(to: "a", language: .english), "A",
-              "Einzelnes Wort bleibt groß")
+              "a single word stays capitalized")
 
-        print("\n\(checks - failures)/\(checks) Prüfungen bestanden")
+        print("\n\(checks - failures)/\(checks) checks passed")
         if failures > 0 {
-            print("✗ \(failures) fehlgeschlagen")
+            print("✗ \(failures) failed")
             return 1
         }
-        print("✓ Alles grün.")
+        print("✓ All green.")
         return 0
     }
 }

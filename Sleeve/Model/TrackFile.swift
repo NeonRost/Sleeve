@@ -2,55 +2,70 @@
 //  TrackFile.swift
 //  Sleeve
 //
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 import Foundation
 import SwiftUI
 
-/// Zustand einer Datei in der Liste. Bestimmt die Statusspalte.
+/// State of a file in the list. Drives the status column.
 enum TrackStatus: Sendable {
     case unchanged
     case changed
     case failed
 }
 
-/// `@unchecked Sendable` mit klarer Zusage: Jeder Zugriff auf `TrackFile`
-/// passiert auf dem Main-Thread. Die Klasse wird **nie** an `TagEngine`
-/// gereicht — dorthin gehen ausschließlich `AudioTags`, `URL` und
-/// `Set<TagField>`, alles Sendable-Werttypen.
+/// `@unchecked Sendable` with a clear promise: every access to `TrackFile`
+/// happens on the main thread. The class is **never** handed to
+/// `TagEngine` — only `AudioTags`, `URL` and `Set<TagField>` go there, all
+/// Sendable value types.
 ///
-/// `@MainActor` wäre die saubere Zusicherung, geht hier aber nicht: SwiftUIs
-/// `Table` sortiert über `KeyPathComparator`, und ein KeyPath auf eine
-/// aktor-isolierte Property lässt sich nicht bilden. Sortierbare Spalten sind
-/// Spec-Anforderung (§4.1), also fällt die Isolation.
+/// `@MainActor` would be the clean guarantee but does not work here:
+/// SwiftUI's `Table` sorts via `KeyPathComparator`, and a key path to an
+/// actor-isolated property cannot be formed. Sortable columns are a spec
+/// requirement (§4.1), so the isolation has to go.
 @Observable
 final class TrackFile: Identifiable, @unchecked Sendable {
     let id = UUID()
 
-    /// Veränderlich: Umbenennung (§4.4) und später Konvertierung ändern den Pfad.
+    /// Mutable: renaming (§4.4) and later conversion change the path.
     var url: URL
 
-    /// Stand auf der Platte. Grundlage für „Verwerfen" und für den
-    /// Undo-Schritt nach dem Speichern.
+    /// State on disk. The basis for "Discard" and for the undo step after
+    /// saving.
     private(set) var original: AudioTags
 
-    /// Arbeitsstand im Editor.
+    /// Working state in the editor.
     var edited: AudioTags
 
-    /// **Der wichtigste Einzelpunkt der Spec (§4.1).** Nur was hier drinsteht,
-    /// wird geschrieben. Nie über einen Wertvergleich entscheiden — ein Feld,
-    /// das leer aussieht, kann ungeschrieben bleiben müssen.
+    /// **The single most important point of the spec (§4.1).** Only what is in
+    /// here gets written. Never decide by comparing values — a field that looks
+    /// empty may have to stay unwritten.
     var touchedFields: Set<TagField> = []
 
     var proposedFilename: String?
     var lastError: TagError?
 
-    /// Kommt aus dem Audiostream. Nicht bearbeitbar, ändert sich aber, wenn
-    /// die Datei konvertiert wurde.
+    /// Comes from the audio stream. Not editable, but changes when the file
+    /// has been converted.
     private(set) var properties: AudioProperties
 
-    /// Größe auf der Platte. Zwischengespeichert statt bei jedem Neuzeichnen
-    /// erfragt — die Tabelle rendert sonst bei tausend Zeilen tausend
-    /// Dateisystemzugriffe pro Bildaufbau.
+    /// Size on disk. Cached instead of queried on every redraw — otherwise
+    /// the table would make a thousand file system calls per frame for a
+    /// thousand rows.
     private(set) var fileSize: Int64
 
     init(url: URL, info: AudioFileInfo) {
@@ -78,20 +93,20 @@ final class TrackFile: Identifiable, @unchecked Sendable {
 
     var filename: String { url.lastPathComponent }
 
-    // MARK: - Bearbeiten
+    // MARK: - Editing
 
-    /// Setzt ein Feld **und** merkt es als berührt vor. Der einzige Weg, über
-    /// den die UI Tags ändern darf.
+    /// Sets a field **and** marks it as touched. The only way the UI may
+    /// change tags.
     ///
-    /// Ändert der Aufruf den Wert nicht, passiert nichts. SwiftUI ruft den
-    /// Setter eines `TextField` auch beim bloßen Fokuswechsel mit dem
-    /// unveränderten Text auf — ohne diese Prüfung würde ein Klick ins Feld
-    /// genügen, um es beim nächsten Speichern zu schreiben.
+    /// If the call does not change the value, nothing happens. SwiftUI calls
+    /// a `TextField`'s setter with the unchanged text even on a mere focus
+    /// change — without this check, one click into the field would be enough
+    /// to have it written on the next save.
     ///
-    /// Das ist **kein** Rückfall in „per Wertvergleich entscheiden, was
-    /// geschrieben wird" (Spec §4.1): verglichen wird gegen den aktuellen
-    /// Editor-Stand, nicht gegen den Plattenstand. Wer ein Feld absichtlich
-    /// leert, ändert seinen Wert und wird vorgemerkt.
+    /// This is **not** a relapse into "decide by comparing values what gets
+    /// written" (spec §4.1): the comparison is against the current editor
+    /// state, not against what is on disk. Whoever deliberately empties a
+    /// field changes its value and gets it marked.
     func set(_ value: String?, for field: TagField) {
         let before = edited.stringValue(for: field)
         edited.setStringValue(value, for: field)
@@ -102,15 +117,15 @@ final class TrackFile: Identifiable, @unchecked Sendable {
     }
 
     func setArtwork(_ artwork: [Artwork]) {
-        // Einziger Weg, über den Bilder gesetzt werden — deshalb wird hier
-        // die Reihenfolge festgelegt, nicht an jeder Aufrufstelle einzeln.
+        // The only way pictures are set — so the order is fixed here, not at
+        // every call site separately.
         edited.artwork = Artwork.sortedForEmbedding(artwork)
         touchedFields.insert(.artwork)
         lastError = nil
     }
 
-    /// Nach erfolgreichem Schreiben: der Editor-Stand ist jetzt der Plattenstand.
-    /// Die Datei ist dabei gewachsen oder geschrumpft — etwa durch ein Cover.
+    /// After a successful write: the editor state is now the state on disk.
+    /// The file has grown or shrunk in the process — through a cover, say.
     func commit() {
         original = edited
         touchedFields.removeAll()
@@ -119,7 +134,7 @@ final class TrackFile: Identifiable, @unchecked Sendable {
         refreshFileSize()
     }
 
-    /// Verwirft ungespeicherte Änderungen.
+    /// Discards unsaved changes.
     func revert() {
         edited = original
         touchedFields.removeAll()
@@ -127,8 +142,8 @@ final class TrackFile: Identifiable, @unchecked Sendable {
         lastError = nil
     }
 
-    /// Nach der Konvertierung: Die Datei ist eine andere, der Track derselbe.
-    /// `id` und damit die Auswahl bleiben erhalten.
+    /// After conversion: the file is a different one, the track the same.
+    /// `id`, and with it the selection, stays.
     func replaceFile(url newURL: URL, info: AudioFileInfo) {
         url = newURL
         original = info.tags
@@ -140,17 +155,17 @@ final class TrackFile: Identifiable, @unchecked Sendable {
         refreshFileSize()
     }
 
-    /// Setzt einen früheren Stand zur Rücknahme eines Schreibvorgangs ein.
-    /// Alle Felder gelten danach als berührt, damit sie wieder geschrieben werden.
+    /// Puts back an earlier state to undo a write. Afterwards every field
+    /// counts as touched, so that all of them get written again.
     func restore(_ snapshot: AudioTags, fields: Set<TagField>) {
         edited = snapshot
         touchedFields = fields
         lastError = nil
     }
 
-    // MARK: - Sortierschlüssel für die Table
+    // MARK: - Sort keys for the table
 
-    /// `Table` sortiert über `Comparable`-KeyPaths — `String?` ist das nicht.
+    /// `Table` sorts via `Comparable` key paths — `String?` is not one.
     var titleText: String { edited.title ?? "" }
     var artistText: String { edited.artist ?? "" }
     var albumText: String { edited.album ?? "" }
@@ -158,12 +173,12 @@ final class TrackFile: Identifiable, @unchecked Sendable {
     var trackValue: Int { edited.trackNumber ?? 0 }
 }
 
-// MARK: - Bindings für die UI
+// MARK: - Bindings for the UI
 
 extension TrackFile {
-    /// Ein `Binding`, dessen Setter das Feld als berührt vormerkt. Jede
-    /// Texteingabe in Tabelle und Inspector läuft hierüber — nur so bleibt
-    /// `touchedFields` die einzige Wahrheit darüber, was geschrieben wird.
+    /// A `Binding` whose setter marks the field as touched. Every text input
+    /// in table and inspector goes through here — that is the only way
+    /// `touchedFields` stays the single truth about what gets written.
     func textBinding(for field: TagField) -> Binding<String> {
         Binding(
             get: { self.edited.stringValue(for: field) ?? "" },
@@ -173,10 +188,10 @@ extension TrackFile {
 }
 
 extension TrackFile {
-    /// Sortierschlüssel für die Dauer- und Statusspalte.
+    /// Sort keys for the duration and status columns.
     var durationSeconds: Int { Int(properties.duration.components.seconds) }
 
-    /// Werte für die zuschaltbaren Spalten.
+    /// Values for the optional columns.
     var albumArtistText: String { edited.albumArtist ?? "" }
     var genreText: String { edited.genre ?? "" }
     var composerText: String { edited.composer ?? "" }

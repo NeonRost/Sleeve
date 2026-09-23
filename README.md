@@ -112,7 +112,7 @@ Scripts/check-strings.sh      # every string in the code has a translation
 
 The app is not sandboxed — required for running Homebrew's ffmpeg, which is linked against libraries a sandboxed child process may not load.
 
-The design document, [Sleeve-SPEC.md](Sleeve-SPEC.md), is written in German.
+The design document, [Sleeve-SPEC.md](Sleeve-SPEC.md), explains what Sleeve does, why it does it that way, and what was measured along the way.
 
 ## Support
 

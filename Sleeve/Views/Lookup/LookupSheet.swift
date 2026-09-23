@@ -2,9 +2,24 @@
 //  LookupSheet.swift
 //  Sleeve
 //
-//  „Album nachschlagen" beim Taggen (Spec §4.6). Aufgebaut wie „Titel
-//  nachschlagen" im Track Splitter: links suchen, rechts das gewählte Album
-//  neben den eigenen Dateien, unten übernehmen.
+//  Copyright (C) 2026 NeonRost
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  "Look Up Album" when tagging (spec §4.6). Built like "Look Up Titles" in
+//  the Track Splitter: search on the left, the selected album next to one's
+//  own files on the right, take over at the bottom.
 //
 
 import SwiftUI
@@ -56,7 +71,7 @@ struct LookupSheet: View {
         }
         .frame(width: 940, height: 620)
         .task {
-            // Gleich mit den geratenen Begriffen suchen — wie im Splitter.
+            // Search with the guessed terms right away — as in the splitter.
             if session.search.results.isEmpty {
                 await session.search.search()
                 #if DEBUG
@@ -79,7 +94,7 @@ struct LookupSheet: View {
         }
     }
 
-    // MARK: - Fuß
+    // MARK: - Footer
 
     private var footer: some View {
         HStack(spacing: 12) {
@@ -100,7 +115,7 @@ struct LookupSheet: View {
             Button("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
             Button("Apply") {
-                // Landet im Editor-Zustand, nicht auf der Platte.
+                // Lands in the editor state, not on disk.
                 state.applyLookup(session.proposals(), fields: session.selectedFields)
                 dismiss()
             }
@@ -112,12 +127,12 @@ struct LookupSheet: View {
     }
 }
 
-// MARK: - Zuordnung
+// MARK: - Matching
 
-/// Je Datei eine Zeile: welcher Track des Albums dazugehört, wie lang der
-/// ist und wie weit die Datei davon abweicht. Der Vorschlag kommt nach
-/// Position oder Titel; korrigieren lässt er sich je Zeile oder — für den
-/// häufigsten Fehlgriff — durch Verschieben der ganzen Zuordnung um eins.
+/// One row per file: which track of the album belongs to it, how long
+/// that is and how far the file deviates from it. The proposal comes from
+/// position or title; it can be corrected per row or — for the most
+/// common mistake — by shifting the whole matching by one.
 private struct MatchTable: View {
     @Bindable var session: LookupSession
 
@@ -167,7 +182,7 @@ private struct MatchTable: View {
     }
 }
 
-/// Der zugeordnete Track als Aufklappmenü — dort lässt er sich tauschen.
+/// The assigned track as a pop-up menu — it can be swapped there.
 private struct RemoteTrackMenu: View {
     @Bindable var session: LookupSession
     let index: Int
@@ -196,7 +211,7 @@ private struct RemoteTrackMenu: View {
         .menuIndicator(.visible)
     }
 
-    /// „3  Title  (4:12)" — Position so, wie die Quelle sie schreibt.
+    /// "3  Title  (4:12)" — position as the source writes it.
     private static func label(_ track: LookupTrack) -> String {
         var parts = [track.position, track.title].compactMap { $0 }
         if let duration = track.duration { parts.append("(\(duration))") }

@@ -1,65 +1,63 @@
-# Sleeve — Audio-Werkzeugkasten für macOS
+# Sleeve — audio toolbox for macOS
 
-**Autor:** NeonRost
-**Lizenz:** GPLv3 oder später (wie MIKE)
-**Ziel:** Nativer Apple-Silicon-Ersatz für Tagr, erweiterbar zum Audio-Allrounder
-**Sprachen:** Englisch (Basis), Deutsch, Spanisch
+**Author:** NeonRost
+**License:** GPLv3 or later (like MIKE)
+**Goal:** a native Apple Silicon replacement for Tagr, extensible into an audio all-rounder
+**Languages:** English (base), German, Spanish
 
 ---
 
-## 1. Konzept
+## 1. Concept
 
-Sleeve ist ein modusbasierter Audio-Werkzeugkasten. Die gemeinsame Klammer ist
-immer die **Dateiliste**: Rippen erzeugt Dateien, Taggen bearbeitet sie,
-Konvertieren wandelt sie um. Alle Modi arbeiten am selben Objekt.
+Sleeve is a mode-based audio toolbox. What ties it together is always the
+**file list**: ripping produces files, tagging edits them, converting turns
+them into something else. All modes work on the same object.
 
-Der Name kommt von der Plattenhülle — das, was den Ton umgibt, beschriftet und
-einordnet. Genau das macht die App.
+The name comes from the record sleeve — the thing around the music that
+labels and files it. That is exactly what the app does.
 
-**Nicht-Ziele:** Kein Player. Keine Bibliotheksverwaltung. Kein Audio-Editor
-mit Wellenform (das bleibt in MIKE).
+**Non-goals:** no player. No library management. No audio editor with a
+waveform (that stays in MIKE).
 
-### 1.1 Modus-Architektur
+### 1.1 Mode architecture
 
-Kein Nero-artiges Startfenster, das den Nutzer vorab zur Entscheidung zwingt.
-Stattdessen das Resolve-Modell: ein persistenter Umschalter im Fenster, die
-Dateiliste bleibt beim Wechsel stehen.
+No Nero-style start window that forces the user to decide up front. Instead
+the Resolve model: a persistent switcher in the window, the file list stays
+put when switching.
 
 ```
 ┌─ Toolbar ────────────────────────────────────────────────┐
-│  [ Taggen │ Konvertieren │ Rippen ]        modusabhängig  │
+│  [ Tag │ Convert │ Rip ]                   mode-dependent │
 ├──────────────┬───────────────────────────────────────────┤
 │              │                                           │
-│  Inspector   │   Trackliste — modusübergreifend,         │
-│  je Modus    │   bleibt beim Wechsel erhalten            │
+│  Inspector   │   Track list — shared by all modes,       │
+│  per mode    │   stays when switching                    │
 │              │                                           │
 ├──────────────┴───────────────────────────────────────────┤
-│ + − × ⟳          │  42 Songs, 7 geändert                 │
+│ + − × ⟳          │  42 songs, 7 changed                  │
 └──────────────────────────────────────────────────────────┘
 ```
 
-Umsetzung als `Picker` mit `.segmented`-Style, **ganz links in der Toolbar**,
-direkt daneben „Speichern". Beide gehören zur Grundbedienung und stehen in
-jedem Modus. Alles Modusspezifische sammelt sich am **rechten** Rand.
+Implemented as a `Picker` with `.segmented` style, **at the far left of the
+toolbar**, "Save" right next to it. Both are basic controls and present in
+every mode. Everything mode-specific gathers at the **right** edge.
 
-Mittig wäre der Umschalter die schlechtere Wahl: er belegt die Mitte und
-drängt die übrigen Knöpfe ins Überlaufmenü.
+In the middle the switcher would be the worse choice: it takes up the middle
+and pushes the other buttons into the overflow menu.
 
-**Modusabhängig heißt wörtlich modusabhängig.** Nummerierung, Schreibweise und
-die Pattern-Engine gehören zum Taggen und haben im Konvertieren-Modus nichts
-zu suchen. Über alle Modi hinweg bleiben nur „Auf Platte speichern" und der
-Umschalter selbst.
+**Mode-dependent means literally mode-dependent.** Numbering, capitalization
+and the pattern engine belong to tagging and have no place in the Convert
+mode. Across all modes only "Save to disk" and the switcher itself remain.
 
-Die Toolbar zeigt Symbol **und** Beschriftung, und der Platz dafür ist knapp:
-Seitenleiste, Speichern-Knopf und Umschalter verbrauchen bereits gut die
-Hälfte der Breite. Deshalb kurze Beschriftungen (deutsche Komposita sind
-gnadenlos), kein Fenstertitel — der Name steht in der Menüleiste — und
-Randfunktionen wie „Zu Music hinzufügen" im Menü statt in der Toolbar.
+The toolbar shows icon **and** label, and space is tight: sidebar, Save
+button and switcher already use up a good half of the width. Hence short
+labels (German compound words are merciless), no window title — the name is
+in the menu bar — and fringe functions such as "Add to Music" in the menu
+instead of the toolbar.
 
-**Der entscheidende Architektur-Punkt:** `TrackListModel` ist ein
-eigenständiges, modusunabhängiges Modell. Der Inspector ist nur eine über
-`activeMode` ausgewählte View. Dadurch kostet jeder weitere Modus später fast
-nichts.
+**The decisive architectural point:** `TrackListModel` is an independent,
+mode-agnostic model. The inspector is merely a view selected via
+`activeMode`. That way every further mode costs almost nothing later.
 
 ```swift
 enum AppMode: String, CaseIterable, Identifiable {
@@ -70,46 +68,47 @@ enum AppMode: String, CaseIterable, Identifiable {
 @Observable
 final class AppState {
     var activeMode: AppMode = .tag
-    let trackList = TrackListModel()     // modusübergreifend
+    let trackList = TrackListModel()     // shared by all modes
     var availableModes: [AppMode] {
-        // Konvertieren nur wenn ffmpeg gefunden, Rippen nur bei CD im Laufwerk
+        // Convert only if ffmpeg was found, Rip only with a CD in the drive
     }
 }
 ```
 
-Modi, deren Voraussetzungen fehlen, werden nicht ausgeblendet, sondern
-deaktiviert mit erklärendem Tooltip. Ausgeblendete Funktionen wirken wie Bugs.
+Modes whose requirements are missing are not hidden but disabled with an
+explanatory tooltip. Hidden features look like bugs.
 
-**In Version 1.0 wird nur „Taggen" implementiert.** Die anderen Segmente sind
-sichtbar, aber deaktiviert und mit „Kommt bald" versehen — oder bis zur 1.1
-komplett ausgeblendet, das entscheidet sich beim Release.
+**Only "Tag" is implemented in version 1.0.** The other segments are visible
+but disabled and marked "Coming soon" — or hidden entirely until 1.1; that is
+decided at release.
 
 ---
 
-## 2. Technischer Stack
+## 2. Technical stack
 
-| Bereich | Entscheidung |
+| Area | Decision |
 |---|---|
-| Sprache | Swift 6, Strict Concurrency |
-| UI | SwiftUI, `Table` für die Trackliste |
+| Language | Swift 6, strict concurrency |
+| UI | SwiftUI, `Table` for the track list |
 | Minimum | macOS 14 (Sonoma) |
-| Architektur | Apple Silicon nativ |
-| Tag-Engine | TagLib 2.x über die C-API (`tag_c.h`), statisch gelinkt |
-| Konvertierung | ffmpeg, **extern** (nicht gebundelt) |
-| CD-Erkennung | IOKit `IOCDMedia` bzw. `drutil toc` → MusicBrainz Disc ID |
-| Metadaten | MusicBrainz (Disc-ID-Lookup), Discogs (Cover, Style) |
-| Netzwerk | URLSession, async/await |
-| Persistenz | `UserDefaults`, Tokens im Keychain |
+| Architecture | native Apple Silicon |
+| Tag engine | TagLib 2.x via the C API (`tag_c.h`), statically linked |
+| Conversion | ffmpeg, **external** (not bundled) |
+| CD detection | IOKit `IOCDMedia` or `drutil toc` → MusicBrainz disc ID |
+| Metadata | MusicBrainz (disc ID lookup), Discogs (cover, style) |
+| Network | URLSession, async/await |
+| Persistence | `UserDefaults`, tokens in the keychain |
 
-### 2.1 TagLib-Einbindung
+### 2.1 Integrating TagLib
 
-Kein C++-Interop nötig. Die C-API deckt seit TagLib 2.0 auch PropertyMap
-(`ALBUMARTIST`, `COMPOSER`, `DISCNUMBER`) und Complex Properties (Coverbilder) ab.
+No C++ interop needed. Since TagLib 2.0 the C API also covers the PropertyMap
+(`ALBUMARTIST`, `COMPOSER`, `DISCNUMBER`) and complex properties (cover
+pictures).
 
-Verwendete Version: **TagLib 2.3.2**.
+Version used: **TagLib 2.3.2**.
 
-**Build-Skript** (`Scripts/build-taglib.sh`, einmalig): klont den Tag, baut
-arm64-static und kopiert Header und Bibliotheken nach `Vendor/taglib/`.
+**Build script** (`Scripts/build-taglib.sh`, once): clones the tag, builds
+arm64 static and copies headers and libraries to `Vendor/taglib/`.
 
 ```bash
 cmake -S "$SRC" -B build-arm64 \
@@ -127,129 +126,132 @@ cmake --build build-arm64 --config Release
 cmake --install build-arm64 --config Release
 ```
 
-`BUILD_BINDINGS=ON` ist nicht optional — ohne das entsteht keine C-API.
+`BUILD_BINDINGS=ON` is not optional — without it no C API is built.
 
-**Xcode-Einbindung:**
-- `Vendor/taglib/` → Header Search Paths (clang findet die `module.modulemap`
-  dann von selbst; **nicht** `Vendor/taglib/include/` eintragen)
-- `libtag_c.a` **und** `libtag.a` → Link Binary With Libraries
-- Zusätzlich `libz.tbd` und `libc++.tbd` linken (TagLib ist intern C++)
+**Xcode integration:**
+- `Vendor/taglib/` → Header Search Paths (clang then finds the
+  `module.modulemap` by itself; do **not** enter `Vendor/taglib/include/`)
+- `libtag_c.a` **and** `libtag.a` → Link Binary With Libraries
+- Additionally link `libz.tbd` and `libc++.tbd` (TagLib is C++ inside)
 - `Vendor/taglib/module.modulemap`:
 
 ```
 module CTagLib {
     header "include/taglib/tag_c.h"
-    link "tag_c"    // C-Bindings
-    link "tag"      // C++-Kernbibliothek
+    link "tag_c"    // C bindings
+    link "tag"      // C++ core library
     link "z"
     link "c++"
     export *
 }
 ```
 
-**Lizenz:** TagLib steht unter LGPL 2.1 / MPL 1.1. Statisches Linken in ein
-GPLv3-Programm ist zulässig. TagLib-Quellen bzw. ein Link darauf gehören in die
-Auslieferung, Vermerk in `LICENSES/` und in der README. Das Build-Skript legt
-`LICENSES/taglib-LGPL-2.1.txt` und `taglib-MPL-1.1.txt` automatisch ab.
+**License:** TagLib is under LGPL 2.1 / MPL 1.1. Linking it statically into a
+GPLv3 program is allowed. TagLib's sources or a link to them belong in the
+distribution, with a note in `LICENSES/` and in the README. The build script
+puts `LICENSES/taglib-LGPL-2.1.txt` and `taglib-MPL-1.1.txt` there
+automatically.
 
-**Im Programm** („Über Sleeve", eigenes Fenster statt des Standardfelds — das
-hängt die Build-Nummer an, „Version 1.0 (1)"): Icon, Name, Version, Hinweis
-auf fehlende Gewährleistung und die GPL v3 oder später, „Lizenz anzeigen", Copyright aus
-`NSHumanReadableCopyright` („Copyright (C) 2026 NeonRost"). „Lizenz anzeigen"
-öffnet das Fenster **Lizenzen** mit dem vollen Text je Bestandteil, der im
-Programm steckt: Sleeve (GPL v3), TagLib (LGPL 2.1 — von den beiden
-TagLib-Lizenzen die mit der GPL verträgliche) und utfcpp (Boost 1.0, steckt
-in TagLib). ffmpeg fehlt dort mit Absicht: Sleeve liefert es nicht mit. Die
-Texte liegen in `Sleeve/Resources/Licenses/`; der GPL-Text ist der offizielle
-(SHA-256 `3972dc97…`, wie `gpl-3.0.txt` bei der FSF), identisch mit `LICENSE`.
+**In the program** ("About Sleeve", a window of its own instead of the
+standard panel — that one appends the build number, "Version 1.0 (1)"):
+icon, name, version, a note on the missing warranty and the GPL v3 or later,
+"Show License", copyright from `NSHumanReadableCopyright` ("Copyright (C)
+2026 NeonRost"). "Show License" opens the **Licenses** window with the full
+text of every component inside the program: Sleeve (GPL v3), TagLib (LGPL 2.1
+— of the two TagLib licenses the one compatible with the GPL) and utfcpp
+(Boost 1.0, part of TagLib). ffmpeg is missing there on purpose: Sleeve does
+not ship it. The texts live in `Sleeve/Resources/Licenses/`; the GPL text is
+the official one (SHA-256 `3972dc97…`, like `gpl-3.0.txt` at the FSF),
+identical to `LICENSE`.
 
-#### 2.1.1 Fallstricke (verifiziert am 12.09.2026)
+#### 2.1.1 Pitfalls (verified on 12 Sept 2026)
 
-**Die C-API liegt in einer eigenen Bibliothek.** TagLib 2.x baut `libtag.a`
-(C++) und `libtag_c.a` (C-Bindings) getrennt. `link "tag"` allein ergibt
-Undefined Symbols für jedes `taglib_*`-Symbol. Beide linken.
+**The C API lives in a library of its own.** TagLib 2.x builds `libtag.a`
+(C++) and `libtag_c.a` (C bindings) separately. `link "tag"` alone yields
+undefined symbols for every `taglib_*` symbol. Link both.
 
-**UTF-8 ist Default.** `taglib_set_strings_unicode(1)` ist seit 2.0 überflüssig;
-alle `char*` rein und raus sind UTF-8. Der Aufruf schadet nicht, die alte
-Faustregel „erst auf Unicode stellen" ist aber überholt.
+**UTF-8 is the default.** `taglib_set_strings_unicode(1)` has been
+superfluous since 2.0; every `char*` in and out is UTF-8. The call does no
+harm, but the old rule of thumb "switch to Unicode first" is outdated.
 
-**Die Legacy-API ist kein sicherer Pfad.** `taglib_tag_comment()` und Kollegen
-fallen bei fehlendem ID3v2-Frame stumm auf den ID3v1-Anhang zurück — und der ist
-per Definition Latin-1, ohne Encoding-Kennzeichnung. Im Test lieferte die
-Legacy-API `Kommentar mit Ãmlaut`, die PropertyMap `Kommentar mit Ümlaut`.
-Konsequenz: `TagLibBridge` liest und schreibt **ausschließlich** über
-`taglib_property_get/set`. Die Legacy-Funktionen kommen nur dort zum Einsatz, wo
-es keine Property-Entsprechung gibt.
+**The legacy API is not a safe route.** `taglib_tag_comment()` and friends
+silently fall back to the ID3v1 appendix when the ID3v2 frame is missing —
+and that is Latin-1 by definition, without any encoding marker. In the test
+the legacy API returned `Kommentar mit Ãmlaut`, the PropertyMap `Kommentar
+mit Ümlaut`. Consequence: `TagLibBridge` reads and writes **exclusively**
+via `taglib_property_get/set`. The legacy functions are only used where there
+is no property equivalent.
 
-**`TAGLIB_COMPLEX_PROPERTY_PICTURE` ist aus Swift nicht erreichbar.** Das ist ein
-funktionsartiges C-Makro und wird von Swift nicht importiert. Zum *Schreiben* von
-Coverbildern muss `TagLibBridge` das
-`TagLib_Complex_Property_Attribute`-Array von Hand aufbauen. *Lesen* geht
-komfortabel über `taglib_picture_from_complex_property`, allerdings liefert diese
-Funktion nur das **erste** Bild — für mehrere APIC-Frames muss das äußere
-`TagLib_Complex_Property_Attribute***`-Array selbst durchlaufen werden.
+**`TAGLIB_COMPLEX_PROPERTY_PICTURE` cannot be reached from Swift.** It is a
+function-like C macro and Swift does not import it. To *write* cover
+pictures, `TagLibBridge` has to build the `TagLib_Complex_Property_Attribute`
+array by hand. *Reading* is convenient via
+`taglib_picture_from_complex_property`, but that function only returns the
+**first** picture — for several APIC frames the outer
+`TagLib_Complex_Property_Attribute***` array has to be walked by hand.
 
-**`ARCHS = arm64` ist Pflicht, nicht Geschmackssache.** Xcodes Standard
-(`ARCHS_STANDARD`) baut für macOS universal. Gegen den arm64-only-Vendor-Build
-linkt das nicht etwa mit einem Fehler, sondern mit hunderten
-`ld: warning: ignoring file … required architecture 'x86_64'` — und einem
-Binary ohne TagLib. Im Debug fällt das nicht auf, weil `ONLY_ACTIVE_ARCH = YES`
-gilt; erst das Release-Build kippt. `ARCHS = arm64` steht deshalb in der
-Projektkonfiguration.
+**`ARCHS = arm64` is mandatory, not a matter of taste.** Xcode's default
+(`ARCHS_STANDARD`) builds universal for macOS. Against the arm64-only vendor
+build this does not fail with an error but with hundreds of
+`ld: warning: ignoring file … required architecture 'x86_64'` — and a binary
+without TagLib. In Debug this goes unnoticed because `ONLY_ACTIVE_ARCH = YES`
+applies; only the Release build breaks. That is why `ARCHS = arm64` is in the
+project configuration.
 
-**Smoketest:** `Scripts/run-smoketest.sh` kompiliert
-`Scripts/taglib-smoketest.swift` gegen den Vendor-Build und liest alle Dateien in
-`TestFiles/` samt Schreib-Roundtrip. Nach jedem TagLib-Update einmal laufen
-lassen.
-### 2.2 ffmpeg-Erkennung (ab Phase 4)
+**Smoke test:** `Scripts/run-smoketest.sh` compiles
+`Scripts/taglib-smoketest.swift` against the vendor build and reads every
+file in `TestFiles/`, including a write round trip. Run it once after every
+TagLib update.
 
-ffmpeg wird nicht mitgeliefert, sondern vom System erwartet — wie bei MIKE.
-Damit der Konvertieren-Modus nicht stumm scheitert:
+### 2.2 Locating ffmpeg (from phase 4 on)
 
-**Suchreihenfolge:**
-1. Pfad aus den Einstellungen, falls vom Nutzer gesetzt
+ffmpeg is not shipped but expected on the system — as with MIKE. So that the
+Convert mode does not fail silently:
+
+**Search order:**
+1. Path from the settings, if set by the user
 2. `/opt/homebrew/bin/ffmpeg` (Apple Silicon Homebrew)
-3. `/usr/local/bin/ffmpeg` (Intel Homebrew / manuell)
-4. `PATH` durchsuchen
+3. `/usr/local/bin/ffmpeg` (Intel Homebrew / manual)
+4. Search `PATH`
 
-`PATH` allein reicht **nicht** — eine per Finder gestartete App erbt die Shell-
-Umgebung nicht und sieht Homebrew-Pfade oft nicht.
+`PATH` alone is **not** enough — an app launched from the Finder does not
+inherit the shell environment and often does not see Homebrew paths.
 
-**Bei Nichtfund:** Der Modus bleibt **betretbar** — ihn zu sperren wäre ein
-Zirkelschluss, denn die Anleitung steht genau in diesem Bereich. Am Starten
-hindert stattdessen ein Blocker über dem Knopf.
+**If not found:** the mode stays **enterable** — locking it would be
+circular, because the instructions are in exactly this section. Instead, a
+blocker above the button prevents starting.
 
-Der Inspector zeigt dann eine Karte mit Erklärung und kopierbaren Befehlen,
-„Manuell auswählen…" für einen eigenen Pfad und „Erneut suchen" nach der
-Installation. Die Anleitung richtet sich danach, was auf dem Rechner liegt:
+The inspector then shows a card with an explanation and copyable commands,
+"Choose Manually…" for a path of one's own and "Search Again" after
+installing. The instructions depend on what is on the machine:
 
-- **Homebrew vorhanden** → nur `brew install ffmpeg`
-- **Homebrew fehlt** → erst der Homebrew-Installationsbefehl samt Link auf
-  brew.sh, dann `brew install ffmpeg`. Ohne diese Prüfung liefe die Anleitung
-  ins Leere und der Nutzer suchte den Fehler bei sich.
+- **Homebrew present** → just `brew install ffmpeg`
+- **Homebrew missing** → first the Homebrew install command with a link to
+  brew.sh, then `brew install ffmpeg`. Without this check the instructions
+  would lead nowhere and the user would look for the mistake on their side.
 
-Ausgeführt wird nichts davon — die Befehle sind zum Kopieren da, das Terminal
-bleibt beim Nutzer.
+None of it is run — the commands are there to be copied, the Terminal stays
+with the user.
 
-Ist ffmpeg gefunden, rutscht der Abschnitt ans **Ende** des Inspectors: nach
-der Installation interessiert er nicht mehr.
+Once ffmpeg is found, the section moves to the **end** of the inspector:
+after installation nobody cares about it any more.
 
-**Keine Sandbox.** Homebrews ffmpeg ist gegen dutzende dylibs unter
-`/opt/homebrew/lib` gelinkt. Ein Kindprozess erbt die Sandbox der App und darf
-die nicht lesen — dyld bricht ab, bevor ffmpeg überhaupt startet. Externes
-ffmpeg und App Sandbox schließen einander damit aus. Hardened Runtime und
-Notarisierung bleiben unberührt; der Mac App Store fiele weg, ist mit GPLv3
-aber ohnehin nicht vereinbar. Käme später ein statisch gelinktes ffmpeg ins
-Bundle (§6.4), ließe sich die Sandbox wieder einschalten.
+**No sandbox.** Homebrew's ffmpeg is linked against dozens of dylibs under
+`/opt/homebrew/lib`. A child process inherits the app's sandbox and may not
+read them — dyld aborts before ffmpeg even starts. External ffmpeg and the
+App Sandbox thus exclude each other. Hardened Runtime and notarization are
+unaffected; the Mac App Store would be out, but it is incompatible with the
+GPLv3 anyway. Should a statically linked ffmpeg ever go into the bundle, the
+sandbox could be switched on again.
 
-**Versionsprüfung:** `ffmpeg -version` beim Fund, Encoder-Verfügbarkeit einmalig
-über `ffmpeg -encoders` abfragen und cachen. Ein LGPL-Build ohne `libmp3lame`
-kann kein MP3 — das muss die App wissen und sagen, bevor der Nutzer einen
-Batch startet.
+**Version check:** `ffmpeg -version` when found; query the available encoders
+once via `ffmpeg -encoders` and cache them. An LGPL build without
+`libmp3lame` cannot do MP3 — the app has to know that and say so before the
+user starts a batch.
 
 ---
 
-## 3. Datenmodell
+## 3. Data model
 
 ```swift
 struct AudioTags: Equatable, Sendable {
@@ -280,10 +282,10 @@ struct Artwork: Equatable, Sendable {
 @Observable
 final class TrackFile: Identifiable {
     let id = UUID()
-    var url: URL                      // veränderlich: Umbenennung, Konvertierung
+    var url: URL                      // mutable: renaming, conversion
     private(set) var original: AudioTags
     var edited: AudioTags
-    var touchedFields: Set<TagField> = []   // siehe 4.1 — kritisch
+    var touchedFields: Set<TagField> = []   // see 4.1 — critical
     var proposedFilename: String?
     var lastError: TagError?
     var isDirty: Bool { !touchedFields.isEmpty || proposedFilename != nil }
@@ -293,1123 +295,1118 @@ final class TrackFile: Identifiable {
 final class TrackListModel {
     var tracks: [TrackFile] = []
     var selection: Set<TrackFile.ID> = []
-    // modusübergreifend, überlebt jeden Moduswechsel
+    // shared by all modes, survives every mode switch
 }
 ```
 
-### 3.1 Format-Mapping
+### 3.1 Format mapping
 
-| Feld | ID3v2 (MP3) | MP4 (M4A) | Vorbis (FLAC) |
+| Field | ID3v2 (MP3) | MP4 (M4A) | Vorbis (FLAC) |
 |---|---|---|---|
-| Album-Interpret | `TPE2` | `aART` | `ALBUMARTIST` |
-| Komponist | `TCOM` | `©wrt` | `COMPOSER` |
-| Disc-Nummer | `TPOS` | `disk` | `DISCNUMBER` |
+| Album artist | `TPE2` | `aART` | `ALBUMARTIST` |
+| Composer | `TCOM` | `©wrt` | `COMPOSER` |
+| Disc number | `TPOS` | `disk` | `DISCNUMBER` |
 | Compilation | — | `cpil` | `COMPILATION` |
 | Cover | `APIC` | `covr` | `METADATA_BLOCK_PICTURE` |
-| Songtext | `USLT` | `©lyr` | `LYRICS` |
+| Lyrics | `USLT` | `©lyr` | `LYRICS` |
 
-`taglib_property_get(file, "ALBUMARTIST")` liefert den jeweils richtigen nativen
-Key — das Mapping übernimmt TagLib weitgehend selbst. Ausnahme: Coverbilder über
-`taglib_complex_property_get(file, "PICTURE")`.
+`taglib_property_get(file, "ALBUMARTIST")` returns the right native key in
+each case — TagLib largely does the mapping itself. Exception: cover
+pictures, via `taglib_complex_property_get(file, "PICTURE")`.
 
 ---
 
-## 4. Modus „Taggen" (Version 1.0)
+## 4. The Tag mode (version 1.0)
 
-### 4.1 Batch-Editor — der Kern
+### 4.1 Batch editor — the core
 
-**Trackliste**
-- Drag & Drop von Dateien und Ordnern, rekursiv
-- Spalten: `#`, Titel, Interpret, Album, Jahr, Dauer, Dateiname, Status
-- Sortierbar, Mehrfachauswahl mit Shift/Cmd, inline editierbar
-- Statusspalte: unverändert / geändert / Fehler
+**Track list**
+- Drag and drop of files and folders, recursive
+- Columns: `#`, title, artist, album, year, duration, file name, status
+- Sortable, multiple selection with Shift/Cmd, editable inline
+- Status column: unchanged / changed / error
 
-**Inspector-Panel**
-- Alle Felder aus `AudioTags`
-- Bei Mehrfachauswahl mit unterschiedlichen Werten: Platzhalter
-  `<Verschiedene>` statt leerem Feld
-- **Ein Feld wird nur geschrieben, wenn es in `touchedFields` steht.**
-  Nicht über String-Vergleich entscheiden. Genau hier zerschießt Tagr
-  regelmäßig Felder, die der Nutzer nie angefasst hat: Feld sieht leer aus,
-  also wird leer geschrieben. Das ist der wichtigste Einzelpunkt der Spec.
-- Autocomplete aus den Werten bereits geladener Dateien
+**Inspector panel**
+- All fields from `AudioTags`
+- With several tracks selected and differing values: the placeholder
+  `<Multiple values>` instead of an empty field
+- **A field is only written if it is in `touchedFields`.** Never decide via
+  a string comparison. This is exactly where Tagr regularly wrecks fields the
+  user never touched: the field looks empty, so empty gets written. This is
+  the single most important point of the spec.
+- Autocomplete from the values of already loaded files
 
-**Schreiben**
-- `TagEngine` als `actor`, alle TagLib-Aufrufe off-main-thread
-- Fortschrittsanzeige ab 20 Dateien
-- Pro Datei fehlertolerant: eine kaputte Datei bricht den Batch nicht ab
-- Fehler sammeln, am Ende in einem Sheet zusammenfassen
-- **Undo:** `original`-Snapshot je Datei behalten, ein Session-weiter
-  Undo-Schritt reicht. Cmd+Z muss funktionieren.
-- Optional: Backup-Kopie neben der Datei
+**Writing**
+- `TagEngine` as an `actor`, all TagLib calls off the main thread
+- Progress indicator from 20 files on
+- Fault-tolerant per file: one broken file does not abort the batch
+- Collect errors, summarize them in a sheet at the end
+- **Undo:** keep an `original` snapshot per file; one session-wide undo step
+  is enough. Cmd+Z has to work.
+- Optional: backup copy next to the file
 
-### 4.2 Nummerierung
+### 4.2 Numbering
 
-- Tracks nach aktueller Sortierung durchnummerieren
-- Führende Nullen (01 statt 1)
-- Gesamtanzahl schreiben (03/12)
-- Disc-übergreifend oder pro Disc neu beginnend
+- Number tracks in the current sort order
+- Leading zeros (01 instead of 1)
+- Write the total (03/12)
+- Across discs or starting again per disc
 
-### 4.3 Schreibweise
+### 4.3 Capitalization
 
-- Title Case mit Ausnahmeliste ("of", "the", "und", "der" …), sprachabhängig
-- GROSSBUCHSTABEN
-- kleinschreibung
-- Auf alle oder nur ausgewählte Felder anwendbar
+- Title Case with an exception list ("of", "the", "und", "der" …),
+  language-dependent
+- UPPER CASE
+- lower case
+- Applicable to all fields or only chosen ones
 
-### 4.4 Pattern-Engine
+### 4.4 Pattern engine
 
-Beide Richtungen, gleiche Token-Syntax:
+Both directions, the same token syntax:
 
 ```
 %artist%  %albumartist%  %album%  %title%
 %track%   %disc%  %year%  %genre%  %composer%
 ```
 
-**Tags → Dateiname**
-- Beispiel: `%track% - %artist% - %title%`
-- Live-Vorschau in eigener Spalte, bevor etwas passiert
-- Ungültige Zeichen (`/`, `:`, Steuerzeichen) ersetzen, konfigurierbar
-- Fehlende Tags: Segment inkl. umgebender Trennzeichen entfällt, statt
-  `01 -  - Titel` zu erzeugen
-- Kollisionen: ` (2)` anhängen
-- Presets speicherbar
+**Tags → file name**
+- Example: `%track% - %artist% - %title%`
+- Live preview in a column of its own before anything happens
+- Replace invalid characters (`/`, `:`, control characters), configurable
+- Missing tags: the segment including the surrounding separators is dropped,
+  instead of producing `01 -  - Title`
+- Collisions: append ` (2)`
+- Presets can be saved
 
-**Dateiname → Tags**
-- Derselbe Pattern rückwärts: `%token%` wird zur benannten Capture-Group,
-  alles dazwischen literal escaped → fertiger Regex
-- Live-Vorschau als Tabelle, nicht-matchende Zeilen rot und übersprungen
+**File name → tags**
+- The same pattern backwards: `%token%` becomes a named capture group,
+  everything in between escaped literally → a finished regex
+- Live preview as a table, non-matching rows red and skipped
 - Presets: `%track% - %title%`, `%artist% - %title%`,
   `%track%. %artist% - %title%`, `%artist% - %album% - %track% - %title%`
-- Bonus: Ordnernamen einbeziehen, `%artist%/%album%/%track% - %title%`
+- Bonus: include folder names, `%artist%/%album%/%track% - %title%`
 
 **All in One**
-Makro über Nummerierung → Schreibweise → Dateibenennung → Speichern.
-Reine Verkettung, keine eigene Logik.
+A macro over numbering → capitalization → renaming → saving. Pure chaining,
+no logic of its own.
 
-### 4.5 Coverbilder
+### 4.5 Cover pictures
 
-- Anzeige aller eingebetteten Bilder mit Vor/Zurück
-- Hinzufügen per Drag & Drop oder Dateiauswahl, **ersetzend oder zusätzlich**
-- Bildtyp je Bild wählbar (Vorderseite, Rückseite, Booklet-Seite, Tonträger …).
-  Ein eingescanntes Booklet gehört als `Leaflet Page` ins Tag, nicht als
-  zweites `Front Cover` — Abspielprogramme unterscheiden das. Beim Anhängen
-  ersetzt ein Bild deshalb nur ein vorhandenes **desselben** Typs.
-- Entfernen, einzeln oder alle
-- **Auf alle ausgewählten Tracks anwenden** — der häufigste Fall
-- Export als Datei, optional als `folder.jpg` im Albumordner
-- Größenanpassung **je Bild beim Einfügen**, nicht als globale Voreinstellung.
-  Der Einfüge-Dialog zeigt Vorschau, freie Pixelgröße, Format und Qualität —
-  und die **tatsächliche** Dateigröße, nicht eine geschätzte. Sie zu messen
-  kostet bei Coverformaten wenige Millisekunden.
+- Show all embedded pictures with back/forward
+- Add via drag and drop or file picker, **replacing or in addition**
+- Picture type selectable per picture (front, back, booklet page, medium …).
+  A scanned booklet belongs in the tag as `Leaflet Page`, not as a second
+  `Front Cover` — players tell the two apart. That is why, when appending, a
+  picture only replaces an existing one **of the same** type.
+- Remove, individually or all
+- **Apply to all selected tracks** — the most common case
+- Export as a file, optionally as `folder.jpg` in the album folder
+- Resizing **per picture when adding**, not as a global preset. The import
+  dialog shows a preview, free pixel size, format and quality — and the
+  **actual** file size, not an estimated one. Measuring it costs a few
+  milliseconds for cover formats.
 
-  Hintergrund: Ein 4000×4000-PNG in jedem Track bläht ein Album um 200 MB auf.
-  Eine globale Voreinstellung trifft es aber je Bild nie — wer seine Cover
-  ohnehin auf 500×500 und unter 100 KB bringt, braucht sie nicht, und wer ein
-  einzelnes Riesenbild einfügt, will genau dort entscheiden.
+  Background: a 4000×4000 PNG in every track bloats an album by 200 MB. But
+  a global preset never gets it right per picture — whoever brings their
+  covers to 500×500 and under 100 KB anyway does not need it, and whoever
+  adds a single huge picture wants to decide right there.
 
-- Ein Bild, das weder skaliert noch umgewandelt werden muss, geht
-  **byte-identisch** ins Tag. Kein Neupacken, kein Qualitätsverlust.
+- A picture that needs neither scaling nor converting goes into the tag
+  **byte-identical**. No re-encoding, no loss of quality.
 
-- Beim Stapel-Konvertieren (§5) gibt es keinen Moment zum Fragen, deshalb
-  wandert das Coverbild dort unangetastet in die neue Datei.
+- In batch conversion (§5) there is no moment to ask, so the cover picture
+  moves into the new file untouched there.
 
-### 4.6 Nachschlagen — MusicBrainz und Discogs
+### 4.6 Lookup — MusicBrainz and Discogs
 
-**Zwei Quellen, eine Oberfläche.** Der Unterschied ist grundsätzlich: Ein
-Ripper wie XLD hat die **Disc ID** aus dem Inhaltsverzeichnis der CD und macht
-damit einen exakten Schlüsselzugriff — kein Raten, keine Anmeldung. Lose
-Dateien haben so einen Fingerabdruck nicht, dort bleibt nur die **Textsuche**.
-Und genau die sperrt Discogs hinter einen Token; der Abruf eines bekannten
-Releases über seine ID geht auch ohne (nachgeprüft).
+**Two sources, one UI.** The difference is fundamental: a ripper like XLD has
+the **disc ID** from the CD's table of contents and does an exact key lookup
+with it — no guessing, no sign-in. Loose files have no such fingerprint; only
+the **text search** remains. And that is exactly what Discogs locks behind a
+token; fetching a known release by its ID works without one (verified).
 
-| | Token | Stärken | Grenzen |
+| | Token | Strengths | Limits |
 |---|---|---|---|
-| MusicBrainz | nein | offen, sofort nutzbar, Cover Art Archive | nur Genres, keine Styles; max. 1 Anfrage/s |
-| Discogs | ja | bessere Coverbilder, `style` statt nur `genre` | Suche nur mit Token |
+| MusicBrainz | no | open, usable right away, Cover Art Archive | genres only, no styles; max. 1 request/s |
+| Discogs | yes | better cover pictures, `style` instead of just `genre` | search only with a token |
 
-Vorgabe ist MusicBrainz, solange kein Token hinterlegt ist. Beide Quellen
-werden auf ein gemeinsames Modell (`LookupRelease`, `LookupTrack`) abgebildet —
-Zuordnung, Feldauswahl und Übernahme kennen den Unterschied nicht.
+MusicBrainz is the default as long as no token is stored. Both sources are
+mapped onto a common model (`LookupRelease`, `LookupTrack`) — matching, field
+selection and applying do not know the difference.
 
-**MusicBrainz-Eigenheiten**
-- Verlangt einen User-Agent mit Anwendungsname und Kontakt; ein allgemeiner
-  wird geblockt.
-- Höchstens **eine Anfrage pro Sekunde**, sonst 503. Ein 503 ist dort keine
-  Störung, sondern die Bitte um Geduld — der Client wiederholt mit wachsendem
-  Abstand, statt den Vorgang abzubrechen.
-- Künstler stehen in `artist-credit` mit `joinphrase`; der gutgeschriebene
-  Name (`name`) hat Vorrang vor dem kanonischen (`artist.name`).
-- Mehrfachtonträger stecken in `media[]`, die Discnummer ist `medium.position`.
+**MusicBrainz quirks**
+- Requires a User-Agent with application name and contact; a generic one is
+  blocked.
+- At most **one request per second**, otherwise 503. There, a 503 is not a
+  malfunction but a request for patience — the client retries with a growing
+  interval instead of aborting.
+- Artists are in `artist-credit` with `joinphrase`; the credited name
+  (`name`) takes precedence over the canonical one (`artist.name`).
+- Multiple media are in `media[]`, the disc number is `medium.position`.
 
 ### 4.6.1 Discogs
 
-**Auth:** Personal Access Token, vom Nutzer in den Settings eingetragen,
-im **Keychain** abgelegt. Kein OAuth-Flow — für eine Desktop-App ohne Server
-unnötig kompliziert.
+**Auth:** personal access token, entered by the user in the settings and
+stored in the **keychain**. No OAuth flow — needlessly complicated for a
+desktop app without a server.
 
-**Pflicht:** eigener User-Agent im Format
-`Sleeve/1.0 +https://github.com/NeonRost/Sleeve`. Ohne den gibt es 403.
-Rate-Limit 60/min authentifiziert — Token-Bucket im Netzwerk-Layer, der das
-einhält, statt auf 429 zu reagieren.
+**Mandatory:** a User-Agent of its own in the format
+`Sleeve/1.0 +https://github.com/NeonRost/Sleeve`. Without it there is a 403.
+Rate limit 60/min authenticated — a token bucket in the network layer that
+keeps within it, instead of reacting to 429.
 
-**Ablauf** („Album nachschlagen", ein Blatt, keine Stufen mehr)
-1. Tracks auswählen (typisch: ein Album)
-2. Suchbegriffe aus vorhandenen Tags oder Ordnernamen raten — und **gleich
-   suchen**, beim Öffnen wie beim Wechsel der Quelle
-3. Links die Suchmaske: Interpret / Album / Jahr / Kat.-Nr.
-4. Darunter die Treffer mit Thumbnail, Label, Jahr, Format, Land
-5. Ein Klick auf einen Treffer lädt das Album nach **rechts** — ein anderer
-   Klick ersetzt es. Kein „Zurück": Suche und Album stehen nebeneinander
-6. **Zuordnung:** je Datei eine Zeile — Datei, zugeordneter Track (als
-   Aufklappmenü tauschbar), dessen Dauer, die Dauer der Datei mit
-   Abweichung. Über 3 s orange. Dazu „alles um eins verschieben". Der
-   wichtigste Teil — automatisches Matching liegt bei Live-Alben,
-   Bonustracks und Doppel-CDs regelmäßig daneben; die Dauer zeigt es, auch
-   wenn die Titel passen
-7. Feldauswahl unter „Übernehmen", bei Discogs mit der Wahl Genre/Style
-8. Fuß: „12 von 12 Dateien zugeordnet", mit Warnung bei fehlenden
-   Zuordnungen oder orangen Zeilen
-9. Übernahme in den **Editor-Zustand**, nicht direkt auf Platte
+**Flow** ("Look Up Album", one sheet, no stages any more)
+1. Select tracks (typically: one album)
+2. Guess the search terms from existing tags or the folder name — and
+   **search right away**, when opening as well as when switching the source
+3. On the left the search form: artist / album / year / catalog no.
+4. Below it the results with thumbnail, label, year, format, country
+5. A click on a result loads the album on the **right** — another click
+   replaces it. No "Back": search and album stand side by side
+6. **Matching:** one row per file — file, assigned track (swappable as a
+   pop-up menu), its duration, the file's duration with the deviation. Above
+   3 s orange. Plus "shift everything by one". The most important part —
+   automatic matching regularly misses on live albums, bonus tracks and
+   double CDs; the duration shows it even when the titles fit
+7. Field selection under "Take over", for Discogs with the genre/style choice
+8. Footer: "12 of 12 files matched", with a warning for missing matches or
+   orange rows
+9. Applied to the **editor state**, not directly to disk
 
-**Ein Blatt, zwei Einsätze.** „Titel nachschlagen" im Track Splitter (§7.12)
-ist aus denselben Teilen gebaut (`ReleaseSearch`, `Views/Lookup/LookupParts`):
-Kopf mit Titel und „Quelle", links Suche, rechts Albumkopf und Vergleich,
-darunter „Übernehmen", unten Status, Abbrechen, Anwenden. Gleiche
-Bezeichnungen, gleiche Toleranz (`LookupComparison.tolerance`, 3 s), gleiche
-Vorgabe für die Quelle. Vorher hießen die Felder hier „Albumtitel" und dort
-„Album", die Spalte hieß „Discogs-Tracks" auch bei MusicBrainz, und nur der
-Splitter suchte von selbst.
+**One sheet, two uses.** "Look Up Titles" in the Track Splitter (§7.12) is
+built from the same parts (`ReleaseSearch`, `Views/Lookup/LookupParts`):
+header with title and "Source", search on the left, album header and
+comparison on the right, "Take over" below that, status, Cancel, Apply at the
+bottom. The same labels, the same tolerance (`LookupComparison.tolerance`,
+3 s), the same default source. Before, the fields were called "Release title"
+here and "Album" there, the column was called "Discogs tracks" even for
+MusicBrainz, and only the splitter searched by itself.
 
-Solange ein Suchfeld den Fokus hat, sucht Return; sonst wendet es an. Ohne
-diese Weiche schlösse Return in einem Suchfeld das Blatt, sobald rechts ein
-Album steht.
+While a search field has focus, Return searches; otherwise it applies.
+Without this switch, Return in a search field would close the sheet as soon
+as an album is shown on the right.
 
-**Steuerzeichen in den Antworten.** Discogs liefert in Freitextfeldern wie
-`notes` rohe `\r`/`\n` mitten im String — nach JSON-Standard unzulässig.
-`JSONDecoder` prüft dabei **faul**: er stolpert nur, wenn ein deklariertes Feld
-die kaputte Zeichenkette auch liest. Ein Modell ohne `notes` kommt heute durch,
-bricht aber, sobald jemand das Feld ergänzt — und dann nur bei manchen Releases.
-Deshalb werden die Bytes grundsätzlich vor dem Dekodieren begradigt
-(`JSONSanitizer`), statt darauf zu wetten, welche Felder im Modell stehen.
+**Control characters in the responses.** Discogs delivers raw `\r`/`\n` in
+the middle of free-text fields such as `notes` — not allowed by the JSON
+standard. `JSONDecoder` checks **lazily**: it only trips if a declared field
+actually reads the broken string. A model without `notes` gets through today
+but breaks as soon as someone adds the field — and then only for some
+releases. That is why the bytes are always straightened before decoding
+(`JSONSanitizer`), instead of betting on which fields the model contains.
 
-**Discogs-Eigenheiten**
-- `genre` und `style` sind getrennt. `style` ist meist das Gewünschte
-  ("Melodic Death Metal" statt "Rock"). Konfigurierbar, oder beide kombiniert.
-- Tracklisten enthalten Index-Tracks und Überschriften ohne Position —
-  beim Matching rausfiltern
-- Künstlernamen haben Disambiguierungs-Suffixe: `Nirvana (2)`.
-  Regex zum Entfernen: ` \(\d+\)$`
-- Mehrere Künstler stehen in `artists[]` mit `join`-Feldern — zusammensetzen,
-  nicht nur den ersten nehmen
+**Discogs quirks**
+- `genre` and `style` are separate. `style` is usually what one wants
+  ("Melodic Death Metal" instead of "Rock"). Configurable, or both combined.
+- Track lists contain index tracks and headings without a position — filter
+  them out when matching
+- Artist names have disambiguation suffixes: `Nirvana (2)`. Regex to remove
+  them: ` \(\d+\)$`
+- Several artists are in `artists[]` with `join` fields — join them, do not
+  just take the first
 
-### 4.7 Music.app
+### 4.7 Music app
 
-- Ausgewählte Tracks der Music-App hinzufügen
-- ScriptingBridge oder `NSAppleScript`
-- `NSAppleEventsUsageDescription` im Info.plist,
-  `com.apple.security.automation.apple-events` in den Entitlements
-- Bewusst klein halten, reines Convenience-Feature
-
----
-
-## 5. Modus „Konvertieren" (Version 1.1)
-
-**Der Verkaufsgrund:** Generische Konverter zerschießen Metadaten — Album-
-Interpret weg, Cover als 6-MB-PNG, Disc-Nummer fehlt. Sleeve hat die
-TagLib-Schicht bereits und schreibt die Tags nach der Konvertierung korrekt
-neu. Der Pitch ist nicht „kann auch konvertieren", sondern „konvertiert, ohne
-dass du danach nochmal taggen musst".
-
-**UI:** Zielformat, Qualität/Bitrate, Zielordner, Vorlage für Dateinamen
-(dieselbe Pattern-Engine), Checkbox „Originale behalten".
-
-**Formate:** MP3 (LAME), FLAC, AAC, ALAC, Opus, Vorbis, WAV/AIFF
-
-**Ablauf je Datei**
-1. Tags vor der Konvertierung aus dem Quellfile lesen
-2. ffmpeg mit `-map_metadata -1` aufrufen — ffmpegs eigene Tag-Übertragung
-   bewusst abschalten, sie ist unzuverlässig über Formatgrenzen hinweg
-3. Tags anschließend selbst per TagLib schreiben, inklusive Cover
-4. Cover unverändert übernehmen — skaliert wird je Bild im Tag-Modus (§4.5)
-
-**Encoder-Wahl je Format.** Es wird der erste verfügbare Kandidat genommen:
-MP3 `libmp3lame`, AAC `aac_at` vor `aac` (AudioToolbox ist lizenziert, und ein
-LGPL-Build hat oft gar keinen brauchbaren AAC-Encoder), ALAC `alac` vor
-`alac_at` (offen und patentfrei, der native Encoder ist verlässlicher), FLAC
-`flac`, Opus `libopus` vor `opus`, Vorbis `libvorbis` vor `vorbis`, WAV
-`pcm_s16le`, AIFF `pcm_s16be`. Die nativen Opus- und Vorbis-Encoder gelten
-ffmpeg als experimentell und brauchen zusätzlich `-strict -2`.
-
-`-map_metadata -1` allein reicht nicht: das Coverbild ist ein Videostream, kein
-Metadatum. Ohne `-vn` wandert es unskaliert mit.
-
-Konvertierung als serielle Queue mit Fortschritt, abbrechbar. Bei mehreren
-Kernen zwei bis drei parallele ffmpeg-Prozesse, nicht mehr — Plattendurchsatz
-ist meist der Flaschenhals, nicht die CPU.
+- Add selected tracks to the Music app
+- ScriptingBridge or `NSAppleScript`
+- `NSAppleEventsUsageDescription` in Info.plist,
+  `com.apple.security.automation.apple-events` in the entitlements
+- Deliberately kept small, pure convenience
 
 ---
 
-## 6. Modus „Rippen" (Version 1.2)
+## 5. The Convert mode (version 1.1)
 
-**Korrigiert nach Messung am Gerät.** Die erste Fassung dieses Abschnitts ging
-davon aus, dass der Weg über die gemounteten `.aiff` genügt und Fehlerkorrektur,
-Leseversatz und Prüfung deshalb entfallen. Diese Annahme war falsch: macOS gibt
-den Rohzugriff ohne Fremdbibliothek und ohne Sonderrechte her. Der Rohweg ist
-umgesetzt, weil der `.aiff`-Weg Versatzkorrektur und Mehrfachlesen
-**prinzipbedingt ausschließt** — das CDDA-Dateisystem versteckt genau die Ebene,
-auf der Ripper arbeiten. Nachrüsten ginge nicht, nur neu anfangen.
+**The selling point:** generic converters wreck metadata — album artist
+gone, cover as a 6 MB PNG, disc number missing. Sleeve already has the TagLib
+layer and writes the tags correctly after conversion. The pitch is not "can
+convert too" but "converts without you having to tag again afterwards".
 
-### 6.1 Technischer Ansatz
+**UI:** target format, quality/bitrate, target folder, file name template
+(the same pattern engine), checkbox "Keep originals".
 
-Rohzugriff über die ioctls aus `<IOKit/storage/IOCDMediaBSDClient.h>`.
+**Formats:** MP3 (LAME), FLAC, AAC, ALAC, Opus, Vorbis, WAV/AIFF
 
-**Rechte:** Der Geräteknoten gehört dem angemeldeten Benutzer
-(`cr--r----- <benutzer> operator /dev/rdisk4`). Kein root, kein Helfer-Dienst, keine
-Entitlements. Der Sandkasten ist ohnehin aus (§2.2).
+**Per file**
+1. Read the tags from the source file before converting
+2. Call ffmpeg with `-map_metadata -1` — deliberately switch off ffmpeg's own
+   tag copying, it is unreliable across format boundaries
+3. Then write the tags ourselves via TagLib, cover included
+4. Take the cover over unchanged — scaling happens per picture in tag mode
+   (§4.5)
 
-**Zeichengerät, nicht Blockgerät** (`/dev/rdiskN`): gepuffert würde der Cache
-wiederholte Leseversuche beantworten, statt die Scheibe zu fragen — der sichere
-Modus wäre wertlos.
+**Encoder choice per format.** The first available candidate is taken: MP3
+`libmp3lame`, AAC `aac_at` before `aac` (AudioToolbox is licensed, and an
+LGPL build often has no usable AAC encoder at all), ALAC `alac` before
+`alac_at` (open and patent-free, the native encoder is more reliable), FLAC
+`flac`, Opus `libopus` before `opus`, Vorbis `libvorbis` before `vorbis`, WAV
+`pcm_s16le`, AIFF `pcm_s16be`. ffmpeg considers the native Opus and Vorbis
+encoders experimental; they additionally need `-strict -2`.
 
-| ioctl | wofür |
+`-map_metadata -1` alone is not enough: the cover picture is a video stream,
+not metadata. Without `-vn` it comes along unscaled.
+
+Conversion as a serial queue with progress, cancellable. With several cores
+two to three parallel ffmpeg processes, no more — disk throughput is usually
+the bottleneck, not the CPU.
+
+---
+
+## 6. The Rip mode (version 1.2)
+
+**Corrected after measuring on the device.** The first version of this
+section assumed that going through the mounted `.aiff` files was enough and
+that error correction, read offset and verification could therefore be
+dropped. That assumption was wrong: macOS offers raw access without a
+third-party library and without special privileges. The raw route is
+implemented because the `.aiff` route **rules out by design** offset
+correction and repeated reading — the CDDA file system hides exactly the
+level rippers work on. Adding it later would not be possible, only starting
+over.
+
+### 6.1 Technical approach
+
+Raw access via the ioctls from `<IOKit/storage/IOCDMediaBSDClient.h>`.
+
+**Privileges:** the device node belongs to the logged-in user
+(`cr--r----- <user> operator /dev/rdisk4`). No root, no helper service, no
+entitlements. The sandbox is off anyway (§2.2).
+
+**Character device, not block device** (`/dev/rdiskN`): buffered, the cache
+would answer repeated read attempts instead of asking the disc — secure mode
+would be worthless.
+
+| ioctl | for |
 |---|---|
-| `DKIOCCDREADTOC` | Inhaltsverzeichnis, Format 5 liefert CD-TEXT |
-| `DKIOCCDREAD` | rohe CDDA-Sektoren zu 2352 Byte |
-| `DKIOCCDREADISRC` / `…MCN` | ISRC je Spur, Barcode der Scheibe |
-| `DKIOCCDGETSPEED` / `…SET…` | Lesegeschwindigkeit |
+| `DKIOCCDREADTOC` | table of contents, format 5 delivers CD-TEXT |
+| `DKIOCCDREAD` | raw CDDA sectors of 2352 bytes |
+| `DKIOCCDREADISRC` / `…MCN` | ISRC per track, barcode of the disc |
+| `DKIOCCDGETSPEED` / `…SET…` | read speed |
 
-Die TOC gibt es einfacher: als IOKit-Eigenschaft `TOC` am `IOCDMedia`-Objekt,
-ohne das Gerät zu öffnen.
+The TOC is simpler to get: as the IOKit property `TOC` on the `IOCDMedia`
+object, without opening the device.
 
-#### 6.1.1 Fallstricke
+#### 6.1.1 Pitfalls
 
-**Swift sieht die `_IOWR`-Makros nicht.** Fehlermeldung:
-`macro 'DKIOCCDREAD' unavailable: structure not supported` — weil `_IOWR` die
-Größe eines C-Structs einrechnet. Dieselbe Stolperstelle wie beim
-TagLib-Bildmakro. Lösung: `Vendor/cdshim/` mit einem Header, der die Werte als
-Konstanten herüberreicht. Die Structs selbst sieht Swift von sich aus.
+**Swift does not see the `_IOWR` macros.** Error message:
+`macro 'DKIOCCDREAD' unavailable: structure not supported` — because `_IOWR`
+folds in the size of a C struct. The same stumbling block as the TagLib
+picture macro. Solution: `Vendor/cdshim/` with a header that hands the values
+over as constants. Swift sees the structs themselves on its own.
 
-**`bufferLength` beim Rücksprung prüfen, nicht nur den Rückgabewert.** Das
-Test-Laufwerk (ASUS BW-16D1X-U) meldet auf die Anfrage nach Nutzdaten *und*
-C2-Zeigern Erfolg und füllt 1176 von 10584 Byte. Wer das nicht prüft, schreibt
-uninitialisierten Speicher als Audio in die Datei.
+**Check `bufferLength` on return, not just the return value.** The test drive
+(ASUS BW-16D1X-U) reports success when asked for payload *and* C2 pointers
+and fills 1176 of 10584 bytes. Whoever does not check writes uninitialized
+memory into the file as audio.
 
-**C2 ist nicht verlässlich, und keine Vorabprüfung reicht.** Gemessen an einem
-Gerät: die Vorabprüfung an Spur 1 bestanden, mitten in Spur 3 dann 6468 statt
-15876 Byte. Dieselbe Anfrage liefert mal die volle Menge, mal ein Achtel. Daraus
-folgen zwei Ebenen:
+**C2 is not reliable, and no upfront check is enough.** Measured on one
+device: the upfront check on track 1 passed, then in the middle of track 3
+6468 instead of 15876 bytes. The same request delivers the full amount one
+time and an eighth the next. Two levels follow from this:
 
-1. `CDDrive.supportsC2` prüft an drei Stellen mit drei Blockgrößen und
-   vergleicht **den Inhalt** gegen ein gewöhnliches Lesen — die gemeldete
-   Länge allein genügt nicht.
-2. `CDReader` gibt im laufenden Betrieb nach: ein unbrauchbares C2-Lesen
-   schaltet C2 für den Rest des Durchgangs ab, statt abzubrechen. Das
-   Protokoll vermerkt es.
+1. `CDDrive.supportsC2` checks at three positions with three block sizes and
+   compares **the content** against an ordinary read — the reported length
+   alone is not enough.
+2. `CDReader` gives way during operation: an unusable C2 read switches C2 off
+   for the rest of the pass instead of aborting. The log notes it.
 
-**ISRC nur als Satz lesen, nie einzeln.** `DKIOCCDREADISRC` liefert am
-Testlaufwerk für Spur 2 mal deren eigene Kennung, mal die von Spur 1 — und der
-veraltete Wert kommt **stabil** zurück. Erfolglos versucht: zweimal lesen und
-Übereinstimmung verlangen (beide Antworten sind dann gleich falsch), die Spur
-vorher anfahren, wechselnde Lesepositionen, eine andere Spur dazwischen
-abfragen. Der Q-Subchannel wäre die saubere Quelle, aber dasselbe Laufwerk
-liefert auf `kCDSectorAreaSubChannelQ` Audiodaten statt Subchannel — volle
-Länge gemeldet, PCM im Puffer.
+**Read ISRCs only as a set, never one by one.** On the test drive,
+`DKIOCCDREADISRC` returns for track 2 sometimes its own code, sometimes track
+1's — and the stale value comes back **consistently**. Tried without success:
+reading twice and demanding agreement (both answers are then equally wrong),
+seeking to the track first, varying read positions, querying another track in
+between. The Q subchannel would be the clean source, but the same drive
+returns audio data for `kCDSectorAreaSubChannelQ` instead of subchannel —
+full length reported, PCM in the buffer.
 
-Der Fehler hat aber eine Signatur: eine Spur bekommt die Kennung ihrer
-Vorgängerin, im Satz steht also ein Wert doppelt — und welcher der falsche ist,
-lässt sich nicht entscheiden. `readISRCs(for:)` liest deshalb alle Spuren,
-verwirft den ganzen Satz bei einem Duplikat und liest neu. Über sechs
-Messdurchgänge: zweimal alle vierzehn richtig, viermal verworfen, **keine
-einzige falsche Kennung durchgelassen**. Eine falsche ISRC im Tag fällt
-niemandem auf, eine fehlende schon.
+The error does have a signature, though: a track gets its predecessor's code,
+so one value appears twice in the set — and which one is wrong cannot be
+decided. `readISRCs(for:)` therefore reads all tracks, discards the whole set
+on a duplicate and reads again. Over six measuring runs: all fourteen right
+twice, discarded four times, **not a single wrong code let through**. A wrong
+ISRC in the tag goes unnoticed, a missing one does not.
 
-Die **MCN** ist davon nicht betroffen und zusätzlich bestätigt: der ioctl liefert
-`0885470015767`, und dasselbe steht im UPC-Feld des CD-TEXT — zwei unabhängige
-Quellen derselben Scheibe.
+The **MCN** is not affected and additionally confirmed: the ioctl returns
+`0885470015767`, and the same is in the UPC field of the CD-TEXT — two
+independent sources on the same disc.
 
-**CD-TEXT ist Latin-1, nicht UTF-8.** Als UTF-8 gelesen wird „Großvater" zu
-„Gro�vater". Der Zeichensatz steht im Size-Info-Paket (0x8F).
+**CD-TEXT is Latin-1, not UTF-8.** Read as UTF-8, "Großvater" becomes
+"Gro�vater". The character set is in the size info pack (0x8F).
 
-### 6.2 CD-Erkennung
+### 6.2 Identifying the disc
 
-Kette von genau nach ungenau:
+A chain from exact to inexact:
 
-1. **MusicBrainz Disc ID** — SHA-1 über TOC-Werte, Base64 mit `._-`. Trifft
-   genau diese Pressung. Geprüft gegen das offizielle Rechenbeispiel
-   (`49HHV7Eb8UKF3aQiNmu1GR8vKTY-`), nicht bloß behauptet.
-2. **TOC-Suche** (`/discid/-?toc=…`) — unschärfer, mehrere Treffer.
-3. **CD-TEXT** — steht auf der Scheibe, kostet kein Netz.
-4. **Von Hand** oder unbenannt rippen und im Tag-Modus nacharbeiten.
+1. **MusicBrainz disc ID** — SHA-1 over TOC values, Base64 with `._-`. Hits
+   exactly this pressing. Checked against the official worked example
+   (`49HHV7Eb8UKF3aQiNmu1GR8vKTY-`), not merely claimed.
+2. **TOC search** (`/discid/-?toc=…`) — less exact, several results.
+3. **CD-TEXT** — on the disc itself, costs no network.
+4. **By hand**, or rip unnamed and finish in tag mode.
 
-Stufe 3 ist keine Notlösung: die Testscheibe („Peter und der Wolf", Malte Arkona
-/ Dresdner Philharmonie) steht **weder** unter ihrer Disc ID **noch** unter
-ihrem Barcode bei MusicBrainz, trägt aber vollständiges CD-TEXT mit Titeln,
-Interpreten und Komponist. Ohne CD-TEXT wäre diese CD nicht zu identifizieren.
+Step 3 is no makeshift: the test disc ("Peter und der Wolf", Malte Arkona /
+Dresdner Philharmonie) is **neither** under its disc ID **nor** under its
+barcode at MusicBrainz, but carries complete CD-TEXT with titles, artists and
+composer. Without CD-TEXT this CD could not be identified.
 
-Nebenbei fällt die FreeDB-Kennung ab; sie steht im Protokoll.
+The FreeDB identifier comes as a by-product; it goes into the log.
 
-### 6.2.1 Welche Felder die Quellen wirklich füllen
+### 6.2.1 Which fields the sources really fill
 
-Nachgemessen, bevor ein Feld gebaut wurde — ein Eingabefeld, das nie etwas
-bekommt, ist schlimmer als keins.
+Measured before a field was built — an input field that never receives
+anything is worse than none.
 
-| Feld | CD-TEXT | MusicBrainz |
+| Field | CD-TEXT | MusicBrainz |
 |---|---|---|
-| Album, Interpret, Titel | ja | ja |
-| Komponist | ja (Album und je Track) | nein |
-| Interpret **je Track** | ja | ja (Track-Credits) |
-| Jahr | nein | ja |
-| Genre | nein | ja — **aber nur über die Release-Group** |
-| CD-Nummer bei Mehrfachausgaben | nein | ja |
+| Album, artist, title | yes | yes |
+| Composer | yes (album and per track) | no |
+| Artist **per track** | yes | yes (track credits) |
+| Year | no | yes |
+| Genre | no | yes — **but only via the release group** |
+| Disc number for multi-disc sets | no | yes |
 
-**Genres hängen nicht am Release.** Gemessen: selbst „Nevermind" führt am
-Release keine Genres, an der Release-Group sieben. Ohne
-`inc=…+release-groups` und den Rückgriff auf `releaseGroup.genres` bliebe das
-Genrefeld fast immer leer. Der Disc-ID-Weg liefert die Gruppe mit.
+**Genres do not hang off the release.** Measured: even "Nevermind" has no
+genres on the release, seven on the release group. Without
+`inc=…+release-groups` and the fallback to `releaseGroup.genres` the genre
+field would almost always stay empty. The disc ID route delivers the group
+too.
 
-**Der Interpret je Track ist keine Spielerei.** Auf der Testscheibe tragen vier
-von vierzehn Tracks einen anderen Interpreten als das Album — Klassik und
-Sampler sind voll davon. Er wandert in `artist`, während `albumArtist` der der
-Scheibe bleibt.
+**The artist per track is no gimmick.** On the test disc four of fourteen
+tracks carry an artist different from the album — classical music and
+compilations are full of it. It goes into `artist`, while `albumArtist` stays
+that of the disc.
 
-### 6.3 Was umgesetzt ist
+### 6.3 What is implemented
 
-| Funktion | Stand |
+| Function | Status |
 |---|---|
-| Burst und sicherer Modus | umgesetzt |
-| Wiederholungen mit Mehrheitsentscheid | umgesetzt |
-| Leseversatz | umgesetzt, byte-genau geprüft |
-| Doppelrip mit Prüfsummenvergleich | umgesetzt |
-| Lesegeschwindigkeit | umgesetzt |
-| MCN, CD-TEXT | umgesetzt |
-| ISRC | umgesetzt, mit Verwerfen unstimmiger Sätze — siehe §6.1.1 |
-| C2 | umgesetzt, mit Rückfall — vom Testlaufwerk nicht geliefert |
-| Protokoll, Cue Sheet | umgesetzt |
-| Automatischer Leseversatz | **nicht** — die Modellliste gehört AccurateRip |
-| AccurateRip | **offen**, siehe §6.6 |
-| cdparanoia als Modus | **verworfen** — zweiter Vendor-Build ohne Mehrwert |
+| Burst and secure mode | implemented |
+| Retries with majority vote | implemented |
+| Read offset | implemented, checked to the byte |
+| Second pass with checksum comparison | implemented |
+| Read speed | implemented |
+| MCN, CD-TEXT | implemented |
+| ISRC | implemented, with discarding inconsistent sets — see §6.1.1 |
+| C2 | implemented, with fallback — not delivered by the test drive |
+| Log, cue sheet | implemented |
+| Automatic read offset | **no** — the list of models belongs to AccurateRip |
+| AccurateRip | **open**, see §6.6 |
+| cdparanoia as a mode | **rejected** — a second vendor build without added value |
 
-Der sichere Modus liest jeden Block zweimal. Weichen die Ergebnisse ab, wird bis
-`maxRetries` wiederholt; zwei übereinstimmende Lesungen beenden die Sache, sonst
-entscheidet eine byteweise Mehrheit. Stellen ohne echte Mehrheit gelten als
-ungeklärt und stehen im Protokoll.
+Secure mode reads every block twice. If the results differ, reading is
+repeated up to `maxRetries`; two matching reads settle it, otherwise a
+bytewise majority decides. Positions without a real majority count as
+unresolved and go into the log.
 
-**Versatzkorrektur:** Ein Laufwerk mit Versatz `o` liefert auf die Anfrage nach
-Position `p` das Sample `p + o`. Wer ab `start` will, fragt ab `start − o`. Vor
-Sektor 0 und hinter dem Lead-Out wird mit Stille aufgefüllt.
+**Offset correction:** a drive with offset `o` delivers sample `p + o` when
+asked for position `p`. Whoever wants it from `start` asks from `start − o`.
+Before sector 0 and beyond the lead-out the gap is filled with silence.
 
-### 6.4 Verifikation
+### 6.4 Verification
 
-Zwei unabhängige Gegenproben, beide in der Testsuite:
+Two independent counter-checks, both in the test suite:
 
-1. **Gegen macOS selbst.** Das gemountete CDDA-Dateisystem zeigt dieselben
-   Spuren als AIFC (`sowt` = little-endian, Nutzdaten ab Byte 2352). Roh
-   gelesen und dort gelesen stimmen byteweise überein — über den ganzen
-   Durchstich einschließlich `RipEngine` und WAV-Datei.
-2. **Versatz gegen sich selbst.** Ein Versatz von genau einem Sektor muss
-   dasselbe ergeben wie ein um einen Sektor verschobenes Lesen; ein Versatz von
-   6 Samples muss auf 24 Byte genau treffen. Beides geprüft.
+1. **Against macOS itself.** The mounted CDDA file system shows the same
+   tracks as AIFC (`sowt` = little-endian, payload from byte 2352). Read raw
+   and read there, they match byte for byte — across the whole route
+   including `RipEngine` and the WAV file.
+2. **Offset against itself.** An offset of exactly one sector has to give the
+   same as a read shifted by one sector; an offset of 6 samples has to hit
+   exactly 24 bytes. Both checked.
 
-Die Prüfungen am Gerät werden übersprungen, wenn keine CD eingelegt ist — sie
-dürfen die Suite nicht rot färben, nur weil kein Laufwerk hängt.
+The checks on the device are skipped when no CD is inserted — they must not
+turn the suite red just because no drive is connected.
 
-### 6.5 Ausgabe
+### 6.5 Output
 
-**Zielformat frei wählbar.** Gelesen wird immer roh; was daraus wird, entscheidet
-die Einstellung:
+**Target format freely selectable.** Reading is always raw; what it becomes
+is decided by the setting:
 
-- **WAV** — direkt von der Scheibe geschrieben, ffmpeg wird nicht gebraucht.
-- **alles andere** — das WAV ist Zwischenstand und wird durch dieselbe Pipeline
-  geschickt wie der Konvertieren-Bereich (`ConversionPlanner` +
-  `ConversionQueue`, `keepsOriginals = false`). Kein zweiter Konverter, keine
-  zweite Fehlerquelle. `ripBlocker` sperrt den Start, wenn ffmpeg oder der
-  Encoder fehlt — mit dem Hinweis, dass WAV auch ohne geht.
+- **WAV** — written straight from the disc, ffmpeg is not needed.
+- **anything else** — the WAV is an intermediate and goes through the same
+  pipeline as the Convert section (`ConversionPlanner` + `ConversionQueue`,
+  `keepsOriginals = false`). No second converter, no second source of errors.
+  `ripBlocker` locks starting when ffmpeg or the encoder is missing — with
+  the hint that WAV works without.
 
-Geprüft an der Testscheibe: gerippt nach FLAC, dekodiert bitgenau zu dem, was
-macOS von derselben Spur liest (`MD5 2070ab26…` auf beiden Seiten).
+Checked on the test disc: ripped to FLAC, decodes bit-exact to what macOS
+reads from the same track (`MD5 2070ab26…` on both sides).
 
-**Dateinamen** entstehen aus demselben Muster wie beim Konvertieren
-(`%track% - %title%`, Voreinstellung). Wichtig: **Muster und Tags kommen aus
-derselben Quelle** — sonst heißt die Datei anders, als in ihr steht. Bleibt vom
-Muster nichts übrig, weil etwa der Titel fehlt, fällt es auf die zweistellige
-Tracknummer zurück.
+**File names** come from the same pattern as when converting
+(`%track% - %title%`, default). Important: **pattern and tags come from the
+same source** — otherwise the file is named differently from what it
+contains. If nothing is left of the pattern, because the title is missing,
+say, it falls back to the two-digit track number.
 
-Die fertigen Dateien landen in derselben Trackliste wie alles andere.
+The finished files land in the same track list as everything else.
 
-Daneben optional Protokoll und Cue Sheet. Das Protokoll sagt ausdrücklich, was
-**nicht** geprüft wurde: ohne Abgleich gegen fremde Rips ist die Aussage eine
-über Wiederholbarkeit, nicht über Richtigkeit.
+Alongside, optionally, log and cue sheet. The log says explicitly what was
+**not** checked: without comparing against other people's rips, the
+statement is one about repeatability, not about correctness.
 
-#### 6.5.1 Auswerfen
+#### 6.5.1 Ejecting
 
-`diskutil eject` genügt **nicht**. Es gibt das Medium nur logisch frei: das
-Volume verschwindet aus dem Finder, das Laufwerk meldet danach „No Media
-Inserted" — und die Schublade bleibt zu, die Scheibe liegt weiter drin. Am
-Testgerät (ASUS BW-16D1X-U über USB) so beobachtet und nachgemessen.
+`diskutil eject` is **not** enough. It only releases the medium logically:
+the volume disappears from the Finder, the drive then reports "No Media
+Inserted" — and the tray stays shut, the disc is still inside. Observed and
+measured on the test device (ASUS BW-16D1X-U over USB).
 
-Deshalb zwei Schritte in `RipEngine.eject`:
+Hence two steps in `RipEngine.eject`:
 
-1. `diskutil unmount` — das Volume sauber freigeben, damit macOS keine
-   unsaubere Entnahme meldet. Auf das Ende des Prozesses wird gewartet.
-2. `drutil tray eject` — die Lade wirklich öffnen.
+1. `diskutil unmount` — release the volume cleanly, so that macOS reports no
+   improper removal. The process is waited for.
+2. `drutil tray eject` — really open the tray.
 
-Nachweis, dass Schritt 2 wirkt: nach dem Auswerfen bringt `drutil tray close`
-das Medium mit der typischen Anlaufzeit von rund zehn Sekunden zurück. Eine
-geschlossene Lade zu schließen tut das nicht.
+Proof that step 2 works: after ejecting, `drutil tray close` brings the
+medium back with the typical spin-up time of about ten seconds. Closing a
+closed tray does not do that.
 
-`drutil` spricht das voreingestellte Laufwerk an. Bei mehreren optischen
-Laufwerken am selben Rechner träfe es womöglich das falsche — selten genug, um
-es nicht aufzulösen.
+`drutil` addresses the default drive. With several optical drives on the same
+machine it might hit the wrong one — rare enough not to resolve it.
 
-#### 6.5.2 Laufwerk nicht unnötig wecken
+#### 6.5.2 Not waking the drive needlessly
 
-`RipEngine.inspect()` ist teuer: Gerät öffnen, CD-TEXT, MCN, **jede** ISRC —
-wofür jede Spur angefahren wird — und drei C2-Proben. Sekundenlange Arbeit am
-Laufwerk.
+`RipEngine.inspect()` is expensive: opening the device, CD-TEXT, MCN,
+**every** ISRC — for which every track is sought — and three C2 probes.
+Seconds of work on the drive.
 
-Der `DiscWatcher` hängt an `AppState` und überlebt damit den Rip-Bereich. Ohne
-Bremse liefe `inspect()` bei **jedem** Ein- und Aushängen irgendeines Volumes —
-ein USB-Stick im Tag-Bereich würde die CD anwerfen. Der Beobachter prüft
-deshalb den aktiven Modus, bevor er etwas tut; beim Wechsel in den Rip-Bereich
-liest die Ansicht ohnehin frisch ein.
+The `DiscWatcher` hangs off `AppState` and thus outlives the Rip section.
+Without a brake, `inspect()` would run on **every** mounting and unmounting
+of any volume — a USB stick in the Tag section would spin up the CD. The
+watcher therefore checks the active mode before doing anything; when
+switching to the Rip section the view reads everything freshly anyway.
 
-#### 6.5.3 Schublade schließt von allein
+#### 6.5.3 The tray closes by itself
 
-Kein Fehler und nicht von Sleeve: das Testlaufwerk zieht die Lade nach rund
-**50 Sekunden** von selbst wieder ein. Zweimal gemessen, bei beendeter App und
-mit einem Detektor, der das Laufwerk nicht anfasst (Existenz des Knotens
-`/dev/diskN`, kein IOKit, keine I/O).
+Not a bug and not caused by Sleeve: the test drive pulls the tray back in by
+itself after about **50 seconds**. Measured twice, with the app quit and with
+a detector that does not touch the drive (existence of the node
+`/dev/diskN`, no IOKit, no I/O).
 
-Der erste Messversuch zeigte fälschlich auf eine IOKit-Abfrage — weil die
-Prüfung selbst `availableDrives()` aufrief und damit genau das tat, was sie
-untersuchen sollte. Ein Detektor, der Teil des Verdachts ist, taugt nicht.
+The first measuring attempt wrongly pointed at an IOKit query — because the
+check itself called `availableDrives()` and thus did exactly what it was
+supposed to investigate. A detector that is part of the suspicion is useless.
 
-#### 6.5.4 Formularzeilen: was `Form` erzwingt
+#### 6.5.4 Form rows: what `Form` enforces
 
-Zwei Eigenheiten, beide gemessen statt hergeleitet — und beide nicht durch
-Nachdenken zu finden:
+Two quirks, both measured rather than derived — and neither to be found by
+thinking:
 
-**Der Inhaltsplatz einer Form-Zeile ist rechtsbündig und bekommt nur seine
-Wunschbreite.** Bei einem Textfeld wächst die mit dem Inhalt. Folge: jedes
-Titelfeld eine andere Breite, der Text rechts angeschlagen, und ein langer
-Titel sprengt die Zeilenhöhe. `frame(maxWidth: .infinity)` hilft nicht — weder
-am Feld noch an der umgebenden `HStack`.
+**The content slot of a form row is right-aligned and only gets its desired
+width.** For a text field that grows with the content. Result: every title
+field a different width, the text aligned right, and a long title blows up
+the row height. `frame(maxWidth: .infinity)` does not help — neither on the
+field nor on the surrounding `HStack`.
 
-Abhilfe: die Zeile in den **Beschriftungs**-Platz legen, der ist linksbündig
-und lässt den Inhalt die Breite füllen. Die Dauer wandert in den Inhaltsplatz.
+Remedy: put the row into the **label** slot, which is left-aligned and lets
+the content fill the width. The duration moves to the content slot.
 
-**`.textFieldStyle(.roundedBorder)` setzt seine eigene Breite durch** und
-ignoriert `frame(maxWidth:)`. Wo Felder gleich breit sein sollen, wird die
-Optik selbst gezeichnet (schlichtes Feld auf abgerundetem Hintergrund) — so
-macht es die Trackliste ohnehin schon.
+**`.textFieldStyle(.roundedBorder)` insists on its own width** and ignores
+`frame(maxWidth:)`. Where fields should have equal widths, the look is drawn
+by hand (a plain field on a rounded background) — as the track list already
+does.
 
-Dasselbe Muster in klein bei den beschrifteten Feldern: `LabeledContent`
-klappt den Inhalt unter die Beschriftung, sobald dessen Wunschbreite nicht
-mehr passt. Deshalb dort eine feste Beschriftungsspalte (`Row`).
+The same pattern in small for the labelled fields: `LabeledContent` folds the
+content below the label as soon as its desired width no longer fits. Hence a
+fixed label column there (`Row`).
 
-#### 6.5.5 Bedienung
+#### 6.5.5 Controls
 
-Zwei Dinge stehen bewusst **nicht** im Formular:
+Two things are deliberately **not** in the form:
 
-- **Der Startknopf** sitzt links in der Werkzeugleiste, an derselben Stelle, an
-  der die anderen Modi „Speichern" zeigen. Unten in einem langen Formular
-  scrollt der wichtigste Knopf aus dem Bild.
-- **Der Fortschritt** steht in der Fußzeile. Im Formular verschwindet er genau
-  dann, wenn man die Trackliste durchsieht — also wenn man ihn sehen will.
+- **The start button** sits on the left of the toolbar, in the same place
+  where the other modes show "Save". At the bottom of a long form the most
+  important button scrolls out of view.
+- **Progress** is in the footer. In the form it disappears exactly when one
+  looks through the track list — that is, when one wants to see it.
 
-Im Formular selbst: Kästchen statt Schalter bei der Trackauswahl, kurze
-Beschriftungen mit Erklärung am Mauszeiger (ausgeschriebene Sätze werden in
-Knöpfen und Auswahlmenüs abgeschnitten), und dieselbe Feldanmutung wie im
-Tag-Bereich — beschriftete Zeile, Eingabefeld mit Rahmen.
+In the form itself: checkboxes instead of switches for the track selection,
+short labels with the explanation on the mouse pointer (full sentences get
+cut off in buttons and pickers), and the same field look as in the Tag
+section — a labelled row, an input field with a border.
 
-### 6.9 Abbild der ganzen Scheibe
+### 6.9 Image of the whole disc
 
-**Kein ISO.** Nachgemessen an der Testscheibe: bei Sektor 16, wo der
-ISO-9660-Volume-Descriptor stünde, liegen Audio-Samples statt der Kennung
-`CD001`. Eine Audio-CD trägt kein Dateisystem. Und von den 2352 Byte eines
-CDDA-Sektors sind alle 2352 Audio — ein ISO-Container mit seinen 2048 Byte
-Nutzdaten würde ein Achtel wegwerfen (529 MiB gegenüber 461 MiB bei dieser
-Scheibe). Geschrieben wird stattdessen ein durchgehender Audiostrom plus Cue
-Sheet.
+**No ISO.** Measured on the test disc: at sector 16, where the ISO 9660
+volume descriptor would be, there are audio samples instead of the identifier
+`CD001`. An audio CD carries no file system. And of the 2352 bytes of a CDDA
+sector all 2352 are audio — an ISO container with its 2048 bytes of payload
+would throw away an eighth (529 MiB compared to 461 MiB for this disc).
+Instead, one continuous audio stream plus a cue sheet is written.
 
-**Wo es sitzt:** in der **Ablage**, nicht im Rip-Bereich. Dort wählt man Spuren
-aus; ein Abbild ist immer die ganze Scheibe, die beiden schließen sich aus.
-Und nicht im Sleeve-Menü — das gehört bei macOS dem Programm selbst. Die
-Oberfläche ist ein Blatt am Hauptfenster, kein eigenes Fenster: der Vorgang
-hängt an der eingelegten Scheibe, die das Fenster ohnehin zeigt.
+**Where it lives:** in the **File** menu, not in the Rip section. There one
+picks tracks; an image is always the whole disc, the two exclude each other.
+And not in the Sleeve menu — on macOS that belongs to the program itself. The
+UI is a sheet on the main window, not a window of its own: the process
+depends on the inserted disc, which the window shows anyway.
 
-Die Leseeinstellungen sind an dieselben Werte gebunden wie der Rip-Bereich.
-Zwei Sätze davon wären eine sichere Fehlerquelle; dass ein Regler an zwei
-Stellen auftaucht, ist dagegen üblich.
+The read settings are bound to the same values as the Rip section. Two sets
+of them would be a sure source of errors; a control appearing in two places,
+on the other hand, is common.
 
-**Formate:** `bin` (roh), `wav` (roh mit Kopf), `flac` (über die bestehende
-Konverter-Pipeline). Der Dateityp im Cue Sheet folgt daraus — `BINARY` für
-BIN, sonst `WAVE`. Steht dort der falsche, sucht das Abspielprogramm die
-Trackgrenzen um 44 Byte verschoben.
+**Formats:** `bin` (raw), `wav` (raw with header), `flac` (via the existing
+converter pipeline). The file type in the cue sheet follows from that —
+`BINARY` for BIN, otherwise `WAVE`. If the wrong one is there, the player
+looks for the track boundaries shifted by 44 bytes.
 
-**Gelesen wird strömend.** `CDReader.readContiguous` reicht Blöcke weiter,
-statt sie zu sammeln: eine CD sind rund 550 MB, die erst vollständig in den
-Speicher zu legen wäre verschwendet. Die Prüfsumme wird dabei fortgeschrieben
-(`CRC32.continue_`/`finish`) — geprüft, dass das Ergebnis mit der am Stück
-berechneten übereinstimmt.
+**Reading streams.** `CDReader.readContiguous` passes blocks on instead of
+collecting them: a CD is about 550 MB, and putting all of it into memory
+first would be wasteful. The checksum is continued along the way
+(`CRC32.continue_`/`finish`) — checked to match the one computed in one go.
 
-**Datenspuren werden abgelehnt**, nicht mitgeschrieben. Eine Datenspur roh
-auszulesen ist nicht, wofür dieser Modus da ist (§6.8).
+**Data tracks are refused**, not written along. Extracting a data track raw
+is not what this mode is for (§6.8).
 
-#### Welches Format wofür
+#### Which format for what
 
-Gemessen mit VLC 3.0.23 auf demselben Rechner:
+Measured with VLC 3.0.23 on the same machine:
 
-| Datei | VLC wählt den Demuxer |
+| File | VLC picks the demuxer |
 |---|---|
-| `.bin` | `ps` (MPEG-Programmstrom) — geraten, nicht erkannt |
-| `.cue` | `ps` — VLC versteht keine Cue Sheets |
-| `.wav` | `wav` — richtig |
+| `.bin` | `ps` (MPEG program stream) — guessed, not recognized |
+| `.cue` | `ps` — VLC does not understand cue sheets |
+| `.wav` | `wav` — right |
 
-Auch `ffprobe` kann mit der rohen `.bin` nichts anfangen (`Invalid data found
-when processing input`); erst mit `-f s16le -ar 44100 -ch_layout stereo`
-kommen die erwarteten 20,000000 s heraus. Das ist kein Mangel des Abbilds,
-sondern die Natur einer kopflosen Datei: sie sagt niemandem, was sie ist.
+`ffprobe` cannot make anything of the raw `.bin` either (`Invalid data found
+when processing input`); only with `-f s16le -ar 44100 -ch_layout stereo`
+do the expected 20.000000 s come out. That is no flaw of the image but the
+nature of a headerless file: it tells nobody what it is.
 
-XLD meldet `.cue` beim System an, `.bin` nicht — man öffnet also das Cue
-Sheet, nicht die Rohdatei.
+XLD registers `.cue` with the system, `.bin` not — so one opens the cue
+sheet, not the raw file.
 
-Daraus folgt ein Hinweis unter der Formatwahl (`DiscImageFormat.hint`): BIN
-ist zum Archivieren und Brennen, WAV und FLAC zum Hören. Ohne ihn wählt man
-BIN — „roh, wie auf der CD" klingt nach der treuesten Wahl, und das ist sie
-auch — und wundert sich dann, dass sich nichts abspielen lässt. Genau so kam
-die Frage auf.
+Hence a hint below the format picker (`DiscImageFormat.hint`): BIN is for
+archiving and burning, WAV and FLAC for listening. Without it one picks BIN —
+"raw, as on the CD" sounds like the most faithful choice, and it is — and then
+wonders why nothing plays. That is exactly how the question came up.
 
-#### Nachweis
+#### Evidence
 
-Ein vollständiges Abbild der Testscheibe: 236218 Sektoren, 555 584 736 Byte
-plus 44 Byte WAV-Kopf, in 136 s bei Burst und Versatz +6. Anschließend drei
-Spuren quer über die Scheibe (1, 7, 14) aus dem Abbild geschnitten und mit
-einem frischen Einzelspur-Rip verglichen — **byteweise identisch**. `ffprobe`
-meldet `pcm_s16le`, 44100 Hz, 2 Kanäle, 3149,57 s gegenüber 52:30 aus der TOC.
+A complete image of the test disc: 236218 sectors, 555,584,736 bytes plus 44
+bytes of WAV header, in 136 s with burst and offset +6. Afterwards three
+tracks across the disc (1, 7, 14) cut out of the image and compared with a
+fresh single-track rip — **byte for byte identical**. `ffprobe` reports
+`pcm_s16le`, 44100 Hz, 2 channels, 3149.57 s against 52:30 from the TOC.
 
-#### Bekannte Einschränkung
+#### Known limitation
 
-Geschrieben wird nur `INDEX 01`. Wo genau eine Pause beginnt (`INDEX 00`),
-sagt die TOC nicht — dafür bräuchte es den Subchannel, den das Testlaufwerk
-nicht verlässlich liefert (§6.1.1). Lückenlos bleibt das Abbild trotzdem, weil
-nichts herausgeschnitten wird; nur die Pausenmarken fehlen im Cue Sheet.
+Only `INDEX 01` is written. Where exactly a pause begins (`INDEX 00`) the TOC
+does not say — that would need the subchannel, which the test drive does not
+deliver reliably (§6.1.1). The image stays gapless anyway, because nothing is
+cut out; only the pause markers are missing from the cue sheet.
 
-### 6.10 Zurückbrennen
+### 6.10 Burning back
 
-Über **DiscRecording**, ohne Fremdbibliothek. Die Zahlen passen ohne
-Umrechnung: `kDRBlockSizeAudio` ist 2352, also genau die Sektorgröße, mit der
-auch gelesen wird. Ein `DRTrack` je Spur, gefüttert von einem
-`DRTrackDataProduction`-Objekt, das die Bytes aus dem Abbild holt; gebrannt
-wird mit `kDRBurnStrategyCDSAO` — Session-at-once, damit die Übergänge
-lückenlos bleiben.
+Via **DiscRecording**, without a third-party library. The numbers fit without
+conversion: `kDRBlockSizeAudio` is 2352, exactly the sector size used for
+reading as well. One `DRTrack` per track, fed by a `DRTrackDataProduction`
+object that fetches the bytes from the image; burning uses
+`kDRBurnStrategyCDSAO` — session-at-once, so that the transitions stay
+gapless.
 
-**Adressen sind trackrelativ.** Apples Dokumentation zu
-`produceDataForTrack:…atAddress:` sagt es ausdrücklich: „the sector address on
-the disc **from the start of the track**". Nicht geraten, nachgelesen — ein
-Irrtum hier erzeugt eine Scheibe, auf der jede Spur versetzt beginnt.
+**Addresses are relative to the track.** Apple's documentation for
+`produceDataForTrack:…atAddress:` says so explicitly: "the sector address on
+the disc **from the start of the track**". Not guessed, looked up — a mistake
+here produces a disc on which every track starts shifted.
 
-**„Unsupported" ist kein Hindernis.** Das Testlaufwerk meldet
-`DRDeviceSupportLevelUnsupported`. Apples Header unterscheidet:
+**"Unsupported" is no obstacle.** The test drive reports
+`DRDeviceSupportLevelUnsupported`. Apple's header distinguishes:
 
-| Wert | Bedeutung laut Header |
+| Value | Meaning according to the header |
 |---|---|
-| `…LevelNone` | „the engine does not support the device and it **cannot be used**" |
-| `…LevelUnsupported` | „the device is unsupported but the engine **will try to use it anyway**" |
+| `…LevelNone` | "the engine does not support the device and it **cannot be used**" |
+| `…LevelUnsupported` | "the device is unsupported but the engine **will try to use it anyway**" |
 
-Nur `None` sperrt. `CDBurner.info(of:)` prüft deshalb genau darauf und nicht
-auf „ist es unterstützt".
+Only `None` locks. `CDBurner.info(of:)` therefore checks exactly that and not
+"is it supported".
 
-Das Laufwerk selbst kann, was gebraucht wird:
-`CD-Write: -R, -RW, BUFE, CDText, Test, IndexPts, ISRC`, Strategien
+The drive itself can do what is needed:
+`CD-Write: -R, -RW, BUFE, CDText, Test, IndexPts, ISRC`, strategies
 `CD-TAO, CD-SAO, CD-Raw`.
 
-### 6.10.1 Ungeprüft bis zum ersten Rohling
+### 6.10.1 Untested until the first blank
 
-**Die einzige Stelle in Sleeve, die nie an echter Hardware lief.** Alles andere
-ist gemessen — das Rohlesen gegen macOS' eigene Sicht, der Leseversatz auf das
-Byte, das Abbild gegen frische Einzelrips. Hier fehlte die leere Scheibe.
+**The only place in Sleeve that has never run on real hardware.** Everything
+else is measured — raw reading against macOS' own view, the read offset to
+the byte, the image against fresh single-track rips. Here the empty disc was
+missing.
 
-Geprüft ist der riskantere Teil:
+The riskier part is checked:
 
-| Was | Wie |
+| What | How |
 |---|---|
-| Cue-Sheet-Auswertung | Rundlauf: geschrieben, gelesen, alle 14 Startsektoren und Längen gegen die TOC |
-| Adressrechnung des Producers | Abbild aus erkennbaren Sektoren; Adresse 5 der Spur muss Sektor 15 liefern |
-| WAV-Kopf überspringen | 44 Byte Versatz in jeder Adresse |
-| Dateiende | über das Ende hinaus wird nichts erfunden |
-| Spurenaufbau | Summe der `DRTrack`-Längen deckt sich mit der TOC; Pause nur vor Spur 1 |
-| Laufwerkserkennung | am echten Gerät |
-| Ablehnung untauglicher Medien | am echten Gerät, **beide** Zweige: beschriebene Audio-CD und leerer Rohling vom falschen Typ |
+| Parsing the cue sheet | round trip: written, read, all 14 start sectors and lengths against the TOC |
+| The producer's address arithmetic | an image of recognizable sectors; address 5 of the track has to deliver sector 15 |
+| Skipping the WAV header | a 44-byte shift in every address |
+| End of file | nothing is invented beyond the end |
+| Track layout | the sum of the `DRTrack` lengths matches the TOC; a pause only before track 1 |
+| Drive detection | on the real device |
+| Refusing unsuitable media | on the real device, **both** branches: a written audio CD and an empty blank of the wrong type |
 
-Nicht geprüft: der `DRBurn`-Aufruf, das Verhalten des Laufwerks während des
-Schreibens, Pufferleerläufe, das Ergebnis.
+Not checked: the `DRBurn` call, the drive's behaviour while writing, buffer
+underruns, the result.
 
-**Eine DVD hilft dabei nicht.** Eine Audio-CD ist Red Book — CD-Format,
-2352-Byte-Sektoren, CDDA-Spuren, SAO. Auf DVD-Medien gibt es das nicht. Ein
-leerer DVD-Rohling schließt aber einen anderen Zweig, der in der Praxis
-häufiger vorkommt als der Brand selbst: **leeres Medium, falscher Typ.** An
-einer leeren DVD-R gemessen:
+**A DVD does not help with that.** An audio CD is Red Book — CD format,
+2352-byte sectors, CDDA tracks, SAO. None of that exists on DVD media. An
+empty DVD blank does, however, cover another branch that occurs more often in
+practice than the burn itself: **empty medium, wrong type.** Measured on an
+empty DVD-R:
 
 ```
-Typ (roh) : DRDeviceMediaTypeDVDR      leer: 1      frei: 2297888 Blöcke
-Meldung   : „Das ist eine DVD-R. Für eine Audio-CD braucht es einen
-             CD-R- oder CD-RW-Rohling."
-bereit    : false
+type (raw) : DRDeviceMediaTypeDVDR      blank: 1      free: 2297888 blocks
+message    : "This is a DVD-R. An audio CD needs a CD-R or CD-RW."
+ready      : false
 ```
 
-Die frühere Fassung sagte „Das ist kein beschreibbarer CD-Rohling" — bei einem
-leeren Rohling mit 4,38 GiB freiem Platz irreführend. Deshalb nennt
-`CDBurner.mediaName` das Medium jetzt beim Namen. Nebenbei: die
-Medientyp-Konstanten sind `CFString?` und taugen nicht als `case`-Muster in
-einem `switch`.
+The earlier version said "This is not a writable CD blank" — misleading for
+an empty blank with 4.38 GiB of free space. That is why `CDBurner.mediaName`
+now names the medium. By the way: the media type constants are `CFString?`
+and cannot serve as `case` patterns in a `switch`.
 
-**Beim ersten Rohling nachzuholen:**
+**To be done with the first blank:**
 
-1. Probelauf (`kDRBurnTestingKey`) — läuft der Ablauf durch, ohne zu schreiben?
-2. Kommen die Fortschrittswerte sinnvoll an?
-3. Echter Brand, dann die gebrannte Scheibe mit Sleeve wieder einlesen und die
-   Prüfsummen je Spur gegen das Abbild halten. Das ist der eigentliche
-   Nachweis — und er schließt die Adressrechnung mit ein.
-4. Stimmen die Trackgrenzen auf den Frame?
+1. Test run (`kDRBurnTestingKey`) — does the process run through without
+   writing?
+2. Do the progress values arrive sensibly?
+3. A real burn, then read the burned disc back in with Sleeve and hold the
+   checksums per track against the image. That is the actual proof — and it
+   includes the address arithmetic.
+4. Are the track boundaries right to the frame?
 
-Eine Stolperstelle beim Prüfen ist schon aufgefallen: **`DRMSF.frames()` ist
-der Frame-Anteil einer Zeitangabe (0–74), nicht die Gesamtzahl** — dafür ist
-`sectors()` da. Der erste Anlauf summierte über vierzehn Spuren 493 statt
-236218. Die Prüfung hat den Irrtum gefunden, bevor er in den Brennercode
-wandern konnte.
+One pitfall has already come up while checking: **`DRMSF.frames()` is the
+frame component of a time value (0–74), not the total** — that is what
+`sectors()` is for. The first attempt summed 493 instead of 236218 over
+fourteen tracks. The check found the mistake before it could make its way
+into the burner code.
 
-### 6.10.2 Bedienung
+### 6.10.2 Controls
 
-**Ablage → Abbild auf CD brennen…**, ein Blatt wie beim Erzeugen.
+**File → Burn Image to CD…**, a sheet as for creating.
 
-Der **Probelauf** ist der hervorgehobene Knopf, nicht der echte Brand: Laser
-aus, ganzer Ablauf, Rohling bleibt unbeschrieben und beliebig oft
-wiederverwendbar. Der echte Brand steht daneben und fragt nach — er ist die
-einzige Funktion in Sleeve, die etwas Materielles unwiderruflich verbraucht.
+The **test run** is the prominent button, not the real burn: laser off, the
+whole process, the blank stays unwritten and reusable as often as needed. The
+real burn sits next to it and asks for confirmation — it is the only function
+in Sleeve that irrevocably uses up something physical.
 
-Im Blatt steht sichtbar, dass dieser Teil nie an echter Hardware lief. Das
-gehört in die Oberfläche und nicht nur hierher.
+The sheet states visibly that this part has never run on real hardware. That
+belongs in the UI and not only here.
 
-FLAC-Abbilder werden vorher nach WAV ausgepackt — das Laufwerk nimmt nur rohes
-PCM. Die temporäre Datei verschwindet danach.
+FLAC images are unpacked to WAV first — the drive only takes raw PCM. The
+temporary file disappears afterwards.
 
-### 6.6 AccurateRip — offen
+### 6.6 AccurateRip — open
 
-Die Datenbank gehört Illustrate. Ob ein GPLv3-Programm sie anfragen darf, ist
-**vor der ersten Zeile Code** zu klären, nicht danach. Ohne sie fehlen zwei
-Dinge: der Abgleich gegen fremde Rips derselben Pressung und die Modellliste für
-den automatischen Leseversatz.
+The database belongs to Illustrate. Whether a GPLv3 program may query it has
+to be settled **before the first line of code**, not afterwards. Without it
+two things are missing: the comparison against other people's rips of the
+same pressing and the list of models for the automatic read offset.
 
-Der Doppelrip ersetzt den ersten Punkt teilweise — er zeigt, dass sich die
-Scheibe reproduzierbar lesen lässt, aber nicht, dass der Versatz stimmt.
+The second pass partly replaces the first point — it shows that the disc
+reads reproducibly, but not that the offset is right.
 
-### 6.7 Codec-Lizenzen
+### 6.7 Codec licenses
 
-Alle unproblematisch für GPLv3:
+All unproblematic for GPLv3:
 
-| Codec | Lage |
+| Codec | Situation |
 |---|---|
-| FLAC | BSD-artig, patentfrei |
-| MP3 | Patente 2017 ausgelaufen, LAME ist LGPL |
-| AAC / ALAC | AudioToolbox encodet systemseitig, Apple hat lizenziert |
+| FLAC | BSD-like, patent-free |
+| MP3 | patents expired in 2017, LAME is LGPL |
+| AAC / ALAC | AudioToolbox encodes on the system side, Apple has licensed it |
 | Opus / Vorbis | BSD |
 
-Falls doch irgendwann ffmpeg mitgeliefert wird: `--enable-gpl`-Build nehmen,
-dann ist LAME direkt drin und die GPLv3 passt.
+Should ffmpeg ever be shipped after all: use an `--enable-gpl` build, then
+LAME is right in there and the GPLv3 fits.
 
-### 6.8 Rechtliche Designregeln
+### 6.8 Legal design rules
 
-Kein Rechtsrat, nur die Punkte, die das Design bestimmen.
+No legal advice, only the points that shape the design.
 
-In Deutschland deckt §53 UrhG die Privatkopie: Kopien für den privaten Gebrauch
-sind zulässig, solange die Vorlage nicht offensichtlich rechtswidrig ist. Eine
-eigene gekaufte CD zu rippen fällt klar darunter.
+In Germany, §53 UrhG covers the private copy: copies for private use are
+allowed as long as the original is not obviously unlawful. Ripping a CD one
+has bought clearly falls under that.
 
-Der kritische Punkt ist **§95a: das Umgehen wirksamer technischer
-Schutzmaßnahmen** — verboten ist auch das Anbieten von Software, die das tut.
-Daraus folgen zwei harte Designregeln:
+The critical point is **§95a: circumventing effective technical protection
+measures** — offering software that does so is prohibited too. Two hard
+design rules follow from this:
 
-1. **Nur Standard-CDDA lesen.** Normale Audio-CDs haben keinen Kopierschutz,
-   das ist unkritisch. Kopiergeschützte Scheiben (ca. 2001–2006) lässt Sleeve
-   mit klarer Fehlermeldung scheitern — es wird nichts umgangen. Der Code liest
-   ausschließlich `kCDSectorTypeCDDA` und wertet das Control-Nibble aus;
-   Datenspuren werden übersprungen, nicht ausgelesen.
-2. **Keine DVDs, kein CSS, nichts in der Richtung.**
+1. **Read standard CDDA only.** Normal audio CDs have no copy protection;
+   that is uncritical. Sleeve lets copy-protected discs (roughly 2001–2006)
+   fail with a clear error message — nothing is circumvented. The code reads
+   `kCDSectorTypeCDDA` exclusively and evaluates the control nibble; data
+   tracks are skipped, not extracted.
+2. **No DVDs, no CSS, nothing in that direction.**
 
-Unter diesen Regeln ist Sleeve in derselben Position wie XLD, das seit Jahren
-unbehelligt existiert.
+Under these rules Sleeve is in the same position as XLD, which has existed
+unchallenged for years.
 
 ---
 
 ## 7. Track Splitter
 
-Eine lange Aufnahme an den Stillen dazwischen in einzelne Tracks zerlegen,
-ohne neu zu kodieren. **Ablage → In Tracks aufteilen…**
+Splitting a long recording into individual tracks at the silences between
+them, without re-encoding. **File → Split Into Tracks…**
 
-Stille-Erkennung und Randpuffer stammen aus dem Track Splitter in NeonRosts
-Werkzeugkoffer und sind dort über längere Zeit erprobt. Übernommen wurde das
-Erprobte, **nicht** die dortige Umgebung.
+Silence detection and edge buffer come from the Track Splitter in NeonRost's
+toolbox and have been proven there over a long time. What was taken over is
+what had proven itself, **not** the surroundings there.
 
-### 7.1 Der Kern heißt „schneide an diesen Positionen"
+### 7.1 The core is "cut at these positions"
 
-Nicht „finde Stille". Woher die Grenzen kommen, ist austauschbar: heute aus
-der Stille, später aus einem Cue Sheet (§9.1). Sonst stünde das Cue-Einlesen
-irgendwann als zweites Werkzeug daneben statt als weitere Quelle davor.
+Not "find silence". Where the boundaries come from is interchangeable: today
+from silence, later from a cue sheet (§9.1). Otherwise reading cue sheets
+would one day stand next to it as a second tool instead of being one more
+source in front of it.
 
-### 7.2 Was übernommen wurde und was nicht
+### 7.2 What was taken over and what was not
 
-| Aus dem Werkzeugkoffer | Lage in Sleeve |
+| From the toolbox | Status in Sleeve |
 |---|---|
-| `silencedetect`-Aufruf und Auswertung | übernommen |
-| Randpuffer 2 s | übernommen — Stille ganz am Anfang oder Ende ist Leerlauf |
-| Vorgaben −30 dB, 0,5 s | übernommen |
-| `-ss`/`-to` vor `-c copy` | übernommen |
-| ffmpeg als Tag-Schreiber samt Format-Tabelle | **nicht** — Sleeve taggt mit TagLib und kann dort mehr |
-| Mustersyntax `%n` / `%t` | **nicht** — Sleeve hat `%track%` und acht weitere |
-| Eigener Tag-Block für Interpret, Album, Cover | **nicht** — die Stücke landen in der Trackliste, das kann der Tag-Bereich besser |
+| `silencedetect` call and parsing | taken over |
+| Edge buffer 2 s | taken over — silence right at the start or end is dead air |
+| Defaults −30 dB, 0.5 s | taken over |
+| `-ss`/`-to` before `-c copy` | taken over |
+| ffmpeg as tag writer including its format table | **no** — Sleeve tags with TagLib and can do more there |
+| Pattern syntax `%n` / `%t` | **no** — Sleeve has `%track%` and eight more |
+| A tag block of its own for artist, album, cover | **no** — the pieces land in the track list, the Tag section does that better |
 
-**`-c copy` erbt die Tags der Quelle.** Was die ganze Aufnahme beschreibt —
-Interpret, Jahr, Genre —, darf bleiben. Was die **Quelldatei** beschreibt,
-nicht, und wird nach dem Schneiden über TagLib ersetzt bzw. gelöscht:
+**`-c copy` inherits the source's tags.** Whatever describes the whole
+recording — artist, year, genre — may stay. Whatever describes the **source
+file** may not, and is replaced or deleted via TagLib after cutting:
 
-| Tag | Warum |
+| Tag | Why |
 |---|---|
-| Titel | sonst hieße jedes Stück wie das ganze Album |
-| Tracknummer | wird neu vergeben, `n/gesamt` |
-| Kommentar | bei Downloads fast immer die Herkunfts-URL |
+| Title | otherwise every piece would be named like the whole album |
+| Track number | assigned anew, `n/total` |
+| Comment | for downloads almost always the URL it came from |
 
-Am echten Album-Video gemessen: ohne das trugen **alle 13 Stücke**
-`comment=https://www.youtube.com/watch?v=…` und den Albumtitel als Titel.
+Measured on the real album video: without this, **all 13 pieces** carried
+`comment=https://www.youtube.com/watch?v=…` and the album title as their
+title.
 
-### 7.3 Grenzen finden
+### 7.3 Finding boundaries
 
-Drei Regeln, jede an einem echten Album gemessen und jede gegen eine erste
-Fassung, die dort versagt hat. Gegengeprüft wurde an der Trackliste, die der
-Uploader des Albums angegeben hat (§7.11).
+Three rules, each measured on a real album and each against a first version
+that failed there. Cross-checked against the track list the album's uploader
+gave (§7.11).
 
-**1. Nichts wird verworfen.** Die Tracks liegen lückenlos aneinander, eine
-Pause gehört zum Ende des vorigen Tracks — wie bei CD-Rippern üblich. Die
-erste Fassung ließ die Pausen weg, und mit ihnen alles, was leiser als die
-Schwelle war: **66 s des Albums standen in keiner Datei**, darunter das leise
-Intro von „Slider" (sechs Sekunden bei −35 bis −49 dB). Jetzt ergeben die
-Stücke zusammen die Datei — auf die AAC-Rahmen genau.
+**1. Nothing is discarded.** The tracks lie against each other without gaps;
+a pause belongs to the end of the previous track — as is usual with CD
+rippers. The first version left out the pauses, and with them everything
+quieter than the threshold: **66 s of the album were in no file**, including
+the quiet intro of "Slider" (six seconds at −35 to −49 dB). Now the pieces add
+up to the file — exact to the AAC frames.
 
-**2. Geschnitten wird am Ende der tiefsten Stille**, nicht am Ende der
-Schwellen-Stille (`cutPosition`). Die Schwelle allein trennt nicht sauber: ein
-leises Intro liegt darunter und gehört trotzdem zum nächsten Stück. Bei
-„LR-7" endet die digitale Null bei 32:35, danach setzt das Intro ein, das
-immer wieder kurz unter −30 dB fällt — die Schwellen-Stille reichte bis 32:40.
-Als Boden gilt, was höchstens 6 dB über dem Tiefsten liegt oder unter −60 dB;
-gibt es mehrere Abschnitte, zählt der längste. Ohne Hüllkurve wird am Ende der
-Stille geschnitten.
+**2. The cut goes at the end of the deepest silence**, not at the end of the
+threshold silence (`cutPosition`). The threshold alone does not separate
+cleanly: a quiet intro lies below it and still belongs to the next piece. For
+"LR-7" the digital zero ends at 32:35, then the intro sets in, which keeps
+dipping briefly below −30 dB — the threshold silence reached to 32:40. The
+floor is whatever lies at most 6 dB above the deepest point or below −60 dB;
+if there are several stretches, the longest counts. Without an envelope the
+cut goes at the end of the silence.
 
-**3. Kurze Stücke gehen zu dem Nachbarn, dem sie näher liegen** (`thin`).
-Liegen zwischen zwei langen Tracks mehrere zu kurze, bleibt von den Schnitten
-dort genau einer: der an der längsten Pause.
+**3. Short pieces go to the neighbour they lie closer to** (`thin`). If
+several too-short pieces lie between two long tracks, exactly one of the cuts
+there remains: the one at the longest pause.
 
-| Fall | längste Pause | Ergebnis |
+| Case | longest pause | Result |
 |---|---|---|
-| Applaus direkt nach einem Live-Stück | danach | bleibt beim Stück |
-| zerklüftetes Intro nach langer Pause („LUV") | davor | gehört zum nächsten Stück |
+| Applause right after a live piece | after it | stays with the piece |
+| Jagged intro after a long pause ("LUV") | before it | belongs to the next piece |
 
-Die erste Fassung hängte alles an den Vorgänger — so gehörte das Intro von
-„LUV" zum Track davor, 15 s daneben.
+The first version attached everything to the predecessor — so the intro of
+"LUV" belonged to the track before, 15 s off.
 
-Dazu: Stillen, zwischen denen weniger als eine Sekunde klingt, gelten als eine
-(`bridge`) — ein Knacken in der Pause trennt sie nicht. Am Dateianfang und
--ende gibt es nur einen Nachbarn; kurze Stücke gehen dorthin. Voreinstellung
-für die Mindestlänge 10 s.
+Also: silences with less than a second of sound between them count as one
+(`bridge`) — a click in the pause does not split it. At the start and end of
+the file there is only one neighbour; short pieces go there. The default
+minimum length is 10 s.
 
-**Was keine Stille-Erkennung findet:** Übergänge ohne Pause. Bei „Lynch"
-springt der Pegel um 16:33 nur von −2 auf −20 dB, mehr nicht. Dafür gibt es
-„Hier teilen".
+**What no silence detection finds:** transitions without a pause. For
+"Lynch" the level at 16:33 only jumps from −2 to −20 dB, nothing more. That
+is what "Split here" is for.
 
-### 7.4 Album als Video
+### 7.4 Album as a video
 
-Ein heruntergeladenes „ganzes Album" ist oft ein **Video** — YouTube liefert
-Bild und Ton zusammen. Solche Dateien abzuweisen wäre falsch: die Tonspur
-lässt sich verlustfrei herausziehen.
+A downloaded "full album" is often a **video** — YouTube delivers picture and
+sound together. Rejecting such files would be wrong: the audio stream can be
+extracted losslessly.
 
-`-c copy` allein genügt dafür **nicht** — nachgemessen: bei einer MP4 kopiert
-es *beide* Spuren, die Stücke bleiben Videos mit h264 und AAC. Deshalb
-`-map 0:a:0 -c:a copy`, und der Behälter richtet sich nach dem Tonformat
-(`AudioSplitter.SourceInfo.outputExtension`): AAC und ALAC nach m4a, MP3 bleibt
-MP3, Vorbis nach ogg, rohes PCM nach wav. Aus einem Video wird nie wieder ein
-Video.
+`-c copy` alone is **not** enough for that — measured: with an MP4 it copies
+*both* streams, the pieces stay videos with h264 and AAC. Hence
+`-map 0:a:0 -c:a copy`, and the container follows the audio format
+(`AudioSplitter.SourceInfo.outputExtension`): AAC and ALAC to m4a, MP3 stays
+MP3, Vorbis to ogg, raw PCM to wav. A video never becomes a video again.
 
-Nachgewiesen: die so herausgezogene Tonspur ist mit der im Video
-**bitgleich** — gleiche MD5 über die Rohsamples, ohne Schnitt verglichen.
-(Mit Schnitt weichen sie ab, aber das ist der bekannte Frame-Rundungseffekt
-und kein Verlust.)
+Proven: the audio stream extracted this way is **bit-identical** to the one
+in the video — the same MD5 over the raw samples, compared without cutting.
+(With cutting they differ, but that is the known frame rounding effect and no
+loss.)
 
-Bei der Analyse spart `-vn` das Dekodieren des Bildes — bei einem
-stundenlangen Album-Video der Löwenanteil der Zeit.
+For analysis, `-vn` saves decoding the picture — the lion's share of the time
+for an album video lasting hours.
 
-### 7.5 Zielformat
+### 7.5 Target format
 
-Voreingestellt ist **wie die Quelle** — reiner Schnitt, nichts wird neu
-kodiert. Die Auswahl zeigt dabei die tatsächliche Endung mit („Wie die Quelle
-(M4A)"), damit man nicht raten muss.
+The default is **same as the source** — a pure cut, nothing is re-encoded.
+The picker shows the actual extension ("Same as the source (M4A)"), so that
+nobody has to guess.
 
-Jedes andere Format **kodiert neu**. Bei einer verlustbehafteten Quelle ist
-das ein zweiter Verlust, und das steht als Warnung in der Oberfläche, nicht im
-Kleingedruckten. Gewollt ist es trotzdem manchmal — eine MP3 für den
-Autoradio-Stick —, deshalb gibt es die Auswahl überhaupt.
+Every other format **re-encodes**. With a lossy source that is a second loss,
+and that is stated as a warning in the UI, not in the fine print. It is still
+wanted sometimes — an MP3 for the car radio stick — which is why the choice
+exists at all.
 
-Die Encoder-Auswahl kommt aus derselben Quelle wie beim Konvertieren
-(`FFmpegTool.encoder(for:)`), samt `-strict -2` für die nativen Opus- und
-Vorbis-Encoder. Fehlt der Encoder, sperrt der Knopf mit demselben Hinweis wie
-im Konvertieren-Bereich.
+The encoder choice comes from the same source as for converting
+(`FFmpegTool.encoder(for:)`), including `-strict -2` for the native Opus and
+Vorbis encoders. If the encoder is missing, the button is locked with the
+same hint as in the Convert section.
 
-### 7.6 Aufbau des Fensters
+### 7.6 Window layout
 
-Ein eigenes Fenster, kein Blatt: der Splitter hängt an keiner Scheibe im
-Hauptfenster, und ein Blatt lässt sich weder verschieben noch vergrößern.
+A window of its own, not a sheet: the splitter is not tied to a disc in the
+main window, and a sheet can be neither moved nor resized.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Datei · Dauer · Codec · Video                   [Auswählen…] │
-│ Schwelle ─●─   Mindeststille ─●─   Kürzester Track ─●─  [Neu analysieren] │
-│ ▁▃▇▅▃▁│▂▅▇▆▃│▁▃▇▇▅│ …   Übersicht, fest, scrollt nie weg      │
+│ File · duration · codec · video                    [Choose…] │
+│ Threshold ─●─   Min. silence ─●─   Shortest track ─●─  [Analyse again] │
+│ ▁▃▇▅▃▁│▂▅▇▆▃│▁▃▇▇▅│ …   overview, fixed, never scrolls away   │
 ├────────────────────────┬─────────────────────────────────────┤
-│ ▶ 01 Titel      1:33   │ Track 3 · 05:16.7 – 09:31.7    4:15 │
-│ ▶ 02 Titel      3:37   │ ● Anfang [05:16.7]⇅  ● Ende [09:31.7]⇅ │
-│ ▶ 03 Titel ◀    4:15   │ [   Lupe ±10 s   ]  [   Lupe ±10 s   ] │
-│ …                      │ ▶ Ab Marke  ⏮ ⏭  05:12.0   Vorschau 14 s │
-│                        │ Anfang hierher · Ende hierher · Hier teilen │
-│                        │ Mit vorigem zusammenlegen · Zurücksetzen │
+│ ▶ 01 Title      1:33   │ Track 3 · 05:16.7 – 09:31.7    4:15 │
+│ ▶ 02 Title      3:37   │ ● Start [05:16.7]⇅  ● End [09:31.7]⇅ │
+│ ▶ 03 Title ◀    4:15   │ [ magnifier ±10 s ]  [ magnifier ±10 s ] │
+│ …                      │ ▶ Play from mark  ⏮ ⏭  05:12.0   Preview 14 s │
+│                        │ Start here · End here · Split here  │
+│                        │ Join with previous · Reset boundaries │
 ├────────────────────────┴─────────────────────────────────────┤
-│ Ordner … · Format … · Dateiname … → 03.m4a                   │
-│ ✓ 13 Tracks geschrieben — in der Trackliste   [In 13 Tracks aufteilen] │
+│ Folder … · Format … · File name … → 03.m4a                   │
+│ ✓ 13 tracks written — in the track list   [Split into 13 tracks] │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Grundsatz, der sich schon zweimal bewährt hat (Rip-Fortschritt, Abbild): **was
-man beim Arbeiten sehen muss, darf nicht wegscrollen.** Übersicht, Bearbeiter
-und Meldungen stehen deshalb fest; nur die Trackliste scrollt.
+A principle that has proven itself twice already (rip progress, disc image):
+**what one needs to see while working must not scroll away.** Overview,
+editor and messages are therefore fixed; only the track list scrolls.
 
-### 7.7 Hüllkurve
+### 7.7 Envelope
 
-Einmal berechnet, in fester Auflösung: ffmpeg dekodiert nach Mono mit 4000 Hz,
-daraus werden **hundert Spitzenwerte je Sekunde** (10 ms je Wert). Beide
-Ansichten schöpfen daraus — die Übersicht fasst viele Werte je Bildpunkt
-zusammen, die Lupen wenige.
+Computed once, at a fixed resolution: ffmpeg decodes to mono at 4000 Hz, and
+from that come **a hundred peak values per second** (10 ms per value). Both
+views draw from it — the overview combines many values per pixel, the
+magnifiers few.
 
-- **Spitzenwert, nicht Mittelwert** — der Mittelwert zöge kurze laute Stellen
-  glatt, und genau die sucht man.
-- **4000 Hz reichen** — gegen die volle Auflösung weicht die Hüllkurve um
-  0,002 ab (bei 2000 Hz um 0,023). Eine Stunde ergibt 29 MB Zwischendatei
-  statt 635 MB.
-- **Normiert auf den lautesten Punkt der ganzen Datei**, auch in der Lupe.
-  Ohne Normierung wird eine leise Aufnahme zur flachen Linie (ffmpegs `sine`
-  liefert nur −18 dBFS). Normierte jede Lupe auf sich selbst, sähe ein leises
-  Ausklingen so laut aus wie der Refrain — und man setzte die Grenze falsch.
+- **Peak, not mean** — the mean would smooth out short loud spots, and those
+  are exactly what one is looking for.
+- **4000 Hz is enough** — against the full resolution the envelope deviates
+  by 0.002 (at 2000 Hz by 0.023). An hour yields a 29 MB intermediate file
+  instead of 635 MB.
+- **Normalized to the loudest point of the whole file**, in the magnifier
+  too. Without normalization a quiet recording becomes a flat line (ffmpeg's
+  `sine` only delivers −18 dBFS). If every magnifier normalized to itself, a
+  quiet fade-out would look as loud as the chorus — and one would put the
+  boundary in the wrong place.
 
-Gezeichnet in drei Ebenen: Tönung (billig), Hüllkurve (teuer, `Equatable`,
-nur bei neuer Datei, neuem Ausschnitt oder neuer Größe) und Marke samt
-Abspielkopf (billig, zehnmal je Sekunde). Ohne die Trennung liefe bei jedem
-Schritt des Abspielkopfs eine Viertelmillion Werte neu durch.
+Drawn in three layers: shading (cheap), envelope (expensive, `Equatable`,
+only for a new file, a new window or a new size) and mark plus playhead
+(cheap, ten times a second). Without the separation, a quarter of a million
+values would be run through again at every step of the playhead.
 
-Dunkel bleibt nur, was an den Dateirändern abgeschnitten wurde — zwischen den
-Tracks gibt es keine Lücken (§7.3).
+Only what was cut off at the edges of the file stays dark — there are no gaps
+between the tracks (§7.3).
 
-### 7.8 Lupen, Marke, Grenzen
+### 7.8 Magnifiers, mark, boundaries
 
-Über 45 Minuten ist ein Bildpunkt der Übersicht rund zwei Sekunden: gut zum
-Orientieren, zu grob zum Schneiden. Der Bearbeiter zeigt deshalb **zwei Lupen**
-von je ±10 s — auf den Anfang (grün) und das Ende (orange) des gewählten
-Tracks, rund 30 ms je Bildpunkt.
+Over 45 minutes, one pixel of the overview is about two seconds: good for
+orientation, too coarse for cutting. The editor therefore shows **two
+magnifiers** of ±10 s each — on the start (green) and the end (orange) of the
+selected track, about 30 ms per pixel.
 
-**Eine Marke für das ganze Fenster** (gestrichelt). Unberührt steht sie **am
-Anfang** des gewählten Tracks, auf der grünen Linie. Ein Klick in eine Lupe
-oder in die Übersicht setzt sie; in der Übersicht wählt der Klick zugleich den
-Track.
+**One mark for the whole window** (dashed). Untouched, it sits **at the
+start** of the selected track, on the green line. A click into a magnifier or
+into the overview sets it; in the overview the click also selects the track.
 
-Über eine Grenze **hinweg** hören ist ein eigener Weg: ⏮ und ⏭ sowie der
-Knopf in der Trackliste spielen ab einem Drittel der Hörprobe davor. Die erste
-Fassung ließ die Marke selbst um diesen Vorlauf vor dem Anfang stehen, damit
-„Ab Marke abspielen" von allein über die Grenze hörte — nicht zu erraten: wer
-einen Track abspielt, erwartet ihn ab der grünen Linie.
+Listening **across** a boundary is a route of its own: ⏮ and ⏭ as well as the
+button in the track list play from a third of the preview before it. The
+first version left the mark itself this lead-in before the start, so that
+"Play from mark" would play across the boundary by itself — nobody could
+guess that: whoever plays a track expects it from the green line.
 
-**Grenzen sind gemeinsam.** Der Anfang von Track 3 ist das Ende von Track 2;
-wer ihn verschiebt, verschiebt beides (`moveBoundary`). Verschöbe man nur eine
-Seite, entstünde wieder eine Lücke, und was darin liegt, stünde in keiner
-Datei. Abschneiden lässt sich nur an den Dateirändern — etwa eine Ansage vor
-dem ersten Stück. Nach Teilen oder Zusammenlegen gilt der neue Stand als
-Ausgangspunkt für „Zurücksetzen", sonst führte es an eine Grenze, die es nicht
-mehr gibt.
+**Boundaries are shared.** The start of track 3 is the end of track 2;
+whoever moves it moves both (`moveBoundary`). Moving only one side would open
+a gap again, and whatever lies in it would end up in no file. Cutting off is
+only possible at the edges of the file — an announcement before the first
+piece, say. After splitting or merging, the new state counts as the starting
+point for "Reset", otherwise it would lead to a boundary that no longer
+exists.
 
-Grenzen setzen, drei Wege — alle am selben Track, alle sofort in beiden
-Ansichten sichtbar:
+Setting boundaries, three routes — all on the same track, all immediately
+visible in both views:
 
-1. **Die farbige Linie in der Lupe ziehen.** Der Zeiger zeigt an, wo sie sich
-   greifen lässt. Ob gezogen oder geklickt wird, entscheidet der erste
-   Kontakt — sonst spränge die Geste um, sobald der Finger die Linie verlässt.
-2. **„Anfang hierher" / „Ende hierher"** — nimmt, was man hört: beim Abspielen
-   den roten Kopf, sonst die Marke.
-3. **Zeitfeld mit Zehntelschritten** — der genaue Weg.
+1. **Drag the colored line in the magnifier.** The pointer shows where it can
+   be grabbed. Whether it is dragged or clicked is decided on first contact —
+   otherwise the gesture would switch as soon as the finger leaves the line.
+2. **"Start here" / "End here"** — takes what one hears: while playing the
+   red head, otherwise the mark.
+3. **Time field in steps of a tenth** — the exact route.
 
-Dazu **„Hier teilen"** (neue Grenze an der Marke) und **„Mit vorigem
-zusammenlegen"**. Erst mit beidem ist die Bearbeitung vollständig: Grenzen
-können entstehen und verschwinden.
+Plus **"Split here"** (a new boundary at the mark) and **"Join with
+previous"**. Only with both is editing complete: boundaries can appear and
+disappear.
 
-#### Hineinhören
+#### Listening
 
-`AVPlayer` mit einem Boundary-Observer, der nach der Probenlänge anhält, und
-einem Periodic-Observer für den Abspielkopf. Kein Player: kein Scrubbing, keine
-Lautstärke, keine Liste.
+`AVPlayer` with a boundary observer that stops after the preview length, and
+a periodic observer for the playhead. No player: no scrubbing, no volume, no
+list.
 
-- Abspielen läuft **über das Trackende hinaus**, begrenzt nur von der Datei —
-  sonst ließe sich die hintere Grenze nicht beurteilen.
-- **Stopp von Hand übernimmt die Stelle in die Marke**, das Auslaufen der Probe
-  nicht. Man arbeitet so: hören, an der richtigen Stelle stoppen, „Ende
-  hierher". Liefe dagegen jede Probe weiter, marschierte die Marke bei jedem
-  Abspielen ein Stück vor.
-- Spielbarkeit wird **zur Laufzeit** geprüft, nicht an der Endung geraten.
-  Gemessen nimmt AVFoundation alles, was der Splitter akzeptiert — auch Opus,
-  das eine Endungsliste fälschlich ausgeschlossen hätte. `isPlayable` **wirft**
-  bei manchen Behältern, statt `false` zu liefern.
+- Playback runs **past the end of the track**, limited only by the file —
+  otherwise the rear boundary could not be judged.
+- **Stopping by hand takes the position over into the mark**, the preview
+  running out does not. This is how one works: listen, stop at the right
+  spot, "End here". If instead every preview kept going, the mark would march
+  forward a bit with every playback.
+- Playability is checked **at runtime**, not guessed from the extension.
+  Measured: AVFoundation takes everything the splitter accepts — Opus too,
+  which a list of extensions would have excluded by mistake. `isPlayable`
+  **throws** for some containers instead of returning `false`.
 
-### 7.9 Verworfene Zwischenstände
+### 7.9 Discarded intermediate stages
 
-Das Fenster ist in mehreren Runden entstanden, jede am Benutzen gescheitert.
-Festgehalten, damit sie niemand noch einmal baut:
+The window came about in several rounds, each of which failed in use.
+Recorded so that nobody builds them again:
 
-| Anlauf | Warum verworfen |
+| Attempt | Why discarded |
 |---|---|
-| Langes Formular, Hüllkurve oben | scrollte weg, sobald man zu den Tracks kam — „nichts zu sehen" |
-| Zwei Abspielknöpfe übereinander | verschiedene Bedeutung, nicht zu erraten |
-| Laufleiste je Zeile | bewegte sich nicht mit; Stopp sprang zurück; endete am Trackende |
-| Regler ±15 s je Zeile | blind — man sah nicht, wohin man schiebt; durch ziehbare Linien in der Lupe ersetzt |
-| 2000 Werte fester Anzahl | 1,35 s je Wert bei 45 Minuten, für eine Lupe unbrauchbar |
-| Pausen verwerfen | verwarf mit ihnen leise Intros — 66 s des Albums in keiner Datei |
-| Kurzes immer an den Vorgänger | ein Intro nach langer Pause landete im falschen Track |
-| Schnipsel unter 1 s verwerfen | zerschnitt das Intro von „LR-7"; ersetzt durch Zusammenfassen der Stillen |
+| Long form, envelope at the top | scrolled away as soon as one got to the tracks — "nothing to see" |
+| Two play buttons on top of each other | different meanings, impossible to guess |
+| Scrub bar per row | did not move along; stop jumped back; ended at the end of the track |
+| Slider ±15 s per row | blind — one could not see where one was pushing; replaced by draggable lines in the magnifier |
+| A fixed number of 2000 values | 1.35 s per value at 45 minutes, useless for a magnifier |
+| Discarding pauses | discarded quiet intros with them — 66 s of the album in no file |
+| Short pieces always to the predecessor | an intro after a long pause landed in the wrong track |
+| Discarding snippets under 1 s | cut up the intro of "LR-7"; replaced by merging the silences |
 
-### 7.10 Prüfen am echten Fenster
+### 7.10 Checking on the real window
 
-`App/DebugHooks.swift`, **nur in Debug-Builds**: Startparameter öffnen das
-Fenster in einem festen Zustand, damit es sich per Bildschirmfoto prüfen
-lässt.
+`App/DebugHooks.swift`, **debug builds only**: launch arguments open the
+window in a fixed state so that it can be checked with a screenshot.
 
 ```
-Sleeve -SleeveDebugSplit <Datei> [-SleeveDebugSelect <n>]
+Sleeve -SleeveDebugSplit <file> [-SleeveDebugSelect <n>]
        [-SleeveDebugPlayEnd YES] [-SleeveDebugShiftEnd <s>]
-       [-SleeveDebugSplitTo <Ordner>]
+       [-SleeveDebugSplitTo <folder>]
 ```
 
-Anlass: die Hüllkurve war als „fertig" gemeldet, geprüft war aber nur ihre
-Berechnung. Gesehen hatte sie niemand. Seitdem gilt für dieses Fenster:
-Aussagen über die Oberfläche nur nach einem Foto.
+The reason: the envelope had been reported as "done", but only its
+computation had been checked. Nobody had seen it. Since then this window has
+a rule: statements about the UI only after a screenshot.
 
-### 7.11 Nachweis
+### 7.11 Evidence
 
-#### Gegenprobe an der Trackliste des Uploaders
+#### Cross-check against the uploader's track list
 
-Voreinstellungen (−30 dB, 0,5 s, 10 s). Die Angaben des Uploaders sind ganze
-Sekunden und liegen meist mitten in der Pause; Sleeve setzt den Anfang dorthin,
-wo die Musik einsetzt, und liegt deshalb meist eine Sekunde später.
+Defaults (−30 dB, 0.5 s, 10 s). The uploader's times are whole seconds and
+usually lie in the middle of the pause; Sleeve puts the start where the music
+sets in and is therefore usually a second later.
 
-| | Uploader | erste Fassung | jetzt |
+| | Uploader | first version | now |
 |---|---|---|---|
-| Vision | 1:35 | +2,6 s | +0,8 s |
-| LUV | 18:55 | +14,9 s | +1,7 s |
-| LR-7 | 32:35 | +5,4 s | +1,0 s |
-| Slider | 39:30 | +5,2 s | −0,7 s |
-| sieben weitere | | innerhalb 1,5 s | innerhalb 1,5 s |
-| Lynch | 16:33 | nicht gefunden | nicht gefunden — keine Pause |
+| Vision | 1:35 | +2.6 s | +0.8 s |
+| LUV | 18:55 | +14.9 s | +1.7 s |
+| LR-7 | 32:35 | +5.4 s | +1.0 s |
+| Slider | 39:30 | +5.2 s | −0.7 s |
+| seven others | | within 1.5 s | within 1.5 s |
+| Lynch | 16:33 | not found | not found — no pause |
 
-12 von 13 innerhalb von 1,7 s. Bei „Slider" liegt Sleeve **vor** dem Uploader:
-das leise Intro beginnt bei 39:29,3, er hat gerundet. Die zusätzliche Grenze
-bei 14:46 ist eine gewollte Pause mitten in „48k Rate Change[Freeze]".
+12 of 13 within 1.7 s. For "Slider" Sleeve is **ahead** of the uploader: the
+quiet intro starts at 39:29.3, he rounded. The additional boundary at 14:46
+is an intentional pause in the middle of "48k Rate Change[Freeze]".
 
-#### Gebaute Datei
+#### Built file
 
-Der Durchstich arbeitet mit einer gebauten Datei — drei Töne zu 12 s, dazwischen
-3 s Stille —, weil dort jede Grenze vorher bekannt ist. An echter Musik wäre
-„stimmt ungefähr" das Beste, was sich prüfen ließe.
+The end-to-end run works with a built file — three tones of 12 s, 3 s of
+silence between them — because there every boundary is known beforehand.
+With real music "roughly right" would be the best that could be checked.
 
-Gefunden werden die drei Tracks auf ±0,3 s genau, geschnitten mit der
-erwarteten Länge, und Titel und Tracknummer stehen danach in der Datei.
+The three tracks are found to within ±0.3 s, cut with the expected length,
+and title and track number are in the file afterwards.
 
-Dazu der Durchgang am **echten Album-Video** (44:49, H.264 + AAC):
+Plus the run on the **real album video** (44:49, H.264 + AAC):
 
-| | Ergebnis |
+| | Result |
 |---|---|
-| Tracks | 13, reines AAC in `.m4a`, **kein Bild** |
-| Tracknummern | `1/13` … `13/13` |
-| „Slider" | beginnt mit seinem leisen Intro (−35 dB), vorher verworfen |
-| Titel, Kommentar | nicht mehr von der Quelle geerbt |
-| Interpret, Jahr | von der Quelle übernommen |
-| Summe der Stücke | 2689,5 s bei 2689,3 s Datei — nichts verloren, +0,2 s durch AAC-Rahmen |
-| Meldung | in der Fußzeile, mit „Im Finder zeigen" |
+| Tracks | 13, pure AAC in `.m4a`, **no picture** |
+| Track numbers | `1/13` … `13/13` |
+| "Slider" | starts with its quiet intro (−35 dB), discarded before |
+| Title, comment | no longer inherited from the source |
+| Artist, year | taken over from the source |
+| Sum of the pieces | 2689.5 s for a 2689.3 s file — nothing lost, +0.2 s from AAC frames |
+| Message | in the footer, with "Show in Finder" |
 
-Eine Stolperstelle beim Prüfen: `Timecode.format(61.25)` ergibt `01:01.2`,
-nicht `.3`. Genau `.x5` ist binär ein Gleichstand, und `%.1f` rundet dann zur
-geraden Ziffer. IEEE-Verhalten, kein Fehler — festgehalten, damit es niemand
-dafür hält.
+A pitfall while checking: `Timecode.format(61.25)` gives `01:01.2`, not `.3`.
+Exactly `.x5` is a tie in binary, and `%.1f` then rounds to the even digit.
+IEEE behaviour, not a bug — recorded so that nobody takes it for one.
 
-### 7.12 Tracktitel von außen
+### 7.12 Track titles from outside
 
-**Titel nachschlagen…** öffnet ein Blatt mit drei Quellen — gebaut wie „Album
-nachschlagen" beim Taggen (§4.6), mit denselben Teilen. Alle liefern eine
-`TrackListing`; was man damit tun kann, ist dasselbe.
+**Look Up Titles…** opens a sheet with three sources — built like "Look Up
+Album" when tagging (§4.6), from the same parts. All of them deliver a
+`TrackListing`; what one can do with it is the same.
 
-| Quelle | liefert | wann |
+| Source | delivers | when |
 |---|---|---|
-| MusicBrainz | Titel, **Längen**, Album, Interpret, Jahr, Genre | Alben, die dort stehen |
-| Discogs (mit Token) | ebenso, Genre oder Style nach Wahl | Alben, die nur dort stehen |
-| Trackliste (eingefügt) | Titel, **Startzeiten** | Album-Videos — die Liste steht fast immer in der Beschreibung |
+| MusicBrainz | titles, **lengths**, album, artist, year, genre | albums listed there |
+| Discogs (with a token) | the same, genre or style by choice | albums listed only there |
+| Track list (pasted) | titles, **start times** | album videos — the list is almost always in the description |
 
-Die zweite Quelle war nicht bestellt, ist aber die, die für den eigentlichen
-Anlass trägt: das Testalbum steht **nicht** bei MusicBrainz. Gesucht mit und
-ohne Interpret, mit und ohne das ∞ — MusicBrainz zerlegt „IMagination∞lenS" am
-∞ und findet nur Alben namens „Lens". Das Blatt sucht beim Öffnen gleich mit
-einem Vorschlag aus dem Dateinamen („Interpret - Album", ohne angehängte
-Klammern wie „(Full Album)") und verweist, wenn nichts kommt, sofort aufs
-Einfügen. Suche und Treffer bleiben erhalten, bis eine andere Datei kommt.
+The pasted list was not ordered, but it is the source that carries the
+actual occasion: the test album is **not** on MusicBrainz. Searched with and
+without artist, with and without the ∞ — MusicBrainz splits
+"IMagination∞lenS" at the ∞ and only finds albums called "Lens". When
+opening, the sheet searches right away with a suggestion from the file name
+("Artist - Album", without appended parentheses like "(Full Album)") and, if
+nothing comes, points to pasting right away. Search and results are kept
+until another file comes.
 
-**Eingefügter Text** (`TrackListing(pasted:)`): je Zeile eine Zeitangabe,
-vorn oder hinten, mit oder ohne Stunden, Nummer und Satzzeichen drumherum.
-Zeilen ohne Zeit — Link, Überschrift — und Zeilen, die nach dem Entfernen der
-Zeit keinen Titel haben — „(44:49)", die Gesamtlänge —, werden übergangen;
-rückwärts springende Zeiten gehören nicht zur Liste. Geprüft mit genau dem
-Text aus der Videobeschreibung.
+**Pasted text** (`TrackListing(pasted:)`): one time value per line, at the
+front or at the end, with or without hours, number and punctuation around
+it. Lines without a time — link, heading — and lines that have no title left
+once the time is removed — "(44:49)", the total length — are skipped; times
+jumping backwards do not belong to the list. Checked with exactly the text
+from the video description.
 
-**Vor dem Übernehmen** steht die Liste neben dem Gefundenen, mit Abweichung je
-Zeile. Die Anzahl allein beruhigt zu früh: am Testalbum passten 13 zu 13, und
-doch lag eine Grenze 106 s daneben. Der Fuß meldet deshalb auch orange Zeilen,
-nicht nur eine falsche Anzahl.
+**Before applying,** the list stands next to what was found, with the
+deviation per row. The count alone reassures too early: on the test album 13
+matched 13, and still one boundary was 106 s off. That is why the footer also
+reports orange rows, not only a wrong count.
 
-**Übernehmen** wie beim Taggen: Titel, Interpret, Album, Jahr, Genre — was
-die Quelle nicht liefert, ist ausgegraut (eine eingefügte Liste hat nur
-Titel) — und als sechster Schalter **Grenzen**. Nicht Angehaktes bleibt, wie
-es war.
+**Take over** as when tagging: title, artist, album, year, genre — whatever
+the source does not deliver is greyed out (a pasted list only has titles) —
+and, as the sixth switch, **Boundaries**. Whatever is not ticked stays as it
+was.
 
-**Grenzen ausrichten** (voreingestellt bei Startzeiten, bei Längen nur, wenn
-die Anzahl nicht passt): jede Zeitangabe rastet an einer erkannten Stille
-innerhalb von 5 s ein; liegt keine in der Nähe, gilt die Angabe. Genau so
-findet die Liste, was keine Stille-Erkennung findet — Lynch bei 16:33. Aus
-Längen wird fortlaufend addiert, aber jede Grenze neu vom eingerasteten
-Vorgänger aus: ein Mitschnitt hat selten dieselben Pausen wie die CD, auf die
-sich die Längen beziehen, und stur addiert wanderte der Fehler mit jedem Track
-weiter. Nach dem Ausrichten gilt das Ergebnis als Ausgangspunkt für
-„Zurücksetzen".
+**Aligning boundaries** (the default for start times; for lengths only when
+the count does not match): every time value snaps to a detected silence
+within 5 s; if there is none nearby, the given time applies. This is exactly
+how the list finds what no silence detection finds — Lynch at 16:33. From
+lengths the boundaries are added up continuously, but each one anew from its
+snapped predecessor: a recording rarely has the same pauses as the CD the
+lengths refer to, and added up blindly the error would carry on with every
+track. After aligning, the result counts as the starting point for "Reset".
 
-Album, Interpret, Jahr und Genre aus der Liste landen beim Schneiden in den
-Tags. Ohne sie bleibt, was die Quelle trug.
+Album, artist, year and genre from the list end up in the tags when cutting.
+Without them, whatever the source carried stays.
 
-**Ergebnis am Testalbum** mit der eingefügten Liste: 13 Dateien, benannt und
-getaggt („05 - 48k Rate Change[Freeze]⇒Convert22.m4a" — Sonderzeichen bleiben),
-„48k" wieder ein Track (2:25), Lynch 2:24 ab 16:33. In der Lupe zeigt sich,
-dass der Übergang eine knappe halbe Sekunde **nach** 16:33 liegt: der Uploader
-hat auf ganze Sekunden gerundet, ein Zug an der grünen Linie genügt.
+**Result on the test album** with the pasted list: 13 files, named and tagged
+("05 - 48k Rate Change[Freeze]⇒Convert22.m4a" — special characters stay),
+"48k" one track again (2:25), Lynch 2:24 from 16:33. The magnifier shows that
+the transition lies just under half a second **after** 16:33: the uploader
+rounded to whole seconds; one drag of the green line is enough.
 
 ---
 
-## 8. Projektstruktur
+## 8. Project structure
 
 ```
 Sleeve/
@@ -1417,144 +1414,160 @@ Sleeve/
 ├── Sleeve/
 │   ├── App/
 │   │   ├── SleeveApp.swift
-│   │   ├── AppState.swift            // activeMode, Moduswahl
+│   │   ├── AppState.swift            // activeMode, mode selection
+│   │   ├── AppState+*.swift          // one extension per area: Convert, Rip, Split, …
+│   │   ├── DebugHooks.swift          // debug builds only, see §7.10
 │   │   └── ModeSwitcher.swift
 │   ├── Model/
 │   │   ├── AudioTags.swift
 │   │   ├── TrackFile.swift
-│   │   ├── TrackListModel.swift      // modusübergreifend
+│   │   ├── TrackListModel.swift      // shared by all modes
 │   │   └── Artwork.swift
 │   ├── TagEngine/
-│   │   ├── TagEngine.swift           // actor, TagLib-Fassade
-│   │   ├── TagLibBridge.swift        // C-API, unsafe gekapselt
+│   │   ├── TagEngine.swift           // actor, TagLib facade
+│   │   ├── TagLibBridge.swift        // C API, unsafe encapsulated
 │   │   └── PropertyKeys.swift
 │   ├── Pattern/
 │   │   ├── PatternToken.swift
-│   │   ├── PatternRenderer.swift     // Tags → String
-│   │   └── PatternParser.swift       // String → Tags
+│   │   ├── PatternRenderer.swift     // tags → string
+│   │   └── PatternParser.swift       // string → tags
 │   ├── Lookup/
-│   │   ├── LookupModels.swift        // gemeinsames Modell beider Quellen
-│   │   ├── LookupService.swift       // Fassade davor
-│   │   ├── JSONSanitizer.swift       // siehe §4.6.1, Steuerzeichen
+│   │   ├── LookupModels.swift        // common model of both sources
+│   │   ├── LookupService.swift       // facade in front of them
+│   │   ├── JSONSanitizer.swift       // see §4.6.1, control characters
 │   │   ├── RateLimiter.swift
 │   │   ├── DiscogsModels.swift
 │   │   ├── DiscogsClient.swift
 │   │   ├── MusicBrainzClient.swift
 │   │   ├── KeychainStore.swift
-│   │   ├── ReleaseSearch.swift       // die Suche beider Nachschlage-Blätter
-│   │   ├── LookupSession.swift       // „Album nachschlagen": Zuordnung, Felder
+│   │   ├── ReleaseSearch.swift       // the search of both lookup sheets
+│   │   ├── LookupSession.swift       // "Look Up Album": matching, fields
 │   │   └── ReleaseMatcher.swift
 │   ├── Convert/                      // 1.1
-│   │   ├── AudioFormat.swift         // Zielformate, Encoder-Kandidaten
-│   │   ├── ProcessRunner.swift       // einzige Stelle, die fremde Programme startet
+│   │   ├── AudioFormat.swift         // target formats, encoder candidates
+│   │   ├── ProcessRunner.swift       // the only place that starts other programs
 │   │   ├── FFmpegLocator.swift
-│   │   ├── ConversionPlanner.swift   // Aufrufparameter und Zielpfade, rein rechnend
+│   │   ├── ConversionPlanner.swift   // arguments and target paths, pure computation
 │   │   └── ConversionQueue.swift
 │   ├── Rip/                          // 1.2
-│   │   ├── DiscTOC.swift             // TOC, Disc ID, FreeDB — rein rechnend
-│   │   ├── CDText.swift              // Latin-1, siehe §6.1.1
-│   │   ├── CDDrive.swift             // einzige Stelle mit Gerätezugriff
-│   │   ├── CDReader.swift            // Versatz, Burst/Sicher, C2-Rückfall
-│   │   ├── RipEngine.swift           // actor, orchestriert einen Durchgang
+│   │   ├── DiscTOC.swift             // TOC, disc ID, FreeDB — pure computation
+│   │   ├── CDText.swift              // Latin-1, see §6.1.1
+│   │   ├── CDDrive.swift             // the only place with device access
+│   │   ├── CDReader.swift            // offset, burst/secure, C2 fallback
+│   │   ├── RipEngine.swift           // actor, orchestrates one pass
 │   │   ├── RipSettings.swift
-│   │   ├── RipReport.swift           // Protokoll und Cue Sheet
-│   │   └── WAVWriter.swift
+│   │   ├── RipReport.swift           // log and cue sheet
+│   │   ├── WAVWriter.swift
+│   │   ├── DiscImage.swift           // §6.9
+│   │   ├── CueSheet.swift            // reading cue sheets, for burning
+│   │   └── CDBurner.swift            // §6.10, DiscRecording
+│   ├── Split/                        // §7
+│   │   ├── AudioSplitter.swift       // silence, boundaries, cutting
+│   │   ├── SplitTrack.swift
+│   │   ├── SplitPreview.swift        // listening across a boundary
+│   │   ├── TrackListing.swift        // track lists from outside, §7.12
+│   │   └── WaveformSampler.swift
 │   ├── Views/
-│   │   ├── TrackTableView.swift      // modusübergreifend
+│   │   ├── TrackTableView.swift      // shared by all modes
 │   │   ├── Inspectors/
 │   │   │   ├── TagInspector.swift
 │   │   │   ├── ConvertInspector.swift
 │   │   │   └── RipInspector.swift
 │   │   ├── Popovers/
-│   │   ├── About/                    // „Über Sleeve" und Lizenzen
-│   │   └── Lookup/                   // LookupSheet + LookupParts (auch vom Splitter)
+│   │   ├── Sheets/                   // disc image, burning, Track Splitter
+│   │   ├── About/                    // "About Sleeve" and licenses
+│   │   └── Lookup/                   // LookupSheet + LookupParts (also used by the splitter)
 │   ├── Localization/  (en, de, es)
 │   └── Resources/
-│       ├── Sleeve.icon/          // App-Icon, erzeugt von Scripts/build-icon.sh
-│       └── Licenses/             // Lizenztexte fürs Fenster „Lizenzen"
+│       ├── Sleeve.icon/          // app icon, generated by Scripts/build-icon.sh
+│       └── Licenses/             // license texts for the "Licenses" window
 ├── Vendor/
 │   ├── taglib/
-│   │   ├── include/taglib/    // Header
+│   │   ├── include/taglib/    // headers
 │   │   ├── lib/               // libtag.a, libtag_c.a
 │   │   └── module.modulemap
-│   ├── cdshim/                // löst die _IOWR-Makros auf, siehe §6.1.1
+│   ├── cdshim/                // resolves the _IOWR macros, see §6.1.1
 │   │   ├── CDShim.h
 │   │   └── module.modulemap
-│   └── src/                   // TagLib-Quellen, nicht eingecheckt
+│   └── src/                   // TagLib sources, not checked in
 ├── Scripts/
 │   ├── build-taglib.sh
+│   ├── build-icon.sh          // + make-icon-svg.py, make-icon-preview.py
+│   ├── run-bridge-test.sh     // the test suite, see bridge-test/
+│   ├── check-strings.sh       // every UI string translated
 │   ├── run-smoketest.sh
 │   └── taglib-smoketest.swift
-├── Icon/                      // Icon-Entwurf: SVG-Master, Ebenen, .icns, Vorschau
-├── Docs/                      // Aufträge und Notizen — bewusst NICHT in Sleeve/,
-│                              // sonst landen sie als Ressource im App-Bundle
-├── TestFiles/                 // §10 — selbst erzeugt, eingecheckt: die Tests brauchen sie
+├── Icon/                      // icon design: SVG master, layers, .icns, preview
+├── Docs/                      // briefs and notes — deliberately NOT in Sleeve/,
+│                              // otherwise they would end up in the app bundle
+├── TestFiles/                 // §10 — self-made, checked in: the tests need them
 ├── LICENSE  (GPLv3)
 ├── LICENSES/
 │   ├── taglib-LGPL-2.1.txt
 │   ├── taglib-MPL-1.1.txt
 │   └── utfcpp-BSL-1.0.txt
+├── CLAUDE.md                  // standing rules for working on the project
 ├── README.md
-└── SPEC.md
+└── Sleeve-SPEC.md             // this document
 ```
 
 ---
 
-## 9. Reihenfolge
+## 9. Order
 
-**Wochenende — so weit es kommt:**
+**Weekend — as far as it gets:**
 
-1. **TagLib bauen, Module-Map, ein einziger Test:** Titel einer MP3 lesen und
-   in die Konsole schreiben. Das zuerst. Wenn der Build-Schritt nicht sauber
-   läuft, ist alles Weitere verschwendete Zeit.
-2. `TagLibBridge` — lesen aller Felder für MP3, M4A, FLAC
-3. Schreiben, gegen eine Testdatei-**Kopie**
-4. `AppState` + `TrackListModel` + Modus-Umschalter (nur „Taggen" aktiv)
-5. Trackliste + Drag & Drop
-6. TagInspector mit Mehrfachauswahl und `touchedFields`-Logik
-7. Speichern mit Fortschritt und Fehlersammlung
+1. **Build TagLib, module map, a single test:** read the title of an MP3 and
+   print it to the console. That first. If the build step does not run
+   cleanly, everything else is wasted time.
+2. `TagLibBridge` — reading all fields for MP3, M4A, FLAC
+3. Writing, against a **copy** of a test file
+4. `AppState` + `TrackListModel` + mode switcher (only "Tag" active)
+5. Track list + drag and drop
+6. TagInspector with multiple selection and the `touchedFields` logic
+7. Saving with progress and error collection
 
-Alles ab hier ist Zugabe: Nummerierung, Schreibweise, Pattern-Engine beide
-Richtungen, Coverbilder, Discogs, Music.app, Lokalisierung, Icon, Website,
-Ko-fi, AlternativeTo.
+Everything from here on is a bonus: numbering, capitalization, pattern engine
+in both directions, cover pictures, Discogs, the Music app, localization,
+icon, website, Ko-fi, AlternativeTo.
 
-Dann 1.1 Konvertieren, 1.2 Rippen.
+Then 1.1 Convert, 1.2 Rip.
 
-### 9.1 Vorgemerkt, nicht gebaut
+### 9.1 Noted, not built
 
-Nichts davon ist beschlossen — festgehalten ist nur, was beim Bauen zu
-beachten wäre. (Abbild **erzeugen** ist inzwischen gebaut, siehe §6.9.)
+None of this is decided — recorded is only what would have to be kept in
+mind when building it. (**Creating** an image has been built by now, see
+§6.9.)
 
-| Idee | Anmerkung |
+| Idea | Note |
 |---|---|
-| **Abbild öffnen** | Eingang, kein eigener Bereich: `.cue` auf die Trackliste ziehen. |
+| **Opening an image** | an entry point, not a section of its own: drag a `.cue` onto the track list. |
 
-**Der Splitter (§7) und das Cue-Einlesen sind dasselbe Werkzeug** — einmal kommen
-die Schnittgrenzen aus dem Cue, einmal von Hand, einmal aus der Stille
-(ffmpeg bringt `silencedetect` mit). Wer das Cue-Einlesen baut, sollte den
-Kern deshalb als „schneide diese Datei an dieser Liste von Positionen"
-anlegen und nicht als „lies ein Cue" — sonst steht der Splitter später als
-zweites Werkzeug daneben statt als Oberfläche davor.
+**The splitter (§7) and reading cue sheets are the same tool** — once the cut
+boundaries come from the cue, once by hand, once from silence (ffmpeg comes
+with `silencedetect`). Whoever builds reading cue sheets should therefore set
+up the core as "cut this file at this list of positions" and not as "read a
+cue" — otherwise the splitter later stands next to it as a second tool
+instead of as a UI in front of it.
 
-**Wo solche Funktionen hingehören:** in die **Ablage**, zu „Dateien
-hinzufügen…" und „Zu Music hinzufügen" — nicht ins Sleeve-Menü, das bei macOS
-dem Programm selbst gehört (Über, Einstellungen, Beenden). Ab etwa vier
-Medienfunktionen lohnt ein eigenes Menü „Medium"; ein „Extras"-Menü ist eine
-Windows-Gewohnheit.
+**Where such functions belong:** in the **File** menu, with "Add Files…" and
+"Add to Music" — not in the Sleeve menu, which on macOS belongs to the program
+itself (About, Settings, Quit). From about four media functions on, a menu of
+their own, "Medium", is worth it; an "Extras" menu is a Windows habit.
 
 ---
 
-## 10. Testdateien
+## 10. Test files
 
-Vor dem ersten Schreibversuch einen Ordner mit Testmaterial anlegen:
+Before the first write attempt, create a folder with test material:
 
-- MP3 mit ID3v2.3, ID3v2.4, ID3v1 und ganz ohne Tag
-- MP3 mit mehreren APIC-Frames
-- M4A aus der Music-App
-- FLAC mit Vorbis-Comments
-- Datei mit Umlauten und Emoji im Titel
-- Schreibgeschützte Datei
-- Absichtlich beschädigte Datei
-- Datei mit 6-MB-Cover
+- MP3 with ID3v2.3, ID3v2.4, ID3v1 and without any tag
+- MP3 with several APIC frames
+- M4A from the Music app
+- FLAC with Vorbis comments
+- A file with umlauts and emoji in the title
+- A read-only file
+- A deliberately damaged file
+- A file with a 6 MB cover
 
-Die letzten drei sind die, an denen Tagger üblicherweise sterben.
+The last three are the ones taggers usually die on.

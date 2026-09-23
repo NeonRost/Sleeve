@@ -1,12 +1,27 @@
 //
 //  RipTests.swift
 //
-//  Modus „Rippen" (§6). Der überwiegende Teil läuft ohne Laufwerk: TOC-
-//  Auswertung, Kennungen, CD-TEXT und Versatzrechnung sind reine Logik.
+//  Copyright (C) 2026 NeonRost
 //
-//  Die Prüfungen am Ende brauchen eine eingelegte Audio-CD und werden
-//  übersprungen, wenn keine da ist — sie dürfen die Suite nicht rot färben,
-//  nur weil gerade kein Laufwerk hängt.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+//  The Rip mode (§6). Most of it runs without a drive: TOC parsing,
+//  identifiers, CD-TEXT and offset arithmetic are pure logic.
+//
+//  The checks at the end need an inserted audio CD and are skipped when there
+//  is none — they must not turn the suite red just because no drive happens to
+//  be connected.
 //
 
 import Foundation
@@ -28,10 +43,10 @@ enum RipTests {
     }
 
     static func equal<T: Equatable>(_ actual: T, _ expected: T, _ label: String) {
-        check(actual == expected, label, detail: "ist \(actual), erwartet \(expected)")
+        check(actual == expected, label, detail: "is \(actual), expected \(expected)")
     }
 
-    /// Die echte TOC der Testscheibe, wie IOKit sie liefert. 14 Spuren.
+    /// The real TOC of the test disc, as IOKit delivers it. 14 tracks.
     static let realTOC = """
     00bd0101011200a000000000010000011200a1000000000e0000011200a200000000341f2b\
     0112000100000000000200011200020000000003063301120003000000000420 0d011200040\
@@ -51,8 +66,8 @@ enum RipTests {
         return Data(bytes)
     }
 
-    /// Der ganze Weg über `RipEngine`: Scheibe erkennen, eine Spur rippen,
-    /// WAV schreiben — und das Ergebnis gegen die Sicht von macOS halten.
+    /// The whole route through `RipEngine`: identify the disc, rip a track,
+    /// write the WAV — and hold the result against what macOS sees.
     static func engineEndToEnd(toc: DiscTOC, track: DiscTrack, aiff: Data) throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("sleeve-rip-\(UUID().uuidString)")
@@ -60,8 +75,8 @@ enum RipTests {
         defer { try? FileManager.default.removeItem(at: folder) }
 
         var settings = RipSettings()
-        settings.mode = .burst          // für den Testlauf genügt ein Durchgang
-        settings.usesC2 = true          // absichtlich an: muss still abfallen
+        settings.mode = .burst          // one pass is enough for the test run
+        settings.usesC2 = true          // on purpose: has to drop out silently
         settings.readOffset = 0
         settings.readsSubchannel = false
 
@@ -83,40 +98,40 @@ enum RipTests {
             semaphore.signal()
         }
         guard semaphore.wait(timeout: .now() + 180) == .success else {
-            check(false, "Rippen läuft in der vorgesehenen Zeit durch")
+            check(false, "ripping finishes in the expected time")
             return
         }
 
-        check(failures.isEmpty, "Rippen ohne Fehler", detail: failures.joined(separator: "; "))
+        check(failures.isEmpty, "ripping without errors", detail: failures.joined(separator: "; "))
         guard let written, let report else {
-            check(false, "Engine liefert Datei und Protokoll")
+            check(false, "the engine delivers file and log")
             return
         }
-        check(true, "Engine liefert Datei und Protokoll")
+        check(true, "the engine delivers file and log")
 
         let wav = try Data(contentsOf: written)
         let pcm = Data(wav.dropFirst(44))
-        equal(pcm.count, track.byteCount, "WAV enthält die ganze Spur")
-        equal(pcm, Data(aiff.dropFirst(2352)), "gerippte Spur deckt sich mit dem, was macOS liest")
+        equal(pcm.count, track.byteCount, "the WAV contains the whole track")
+        equal(pcm, Data(aiff.dropFirst(2352)), "the ripped track matches what macOS reads")
 
-        // C2 war angefordert, das Laufwerk kann es nicht — der Durchgang muss
-        // trotzdem sauber durchlaufen und das Protokoll muss es sagen.
+        // C2 was requested, the drive cannot do it — the pass still has to run
+        // through cleanly and the log has to say so.
         if !report.settings.usesC2 {
             check(report.settings.c2WasRequestedButUnavailable,
-                  "fehlendes C2 wird im Protokoll vermerkt")
+                  "missing C2 is noted in the log")
         }
 
         let log = report.logText(albumTitle: "Peter und der Wolf", albumArtist: "Malte Arkona")
-        check(log.contains("Disc ID:     \(toc.musicBrainzDiscID)"), "Disc ID steht im Protokoll")
+        check(log.contains("Disc ID:     \(toc.musicBrainzDiscID)"), "the disc ID is in the log")
         check(log.contains(String(format: "%08X", report.entries[0].crc)),
-              "Prüfsumme steht im Protokoll")
-        check(log.contains("gleicht nicht gegen eine externe Datenbank ab"),
-              "Protokoll sagt, was es nicht geprüft hat")
+              "the checksum is in the log")
+        check(log.contains("does not compare against an external database"),
+              "the log says what it did not check")
 
         let cue = report.cueSheet(albumTitle: "Peter und der Wolf",
                                   albumArtist: "Malte Arkona", audioFileName: "album.wav")
-        check(cue.contains("TRACK 01 AUDIO"), "Cue Sheet führt die erste Spur")
-        check(cue.contains("INDEX 01 03:04:51"), "Cue Sheet nennt den Beginn der zweiten Spur")
+        check(cue.contains("TRACK 01 AUDIO"), "the cue sheet lists the first track")
+        check(cue.contains("INDEX 01 03:04:51"), "the cue sheet names the start of the second track")
     }
 
     static func run() throws -> Int32 {
@@ -129,44 +144,44 @@ enum RipTests {
         discImage()
         try live()
 
-        print("\n  \(checks) Prüfungen, \(failures) Fehler")
+        print("\n  \(checks) checks, \(failures) failures")
         return failures == 0 ? 0 : 1
     }
 
     // MARK: - TOC
 
     static func tocParsing() {
-        print("\n— Inhaltsverzeichnis —")
+        print("\n— Table of contents —")
         guard let toc = DiscTOC(rawTOC: hexData(realTOC)) else {
-            check(false, "TOC lässt sich auswerten")
+            check(false, "the TOC can be parsed")
             return
         }
-        check(true, "TOC lässt sich auswerten")
-        equal(toc.firstTrack, 1, "erste Spur")
-        equal(toc.lastTrack, 14, "letzte Spur")
-        equal(toc.tracks.count, 14, "vierzehn Spuren")
-        // drutil meldet für dieselbe Scheibe 236218 Blöcke.
-        equal(toc.leadOutLBA, 236218, "Lead-Out deckt sich mit drutil")
-        equal(toc.tracks[0].startLBA, 0, "Spur 1 beginnt bei Sektor 0")
-        equal(toc.tracks[1].startLBA, 13851, "Spur 2 beginnt bei 13851")
-        equal(toc.tracks[0].sectorCount, 13851, "Länge der ersten Spur")
-        // Die letzte Spur reicht bis zum Lead-Out.
-        equal(toc.tracks[13].endLBA, 236218, "letzte Spur endet am Lead-Out")
-        check(!toc.hasDataTrack, "reine Audio-CD, keine Datenspur")
+        check(true, "the TOC can be parsed")
+        equal(toc.firstTrack, 1, "first track")
+        equal(toc.lastTrack, 14, "last track")
+        equal(toc.tracks.count, 14, "fourteen tracks")
+        // drutil reports 236218 blocks for the same disc.
+        equal(toc.leadOutLBA, 236218, "the lead-out matches drutil")
+        equal(toc.tracks[0].startLBA, 0, "track 1 starts at sector 0")
+        equal(toc.tracks[1].startLBA, 13851, "track 2 starts at 13851")
+        equal(toc.tracks[0].sectorCount, 13851, "length of the first track")
+        // The last track reaches to the lead-out.
+        equal(toc.tracks[13].endLBA, 236218, "the last track ends at the lead-out")
+        check(!toc.hasDataTrack, "a pure audio CD, no data track")
         equal(toc.tracks.reduce(0) { $0 + $1.sectorCount }, 236218,
-              "Spurlängen ergeben zusammen die ganze Scheibe")
+              "track lengths add up to the whole disc")
 
-        check(DiscTOC(rawTOC: Data()) == nil, "leere TOC wird abgelehnt")
-        check(DiscTOC(rawTOC: Data([0, 4, 1, 1])) == nil, "TOC ohne Spuren wird abgelehnt")
+        check(DiscTOC(rawTOC: Data()) == nil, "an empty TOC is rejected")
+        check(DiscTOC(rawTOC: Data([0, 4, 1, 1])) == nil, "a TOC without tracks is rejected")
     }
 
-    // MARK: - Kennungen
+    // MARK: - Identifiers
 
     static func discIdentifiers() {
-        print("\n— Kennungen —")
+        print("\n— Identifiers —")
 
-        // Das Rechenbeispiel aus der MusicBrainz-Dokumentation. Ohne diese
-        // Prüfung wäre jede berechnete Disc ID bloß eine Behauptung.
+        // The worked example from the MusicBrainz documentation. Without this
+        // check every computed disc ID would be a mere claim.
         let reference = DiscTOC(
             firstTrack: 1, lastTrack: 6, leadOutLBA: 95462 - 150,
             tracks: (1...6).map { number in
@@ -178,14 +193,14 @@ enum RipTests {
                                  isData: false)
             })
         equal(reference.musicBrainzDiscID, "49HHV7Eb8UKF3aQiNmu1GR8vKTY-",
-              "Disc ID stimmt mit dem offiziellen Rechenbeispiel überein")
+              "the disc ID matches the official worked example")
 
         guard let toc = DiscTOC(rawTOC: hexData(realTOC)) else { return }
         equal(toc.musicBrainzDiscID, "CObFGuFtiL4ToRbdSL_Q0bncOe8-",
-              "Disc ID der Testscheibe")
-        equal(toc.freeDBID, "b40c4d0e", "FreeDB-Kennung der Testscheibe")
+              "disc ID of the test disc")
+        equal(toc.freeDBID, "b40c4d0e", "FreeDB identifier of the test disc")
         check(toc.musicBrainzTOCParameter.hasPrefix("1+14+236368+150+"),
-              "TOC-Parameter für die Ersatzsuche",
+              "TOC parameter for the fallback search",
               detail: String(toc.musicBrainzTOCParameter.prefix(40)))
     }
 
@@ -195,77 +210,76 @@ enum RipTests {
         print("\n— CD-TEXT —")
         let url = URL(fileURLWithPath: "Scripts/bridge-test/fixtures/cdtext-peter-und-der-wolf.bin")
         guard let data = try? Data(contentsOf: url) else {
-            check(false, "CD-TEXT-Vorlage vorhanden")
+            check(false, "CD-TEXT fixture present")
             return
         }
         let text = CDText(packets: [UInt8](data))
-        check(!text.isEmpty, "CD-TEXT lässt sich auswerten")
-        equal(text.albumTitle, "Peter und der Wolf", "Albumtitel")
-        equal(text.albumArtist, "Malte Arkona, Dresdner Philharmonie", "Albuminterpret")
-        equal(text.albumComposer, "Sergej Prokofjew", "Komponist")
-        equal(text.title(forTrack: 4), "Der Vogel", "Titel der vierten Spur")
+        check(!text.isEmpty, "CD-TEXT can be parsed")
+        equal(text.albumTitle, "Peter und der Wolf", "album title")
+        equal(text.albumArtist, "Malte Arkona, Dresdner Philharmonie", "album artist")
+        equal(text.albumComposer, "Sergej Prokofjew", "composer")
+        equal(text.title(forTrack: 4), "Der Vogel", "title of the fourth track")
 
-        // Der Grund für diese Prüfung: beim ersten Anlauf stand hier
-        // „Der Gro�vater" — CD-TEXT ist Latin-1, nicht UTF-8.
-        equal(text.title(forTrack: 7), "Der Großvater", "Umlaute und ß kommen richtig an")
-        equal(text.title(forTrack: 13), "Ein vertontes Märchen", "Umlaut im Titel")
-        equal(text.title(forTrack: 14), "Das hässliche junge Entlein", "ß im Titel")
+        // The reason for this check: the first attempt produced
+        // "Der Gro�vater" here — CD-TEXT is Latin-1, not UTF-8.
+        equal(text.title(forTrack: 7), "Der Großvater", "umlauts and ß arrive correctly")
+        equal(text.title(forTrack: 13), "Ein vertontes Märchen", "umlaut in the title")
+        equal(text.title(forTrack: 14), "Das hässliche junge Entlein", "ß in the title")
         equal(text.performer(forTrack: 12), "Peter Schreier, Walter Olberz",
-              "abweichender Interpret einer einzelnen Spur")
+              "a different artist on a single track")
         equal(text.performer(forTrack: 4), "Malte Arkona, Dresdner Philharmonie",
-              "Spur ohne eigenen Interpreten erbt den des Albums")
+              "a track without an artist of its own inherits the album's")
 
-        check(CDText(packets: []).isEmpty, "leeres CD-TEXT bleibt leer")
+        check(CDText(packets: []).isEmpty, "empty CD-TEXT stays empty")
         check(CDText(packets: [UInt8](repeating: 0, count: 17)).isEmpty,
-              "angeschnittenes Paket kippt nicht um")
+              "a truncated pack does not tip it over")
     }
 
-    // MARK: - Versatz
+    // MARK: - Offset
 
     static func offsetArithmetic() {
-        print("\n— Leseversatz —")
-        // Ein Laufwerk mit Versatz +6 liefert auf Anfrage nach p das Sample
-        // p+6. Wer ab `start` will, muss ab `start−6` anfragen.
+        print("\n— Read offset —")
+        // A drive with offset +6 delivers sample p+6 when asked for p.
+        // Whoever wants it from `start` has to ask from `start−6`.
         let samplesPerSector = CDGeometry.samplesPerSector
-        equal(samplesPerSector, 588, "Samples je Sektor")
-        equal(CDGeometry.bytesPerSector, 2352, "Bytes je Sektor")
+        equal(samplesPerSector, 588, "samples per sector")
+        equal(CDGeometry.bytesPerSector, 2352, "bytes per sector")
         equal(samplesPerSector * CDGeometry.bytesPerSample, CDGeometry.bytesPerSector,
-              "Sektorgröße geht in Samples auf")
+              "the sector size divides into samples")
 
         let track = DiscTrack(number: 2, startLBA: 13851, sectorCount: 6412, isData: false)
-        equal(track.endLBA, 20263, "Spurende")
-        equal(track.byteCount, 6412 * 2352, "Bytezahl der Spur")
-        equal(Int(track.duration.components.seconds), 85, "Spieldauer in Sekunden")
+        equal(track.endLBA, 20263, "end of track")
+        equal(track.byteCount, 6412 * 2352, "byte count of the track")
+        equal(Int(track.duration.components.seconds), 85, "playing time in seconds")
 
         for offset in [0, 6, -6, 667, -582] {
             let start = track.startLBA * samplesPerSector - offset
             let end = track.endLBA * samplesPerSector - offset
             equal(end - start, track.sectorCount * samplesPerSector,
-                  "Versatz \(offset) ändert die Länge nicht")
+                  "offset \(offset) does not change the length")
         }
     }
 
-    // MARK: - Prüfsummen
+    // MARK: - Checksums
 
     static func checksums() {
-        print("\n— Prüfsummen —")
-        // Der übliche Testwert für CRC-32.
+        print("\n— Checksums —")
+        // The usual test value for CRC-32.
         equal(CRC32.compute(Data("123456789".utf8)), 0xCBF4_3926,
-              "CRC-32 über \"123456789\"")
-        equal(CRC32.compute(Data()), 0, "CRC-32 über nichts")
+              "CRC-32 over \"123456789\"")
+        equal(CRC32.compute(Data()), 0, "CRC-32 over nothing")
         check(CRC32.compute(Data([1, 2, 3])) != CRC32.compute(Data([3, 2, 1])),
-              "Reihenfolge geht in die Prüfsumme ein")
+              "order goes into the checksum")
     }
 
-    // MARK: - Abbild
+    // MARK: - Image
 
     static func discImage() {
-        print("\n— Abbild —")
+        print("\n— Disc image —")
 
-        // Ein Abbild wird nie am Stück berechnet: 550 MB im Speicher wären
-        // Verschwendung. Also muss die fortgeschriebene Prüfsumme exakt der
-        // in einem Rutsch berechneten entsprechen — sonst stimmt keine
-        // Angabe im Protokoll.
+        // An image is never computed in one piece: 550 MB in memory would be
+        // wasteful. So the continued checksum has to match the one computed in
+        // one go exactly — otherwise no figure in the log is right.
         let blob = Data((0..<50_000).map { UInt8(($0 &* 31 &+ 7) & 0xFF) })
         var running = CRC32.seed
         var offset = 0
@@ -277,18 +291,18 @@ enum RipTests {
         }
         running = CRC32.continue_(running, with: blob.subdata(in: offset..<blob.count))
         equal(CRC32.finish(running), CRC32.compute(blob),
-              "stückweise Prüfsumme gleicht der am Stück berechneten")
+              "the piecewise checksum equals the one computed in one go")
         equal(CRC32.finish(CRC32.seed), CRC32.compute(Data()),
-              "leerer Strom ergibt dieselbe Prüfsumme wie nichts")
+              "an empty stream gives the same checksum as nothing")
 
-        // Der Dateityp im Cue Sheet. Steht dort WAVE statt BINARY, sucht das
-        // Abspielprogramm die Trackgrenzen um 44 Byte verschoben.
-        equal(DiscImageFormat.bin.cueFileType, "BINARY", "BIN ist BINARY")
-        equal(DiscImageFormat.wav.cueFileType, "WAVE", "WAV ist WAVE")
-        equal(DiscImageFormat.flac.cueFileType, "WAVE", "FLAC gilt ebenfalls als WAVE")
-        check(!DiscImageFormat.bin.needsFFmpeg, "BIN kommt ohne ffmpeg aus")
-        check(!DiscImageFormat.wav.needsFFmpeg, "WAV kommt ohne ffmpeg aus")
-        check(DiscImageFormat.flac.needsFFmpeg, "FLAC braucht ffmpeg")
+        // The file type in the cue sheet. If it says WAVE instead of BINARY,
+        // the player looks for the track boundaries shifted by 44 bytes.
+        equal(DiscImageFormat.bin.cueFileType, "BINARY", "BIN is BINARY")
+        equal(DiscImageFormat.wav.cueFileType, "WAVE", "WAV is WAVE")
+        equal(DiscImageFormat.flac.cueFileType, "WAVE", "FLAC counts as WAVE as well")
+        check(!DiscImageFormat.bin.needsFFmpeg, "BIN works without ffmpeg")
+        check(!DiscImageFormat.wav.needsFFmpeg, "WAV works without ffmpeg")
+        check(DiscImageFormat.flac.needsFFmpeg, "FLAC needs ffmpeg")
 
         guard let toc = DiscTOC(rawTOC: hexData(realTOC)) else { return }
         let report = RipReport(drive: CDDriveInfo(bsdName: "disk9", vendor: "ASUS",
@@ -300,99 +314,99 @@ enum RipTests {
                                      albumArtist: "Malte Arkona",
                                      audioFileName: "album.bin", fileType: "BINARY",
                                      titles: [1: "Intro: Malte und Mezzo", 2: "Vorspiel"])
-        check(binCue.contains("FILE \"album.bin\" BINARY"), "BIN-Abbild im Cue Sheet")
+        check(binCue.contains("FILE \"album.bin\" BINARY"), "BIN image in the cue sheet")
         check(binCue.contains("    TITLE \"Intro: Malte und Mezzo\""),
-              "Tracktitel stehen im Cue Sheet")
+              "track titles are in the cue sheet")
         check(binCue.contains("  TRACK 01 AUDIO\n    TITLE"),
-              "Titel folgt direkt auf die Trackzeile")
+              "the title follows right after the track line")
         equal(binCue.components(separatedBy: "INDEX 01").count - 1, 14,
-              "vierzehn Trackmarken")
-        check(binCue.contains("INDEX 01 00:00:00"), "Abbild beginnt bei null")
-        check(binCue.contains("INDEX 01 03:04:51"), "Beginn der zweiten Spur")
+              "fourteen track marks")
+        check(binCue.contains("INDEX 01 00:00:00"), "the image starts at zero")
+        check(binCue.contains("INDEX 01 03:04:51"), "start of the second track")
 
         let wavCue = report.cueSheet(albumTitle: nil, albumArtist: nil,
                                      audioFileName: "album.flac", fileType: "WAVE")
-        check(wavCue.contains("FILE \"album.flac\" WAVE"), "FLAC-Abbild im Cue Sheet")
-        check(!wavCue.contains("PERFORMER"), "ohne Interpret keine leere Zeile")
-        check(!wavCue.contains("TITLE \"\""), "ohne Titel keine leere Titelzeile")
+        check(wavCue.contains("FILE \"album.flac\" WAVE"), "FLAC image in the cue sheet")
+        check(!wavCue.contains("PERFORMER"), "no artist, no empty line")
+        check(!wavCue.contains("TITLE \"\""), "no title, no empty title line")
 
-        // Anführungszeichen im Titel würden das Cue Sheet zerlegen.
+        // Quotes in the title would break the cue sheet apart.
         let tricky = report.cueSheet(albumTitle: "Say \"Hello\"", albumArtist: nil,
                                      audioFileName: "a.wav")
-        check(!tricky.contains("\"Say \"Hello\"\""), "Anführungszeichen werden entschärft")
+        check(!tricky.contains("\"Say \"Hello\"\""), "quotes are defused")
     }
 
-    // MARK: - WAV und Cue
+    // MARK: - WAV and cue
 
     static func wavAndCue() {
-        print("\n— WAV und Cue Sheet —")
+        print("\n— WAV and cue sheet —")
         let pcm = Data(repeating: 0, count: 2352 * 10)
         let header = WAVWriter.header(forPCMByteCount: pcm.count)
-        equal(header.count, 44, "Kopf ist 44 Byte lang")
-        equal(String(decoding: header[0..<4], as: UTF8.self), "RIFF", "RIFF-Kennung")
-        equal(String(decoding: header[8..<12], as: UTF8.self), "WAVE", "WAVE-Kennung")
+        equal(header.count, 44, "the header is 44 bytes long")
+        equal(String(decoding: header[0..<4], as: UTF8.self), "RIFF", "RIFF identifier")
+        equal(String(decoding: header[8..<12], as: UTF8.self), "WAVE", "WAVE identifier")
         let declared = header[40..<44].withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
-        equal(Int(UInt32(littleEndian: declared)), pcm.count, "Datenlänge im Kopf")
+        equal(Int(UInt32(littleEndian: declared)), pcm.count, "data length in the header")
 
-        equal(RipReport.msf(0), "00:00:00", "Sektor 0 als MSF")
-        equal(RipReport.msf(75), "00:01:00", "eine Sekunde")
-        equal(RipReport.msf(13851), "03:04:51", "Beginn der zweiten Spur als MSF")
+        equal(RipReport.msf(0), "00:00:00", "sector 0 as MSF")
+        equal(RipReport.msf(75), "00:01:00", "one second")
+        equal(RipReport.msf(13851), "03:04:51", "start of the second track as MSF")
     }
 
-    // MARK: - Am echten Laufwerk
+    // MARK: - On the real drive
 
     static func live() throws {
-        print("\n— Laufwerk —")
+        print("\n— Drive —")
         guard let info = CDDriveFinder.availableDrives().first,
               let raw = info.rawTOC, let toc = DiscTOC(rawTOC: raw) else {
-            print("  … übersprungen, keine Audio-CD eingelegt")
+            print("  … skipped, no audio CD inserted")
             return
         }
-        check(true, "Laufwerk gefunden: \(info.displayName)")
-        check(!info.vendor.isEmpty, "Hersteller ausgelesen", detail: info.vendor)
-        check(info.devicePath.hasPrefix("/dev/r"), "Zeichengerät, nicht Blockgerät")
+        check(true, "drive found: \(info.displayName)")
+        check(!info.vendor.isEmpty, "vendor read", detail: info.vendor)
+        check(info.devicePath.hasPrefix("/dev/r"), "character device, not block device")
 
         let drive: CDDrive
         do {
             drive = try CDDrive(info: info)
         } catch {
-            check(false, "Gerät ohne Sonderrechte zu öffnen", detail: "\(error)")
+            check(false, "device opens without special privileges", detail: "\(error)")
             return
         }
-        check(true, "Gerät ohne Sonderrechte geöffnet")
+        check(true, "device opened without special privileges")
 
         if let speed = drive.currentSpeed() {
-            check(speed > 0, "Geschwindigkeit lesbar", detail: "\(speed) kB/s")
+            check(speed > 0, "speed readable", detail: "\(speed) kB/s")
         }
 
-        // Rohlesen und gegen die Sicht von macOS halten: das gemountete
-        // CDDA-Dateisystem zeigt dieselben Spuren als AIFC. Stimmen beide
-        // byteweise überein, sitzt die Adressierung.
+        // Read raw and hold it against what macOS sees: the mounted CDDA file
+        // system shows the same tracks as AIFC. If both match byte for byte,
+        // the addressing is right.
         guard let track = toc.audioTracks.dropFirst(2).first else { return }
         let aiffURL = URL(fileURLWithPath:
             "/Volumes/Audio CD/\(track.number) Audio Track.aiff")
         guard let aiff = try? Data(contentsOf: aiffURL) else {
-            print("  … Vergleich übersprungen, Volume nicht gemountet")
+            print("  … comparison skipped, volume not mounted")
             return
         }
 
-        // Nur den Anfang vergleichen, das genügt und dauert nicht.
+        // Comparing only the beginning is enough and does not take long.
         let sectors = 200
         let read = try drive.read(lba: track.startLBA, count: sectors, withC2: false)
-        equal(read.audio.count, sectors * 2352, "Rohlesen liefert volle Sektoren")
+        equal(read.audio.count, sectors * 2352, "raw reading delivers full sectors")
 
-        // C2 ist nicht selbstverständlich. Dieses Laufwerk meldet auf die
-        // Anfrage nach Nutzdaten *und* Fehlerzeigern mal Erfolg über den
-        // vollen Puffer, mal nur über ein Achtel — und der Audioanteil passt
-        // in keinem Fall zu einem gewöhnlichen Lesen. Deshalb entscheidet
-        // der Inhaltsvergleich, nicht die gemeldete Länge.
+        // C2 cannot be taken for granted. When asked for payload *and* error
+        // pointers, this drive sometimes reports success over the full buffer,
+        // sometimes over only an eighth — and in neither case does the audio
+        // part match an ordinary read. So the content comparison decides, not
+        // the reported length.
         let hasC2 = drive.supportsC2(probeLBA: track.startLBA)
         check(drive.supportsC2(probeLBA: track.startLBA) == hasC2,
-              "C2-Tauglichkeit wird stabil festgestellt",
-              detail: hasC2 ? "Laufwerk liefert C2" : "Laufwerk liefert kein C2")
+              "C2 capability is determined consistently",
+              detail: hasC2 ? "drive delivers C2" : "drive delivers no C2")
 
-        // Vergleichsstück aus der Mitte der Spur: groß genug, um mehrere
-        // Blöcke zu umfassen, klein genug für einen schnellen Testlauf.
+        // A comparison piece from the middle of the track: large enough to
+        // span several blocks, small enough for a quick test run.
         let sliceStart = track.startLBA + 100
         let sliceSectors = 400
         let aiffSlice = Data(aiff.dropFirst(2352 + 100 * 2352).prefix(sliceSectors * 2352))
@@ -406,56 +420,55 @@ enum RipTests {
                               sectorCount: sliceSectors, isData: false)
 
         let ripped = try reader.rip(track: piece)
-        equal(ripped.audio.count, sliceSectors * 2352, "sicherer Modus liefert die volle Länge")
-        equal(ripped.audio, aiffSlice, "sicherer Modus deckt sich mit dem, was macOS liest")
-        check(ripped.suspiciousSectors.isEmpty, "keine ungeklärten Sektoren",
+        equal(ripped.audio.count, sliceSectors * 2352, "secure mode delivers the full length")
+        equal(ripped.audio, aiffSlice, "secure mode matches what macOS reads")
+        check(ripped.suspiciousSectors.isEmpty, "no unresolved sectors",
               detail: "\(ripped.suspiciousSectors.count)")
-        check(ripped.isAccurate, "als sauber gelesen gewertet")
+        check(ripped.isAccurate, "rated as read cleanly")
 
-        // Die schärfste Prüfung der Versatzkorrektur: ein Versatz von genau
-        // einem Sektor muss dasselbe ergeben wie ein um einen Sektor
-        // verschobenes Stück. Stimmt das, sitzt die Rechnung — und nicht
-        // bloß die Länge.
+        // The sharpest check of the offset correction: an offset of exactly
+        // one sector has to give the same as a piece shifted by one sector. If
+        // that holds, the arithmetic is right — not just the length.
         settings.readOffset = CDGeometry.samplesPerSector
         let shifted = try CDReader(drive: drive, settings: settings).rip(track: piece)
         let expectedShift = try drive.read(lba: sliceStart - 1, count: sliceSectors, withC2: false)
         equal(shifted.audio, expectedShift.audio,
-              "Versatz von einem ganzen Sektor verschiebt das Fenster richtig")
-        check(shifted.audio != ripped.audio, "verschobenes Fenster ist wirklich anderes Audio")
+              "an offset of one whole sector shifts the window correctly")
+        check(shifted.audio != ripped.audio, "the shifted window really is different audio")
 
-        // Und ein krummer Versatz: 6 Samples sind 24 Byte.
+        // And an odd offset: 6 samples are 24 bytes.
         settings.readOffset = 6
         let odd = try CDReader(drive: drive, settings: settings).rip(track: piece)
         let wide = try drive.read(lba: sliceStart - 1, count: sliceSectors + 1, withC2: false)
         let expectedOdd = wide.audio.subdata(
             in: (2352 - 24)..<(2352 - 24 + sliceSectors * 2352))
-        equal(odd.audio, expectedOdd, "Versatz von 6 Samples trifft auf das Byte genau")
+        equal(odd.audio, expectedOdd, "an offset of 6 samples is exact to the byte")
 
-        // Burst muss dasselbe liefern wie Sicher, solange die Scheibe sauber ist.
+        // Burst has to deliver the same as secure as long as the disc is clean.
         settings.readOffset = 0
         settings.mode = .burst
         let burst = try CDReader(drive: drive, settings: settings).rip(track: piece)
-        equal(burst.audio, ripped.audio, "Burst und Sicher stimmen bei sauberer Scheibe überein")
-        equal(burst.crc, ripped.crc, "gleiche Prüfsumme")
+        equal(burst.audio, ripped.audio, "burst and secure agree on a clean disc")
+        equal(burst.crc, ripped.crc, "same checksum")
 
-        // Doppelrip: derselbe Durchgang zweimal, Prüfsummen müssen passen.
+        // Second pass: the same pass twice, the checksums have to match.
         settings.mode = .secure
         settings.testBeforeCopy = true
         let verified = try CDReader(drive: drive, settings: settings).rip(track: piece)
-        equal(verified.verificationCRC, verified.crc, "Doppelrip bestätigt sich selbst")
-        equal(verified.crc, ripped.crc, "und stimmt mit dem einfachen Durchgang überein")
+        equal(verified.verificationCRC, verified.crc, "the second pass confirms itself")
+        equal(verified.crc, ripped.crc, "and agrees with the single pass")
 
-        // WAV schreiben und wieder einlesen.
+        // Write the WAV and read it back.
         let wavURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("sleeve-rip-test.wav")
         try WAVWriter.write(pcm: ripped.audio, to: wavURL)
         defer { try? FileManager.default.removeItem(at: wavURL) }
         let written = try Data(contentsOf: wavURL)
-        equal(written.count, 44 + ripped.audio.count, "WAV-Datei hat die erwartete Größe")
-        equal(Data(written.dropFirst(44)), ripped.audio, "PCM kommt unverändert in der Datei an")
+        equal(written.count, 44 + ripped.audio.count, "the WAV file has the expected size")
+        equal(Data(written.dropFirst(44)), ripped.audio, "PCM arrives in the file unchanged")
 
-        // Strömendes Lesen muss byteweise dasselbe ergeben wie der Weg über
-        // eine ganze Spur — sonst wäre ein Abbild etwas anderes als der Rip.
+        // Streaming has to give byte for byte the same as the route over a
+        // whole track — otherwise an image would be something else than a rip.
         for offset in [0, 6, -6, 588] {
             var streaming = RipSettings()
             streaming.mode = .burst
@@ -470,40 +483,39 @@ enum RipTests {
                                   sectorCount: 120, isData: false)
             let whole = try CDReader(drive: drive, settings: streaming).rip(track: piece)
             equal(streamed, whole.audio,
-                  "Strom und Spur stimmen überein, Versatz \(offset)")
+                  "stream and track agree, offset \(offset)")
             equal(summary.finishedCRC, whole.crc,
-                  "gleiche Prüfsumme, Versatz \(offset)")
+                  "same checksum, offset \(offset)")
         }
         equal(try CDReader(drive: drive, settings: {
             var s = RipSettings(); s.mode = .burst; return s
         }()).readContiguous(fromSector: sliceStart, toSector: sliceStart + 120) { _ in }
-            .suspiciousSectors.count, 0, "keine ungeklärten Sektoren beim Strömen")
+            .suspiciousSectors.count, 0, "no unresolved sectors while streaming")
 
         try engineEndToEnd(toc: toc, track: track, aiff: aiff)
 
         if let mcn = drive.readMCN() {
-            check(mcn.allSatisfy(\.isNumber), "MCN besteht aus Ziffern", detail: mcn)
+            check(mcn.allSatisfy(\.isNumber), "the MCN consists of digits", detail: mcn)
         }
-        // ISRCs werden als Satz gelesen und als Satz verworfen, sobald ein
-        // Wert doppelt auftaucht — der bekannte Fehler dieses Laufwerks gibt
-        // einer Spur die Kennung ihrer Vorgängerin. Geprüft wird deshalb
-        // nicht „kommt etwas zurück", sondern „ist das Gelieferte in sich
-        // stimmig".
+        // ISRCs are read as a set and discarded as a set as soon as a value
+        // appears twice — this drive's known bug gives a track its
+        // predecessor's code. So the check is not "does something come back"
+        // but "is what came back consistent in itself".
         let isrcs = drive.readISRCs(for: toc.tracks)
         if isrcs.isEmpty {
-            check(true, "ISRCs verworfen, weil nicht verlässlich lesbar")
+            check(true, "ISRCs discarded because they cannot be read reliably")
         } else {
             equal(Set(isrcs.values).count, isrcs.count,
-                  "kein Wert doppelt — sonst wäre der Satz verworfen worden")
+                  "no value twice — otherwise the set would have been discarded")
             check(isrcs.values.allSatisfy { $0.count == 12 },
-                  "jede gelieferte ISRC ist zwölf Zeichen lang")
+                  "every delivered ISRC is twelve characters long")
             check(isrcs.keys.allSatisfy { number in
                 toc.tracks.contains { $0.number == number && !$0.isData }
-            }, "ISRCs gehören zu Audiospuren")
+            }, "ISRCs belong to audio tracks")
         }
 
         if let text = drive.readCDText() {
-            check(!text.isEmpty, "CD-TEXT von der Scheibe gelesen",
+            check(!text.isEmpty, "CD-TEXT read from the disc",
                   detail: text.albumTitle ?? "")
         }
     }
