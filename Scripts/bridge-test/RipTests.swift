@@ -131,7 +131,11 @@ enum RipTests {
         let cue = report.cueSheet(albumTitle: "Peter und der Wolf",
                                   albumArtist: "Malte Arkona", audioFileName: "album.wav")
         check(cue.contains("TRACK 01 AUDIO"), "the cue sheet lists the first track")
-        check(cue.contains("INDEX 01 03:04:51"), "the cue sheet names the start of the second track")
+        // Computed from the inserted disc's TOC — whichever CD is in the drive.
+        if toc.tracks.count > 1 {
+            check(cue.contains("INDEX 01 \(RipReport.msf(toc.tracks[1].startLBA))"),
+                  "the cue sheet names the start of the second track")
+        }
     }
 
     static func run() throws -> Int32 {

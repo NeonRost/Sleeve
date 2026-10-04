@@ -66,6 +66,46 @@ extension AppState {
         .title, .artist, .albumArtist, .album, .composer, .genre, .comment,
     ]
 
+    // MARK: - Find and replace (§4.3.1)
+
+    /// One change a replacement would make — for the preview.
+    struct ReplacementChange: Identifiable, Equatable {
+        var id: String { "\(trackID)-\(field.rawValue)" }
+        let trackID: TrackFile.ID
+        let filename: String
+        let field: TagField
+        let old: String
+        let new: String
+    }
+
+    /// Every change the replacement would make on the targets, in table
+    /// order. Throws for an invalid regular expression.
+    func replacementPreview(_ replacement: TextReplacement,
+                            fields: Set<TagField>) throws -> [ReplacementChange] {
+        var changes: [ReplacementChange] = []
+        for track in operationTargetsInDisplayOrder {
+            for field in Self.textFields where fields.contains(field) {
+                guard let old = track.edited.stringValue(for: field), !old.isEmpty,
+                      let new = try replacement.apply(to: old), new != old else { continue }
+                changes.append(ReplacementChange(trackID: track.id, filename: track.filename,
+                                                 field: field, old: old, new: new))
+            }
+        }
+        return changes
+    }
+
+    /// Applies exactly what the preview shows. Only changed fields are
+    /// marked as touched — a field the pattern does not match stays
+    /// untouched (spec §4.1). A field replaced down to nothing is cleared.
+    @discardableResult
+    func applyReplacement(_ replacement: TextReplacement, fields: Set<TagField>) throws -> Int {
+        let changes = try replacementPreview(replacement, fields: fields)
+        for change in changes {
+            trackList.track(id: change.trackID)?.set(change.new, for: change.field)
+        }
+        return changes.count
+    }
+
     // MARK: - Tags → file name (§4.4)
 
     /// Preview before anything happens. Returns the proposed name per track —

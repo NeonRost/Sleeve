@@ -30,6 +30,9 @@ struct ToolbarPopoverButton<Content: View>: View {
     let titleKey: LocalizedStringKey
     let systemImage: String
     var help: LocalizedStringKey = ""
+    /// Debug builds only: `-SleeveDebugPopover <id>` opens this popover at
+    /// launch, for a screenshot.
+    var debugID: String?
     @ViewBuilder var content: Content
 
     @State private var isPresented = false
@@ -44,6 +47,14 @@ struct ToolbarPopoverButton<Content: View>: View {
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             content
         }
+        #if DEBUG
+        .task {
+            guard let debugID,
+                  UserDefaults.standard.string(forKey: "SleeveDebugPopover") == debugID else { return }
+            try? await Task.sleep(for: .seconds(2))
+            isPresented = true
+        }
+        #endif
     }
 }
 
@@ -158,6 +169,15 @@ struct SleeveToolbar: ToolbarContent {
             help: "Title Case, UPPERCASE or lowercase"
         ) {
             CasePopover().environment(state)
+        }
+
+        ToolbarPopoverButton(
+            titleKey: "Replace",
+            systemImage: "arrow.triangle.swap",
+            help: "Find and replace text in tags",
+            debugID: "replace"
+        ) {
+            ReplacePopover().environment(state)
         }
 
         ToolbarPopoverButton(

@@ -227,9 +227,7 @@ private struct DiscFacts: View {
                 Text(disc.toc.totalDuration.formatted(.time(pattern: .minuteSecond)))
                     .foregroundStyle(.secondary)
             }
-            LabeledContent("Drive") {
-                Text(disc.drive.displayName).foregroundStyle(.secondary)
-            }
+            SourceDriveRow()
         }
     }
 }

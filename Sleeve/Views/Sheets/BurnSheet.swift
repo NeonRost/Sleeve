@@ -26,9 +26,6 @@
 //  2. The real burn asks for confirmation. It is the only function in
 //     Sleeve that irrevocably uses up something physical.
 //
-//  Plus the note that this part alone has never run on real hardware —
-//  that belongs visibly in the UI, not just in the spec.
-//
 
 import SwiftUI
 
@@ -79,22 +76,11 @@ struct BurnSheet: View {
                 }
 
                 Section("Drive") {
-                    LabeledContent("Drive") {
-                        Text(state.burnDevice?.displayName ?? String(localized: "none found"))
-                            .foregroundStyle(.secondary)
-                    }
+                    BurnerRow()
                     LabeledContent("Disc") {
                         Text(discText).foregroundStyle(.secondary)
                     }
                     Button("Check again") { state.refreshBurnMedia() }
-                }
-
-                Section {
-                    Label("The burn itself has never run on real hardware — there was no blank disc to test with. Everything before it is verified. Use the test run first.",
-                          systemImage: "exclamationmark.triangle")
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let message = state.burnError {
@@ -145,6 +131,15 @@ struct BurnSheet: View {
 
     @ViewBuilder
     private var footer: some View {
+        if state.burnStage == .idle, let blocker = state.burnBlocker {
+            Text(blocker)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+        }
         HStack(spacing: 10) {
             switch state.burnStage {
             case .running(let simulated):
@@ -164,9 +159,9 @@ struct BurnSheet: View {
                 Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
 
             case .idle:
-                if let blocker = state.burnBlocker {
-                    Text(blocker).font(.callout).foregroundStyle(.secondary).lineLimit(2)
-                }
+                // Three buttons leave no room for a sentence next to them —
+                // it was cut off, and "Burn for real…" with it. The reason
+                // sits above the buttons instead.
                 Spacer()
                 Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Burn for real…") { state.isConfirmingBurn = true }

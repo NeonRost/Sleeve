@@ -54,8 +54,10 @@ actor RipEngine {
     // MARK: - Identifying
 
     /// Reads everything that can be learned about the disc without ripping.
-    func inspect() throws -> DiscSnapshot {
-        guard let info = CDDriveFinder.availableDrives().first else {
+    /// `bsdName` picks the drive when there are several; `nil` takes the
+    /// first one with a disc.
+    func inspect(bsdName: String? = nil) throws -> DiscSnapshot {
+        guard let info = CDDriveFinder.drive(named: bsdName) else {
             throw CDDriveError.noDrive
         }
         guard let raw = info.rawTOC, var toc = DiscTOC(rawTOC: raw) else {
@@ -91,11 +93,13 @@ actor RipEngine {
     nonisolated func rip(tracks numbers: [Int],
                          to destination: URL,
                          names: [Int: String] = [:],
-                         settings: RipSettings) -> AsyncStream<Event> {
+                         settings: RipSettings,
+                         bsdName: String? = nil) -> AsyncStream<Event> {
         AsyncStream { continuation in
             let task = Task {
                 await self.perform(tracks: numbers, to: destination, names: names,
-                                   settings: settings, continuation: continuation)
+                                   settings: settings, bsdName: bsdName,
+                                   continuation: continuation)
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
@@ -106,9 +110,10 @@ actor RipEngine {
                          to destination: URL,
                          names: [Int: String],
                          settings: RipSettings,
+                         bsdName: String?,
                          continuation: AsyncStream<Event>.Continuation) async {
         let started = Date()
-        guard let info = CDDriveFinder.availableDrives().first,
+        guard let info = CDDriveFinder.drive(named: bsdName),
               let raw = info.rawTOC, var toc = DiscTOC(rawTOC: raw) else {
             continuation.yield(.trackFailed(track: 0, reason: "no disc"))
             return
@@ -182,20 +187,19 @@ actor RipEngine {
         continuation.yield(.finished(report))
     }
 
-    /// Ejects the disc — for real.
+    /// Ejects the disc — for real, and from the right drive.
     ///
     /// `diskutil eject` alone is **not** enough: it only releases the medium
     /// logically. Afterwards the drive reports "No Media Inserted", the volume
     /// has disappeared from the Finder — and the tray stays shut, the disc is
     /// still inside. Measured on an ASUS BW-16D1X-U over USB.
     ///
-    /// Hence two steps: first release the volume cleanly so that macOS does
-    /// not interfere, then open the tray via `drutil`.
-    ///
-    /// `drutil` addresses the default drive. With several optical drives on
-    /// the same machine it might hit the wrong one — rare enough not to be
-    /// resolved here.
+    /// DiscRecording's `ejectMedia` unmounts and opens the tray of exactly
+    /// the drive the disc is in — measured on the same drive. Only a drive
+    /// DiscRecording does not know (a pure reader) falls back to `diskutil`
+    /// plus `drutil`, and `drutil` addresses the default drive.
     nonisolated func eject(bsdName: String) {
+        if CDBurner.eject(bsdName: bsdName) { return }
         run("/usr/sbin/diskutil", ["unmount", "/dev/\(bsdName)"])
         run("/usr/bin/drutil", ["tray", "eject"])
     }
@@ -246,13 +250,15 @@ extension RipEngine {
                                  albumTitle: String?,
                                  albumArtist: String?,
                                  trackTitles: [Int: String],
-                                 ffmpeg: FFmpegTool?) -> AsyncStream<ImageEvent> {
+                                 ffmpeg: FFmpegTool?,
+                                 bsdName: String? = nil) -> AsyncStream<ImageEvent> {
         AsyncStream { continuation in
             let task = Task {
                 await self.performImage(in: folder, baseName: baseName, format: format,
                                         settings: settings, albumTitle: albumTitle,
                                         albumArtist: albumArtist, trackTitles: trackTitles,
-                                        ffmpeg: ffmpeg, continuation: continuation)
+                                        ffmpeg: ffmpeg, bsdName: bsdName,
+                                        continuation: continuation)
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
@@ -267,9 +273,10 @@ extension RipEngine {
                               albumArtist: String?,
                               trackTitles: [Int: String],
                               ffmpeg: FFmpegTool?,
+                              bsdName: String?,
                               continuation: AsyncStream<ImageEvent>.Continuation) async {
         let started = Date()
-        guard let info = CDDriveFinder.availableDrives().first,
+        guard let info = CDDriveFinder.drive(named: bsdName),
               let raw = info.rawTOC, var toc = DiscTOC(rawTOC: raw) else {
             continuation.yield(.failed(String(localized: "No audio CD in the drive.")))
             return

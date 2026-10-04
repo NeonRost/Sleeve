@@ -301,6 +301,24 @@ enum AppStateTests {
             equal(onDisk.comment, nil, "  \(track.filename): comment gone from disk")
         }
 
+        section("Find and replace")
+        let titlesBeforeReplace = state.trackList.tracks.map(\.edited.title)
+        let track = TextReplacement(find: "track", replacement: "Song")
+        let changes = (try? state.replacementPreview(track, fields: [.title])) ?? []
+        equal(changes.count, 1, "the preview finds exactly the one title containing \"Track\"")
+        equal(changes.first?.new, "M4A Song", "and shows the result")
+        equal((try? state.replacementPreview(track, fields: [.album]))?.count, 0,
+              "fields not chosen stay out of it")
+        let applied = (try? state.applyReplacement(track, fields: [.title])) ?? -1
+        equal(applied, 1, "applying changes what the preview showed")
+        let changed = state.trackList.tracks.filter { $0.touchedFields.contains(.title) }
+        equal(changed.map(\.edited.title), ["M4A Song"], "only that title is marked as touched")
+        changed.forEach { $0.revert() }
+        equal(state.trackList.tracks.map(\.edited.title), titlesBeforeReplace, "and can be discarded")
+        check((try? state.replacementPreview(TextReplacement(find: "(", usesRegularExpression: true),
+                                             fields: [.title])) == nil,
+              "an invalid regular expression throws instead of previewing")
+
         section("Several cover pictures")
         let picture = try Data(contentsOf: URL(fileURLWithPath: root + "/TestFiles/cover.jpg"))
         let front = ArtworkProcessor.prepare(picture, pictureType: .frontCover,

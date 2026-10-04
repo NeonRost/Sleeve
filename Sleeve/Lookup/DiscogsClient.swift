@@ -99,6 +99,24 @@ actor DiscogsClient {
         try await get("/releases/\(id)", items: [])
     }
 
+    /// Downloads a release image. Discogs' image server wants the same
+    /// User-Agent as the API; the token is not needed.
+    func imageData(from url: URL) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw ClientError.transport(error.localizedDescription)
+        }
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw http.statusCode == 404 ? ClientError.notFound : ClientError.server(http.statusCode)
+        }
+        return data
+    }
+
     // MARK: - Transport
 
     private func get<T: Decodable>(_ path: String, items: [URLQueryItem]) async throws -> T {

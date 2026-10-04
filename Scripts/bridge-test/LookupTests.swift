@@ -111,6 +111,8 @@ enum LookupTests {
         equal(simple.playableTracks.count, 2, "two pieces")
         equal(simple.labelSummary, "RCA · PB 41447", "label and catalog number")
         let simpleNeutral = simple.asLookupRelease()
+        check(simpleNeutral.coverURL?.host == "i.discogs.com", "the primary image as cover",
+              detail: simpleNeutral.coverURL?.absoluteString ?? "—")
         equal(GenreSource.style.value(from: simpleNeutral), "Euro-Disco", "style preferred")
         equal(GenreSource.genre.value(from: simpleNeutral), "Electronic; Pop", "genre on request")
         equal(GenreSource.both.value(from: simpleNeutral), "Electronic; Pop; Euro-Disco",
@@ -139,6 +141,7 @@ enum LookupTests {
         equal(TrackPosition.parse("B2"), TrackPosition(disc: nil, number: nil), "vinyl side")
         equal(TrackPosition.parse(nil), TrackPosition(), "without a value")
         equal(tricky.discCount, 2, "double CD recognized")
+        check(tricky.asLookupRelease().coverURL == nil, "no images, no cover")
 
         // MARK: - Matching
 
@@ -287,6 +290,7 @@ enum LookupTests {
               "User-Agent as in the spec")
 
         await sharedSearch()
+        await discLookup()
 
         print("\n\(checks - failures)/\(checks) checks passed")
         if failures > 0 {
@@ -348,6 +352,31 @@ enum LookupTests {
               "exactly the file ten seconds off stands out — 0.4 s does not")
         check(!session.proposals().isEmpty, "proposals to take over")
 
+        // The cover: the full release says whether there is a front cover,
+        // and the large size comes from the Cover Art Archive.
+        equal(search.release?.coverURL?.lastPathComponent, "front-1200",
+              "the cover comes in the largest ready-made size")
+        check(session.availableFields.contains(.artwork), "the cover switch is available")
+        check(session.takesCover, "files without a cover: the cover is ticked")
+        // A search of its own: a session attaches itself to its search, and a
+        // second one on the same search would take the first one's place.
+        let otherSearch = ReleaseSearch(service: service, provider: .musicBrainz, query: query,
+                                        hasDiscogsToken: false)
+        check(!LookupSession(search: otherSearch, local: files, genreSource: .style,
+                             filesHaveCover: true).selectedFields.contains(.artwork),
+              "files with a cover of their own: not ticked, nothing replaced by accident")
+        if let release = search.release,
+           let data = try? await search.service.cover(of: release),
+           let cover = ArtworkProcessor.prepare(data, pictureType: .frontCover,
+                                                options: .init(maximumEdge: 300, output: .keepSource)) {
+            check(true, "the cover is downloaded and readable")
+            check((ArtworkProcessor.pixelSize(of: cover.data)?.width ?? 0) <= 300,
+                  "and scaled to the chosen size")
+            equal(cover.pictureType, .frontCover, "as front cover")
+        } else {
+            check(false, "the cover is downloaded and readable")
+        }
+
         session.assign(remoteIndex: nil, toLocal: 3)
         equal(session.matchedCount, files.count - 1, "unassigned by hand")
         equal(session.deviationCount, 0, "no assignment, no deviation")
@@ -373,7 +402,62 @@ enum LookupTests {
         check(!LookupComparison.deviates(200, from: 203), "3 s still count as matching")
         check(LookupComparison.deviates(200, from: 203.5), "above that not")
         check(!LookupComparison.deviates(nil, from: 200), "without a length of one's own, no deviation")
+
+        // Live, skipped without network: a real cover from the Cover Art
+        // Archive, through the redirect to archive.org.
+        do {
+            let live = LookupService(discogs: DiscogsClient(token: nil))
+            // The 2009 US CD, which has a front cover in the archive (the
+            // 12" vinyl of the other tests has none, and then the cover switch
+            // is greyed out).
+            let nevermind = try await live.musicBrainz.release(id: "0fb1bdd3-1443-4569-943f-fc69c6424f99")
+            let data = try await live.cover(of: nevermind)
+            let cover = ArtworkProcessor.prepare(data, pictureType: .frontCover,
+                                                 options: .init(maximumEdge: 600, output: .keepSource))
+            let width = cover.flatMap { ArtworkProcessor.pixelSize(of: $0.data)?.width } ?? 0
+            check(width > 0 && width <= 600, "live: a real cover, scaled to 600 px",
+                  detail: "\(width) px, \(cover?.data.count ?? 0) bytes")
+        } catch {
+            print("  … live cover skipped: \(error)")
+        }
     }
+
+    // MARK: - Looking up a disc
+
+    /// Which disc of a multi-disc release is in the drive, and how its
+    /// lengths compare — without a network.
+    @MainActor
+    static func discLookup() async {
+        section("Looking up a disc")
+        func track(_ disc: Int?, _ number: Int, _ length: String) -> LookupTrack {
+            LookupTrack(position: "\(number)", title: "T\(disc ?? 0)-\(number)",
+                        duration: length, disc: disc, number: number)
+        }
+        // Two discs with three tracks each; the second fits the CD.
+        let set = LookupRelease(provider: .musicBrainz, id: "x", title: "Box",
+                                tracks: [track(1, 1, "3:00"), track(1, 2, "3:00"), track(1, 3, "3:00"),
+                                         track(2, 1, "4:10"), track(2, 2, "2:05"), track(2, 3, "5:30")])
+        let cd: [Double] = [250.2, 124.8, 330.4]
+        equal(DiscLookupSession.mediaNumbers(of: set), [1, 2], "two discs recognized")
+        equal(DiscLookupSession.bestMedium(of: set, lengths: cd), 2,
+              "the lengths pick the disc that is in the drive")
+        equal(DiscLookupSession.tracks(of: set, medium: 2).map(\.title), ["T2-1", "T2-2", "T2-3"],
+              "only that disc's tracks are compared")
+
+        // Same lengths but a different track count: the count comes first.
+        let uneven = LookupRelease(provider: .musicBrainz, id: "y", title: "Uneven",
+                                   tracks: [track(1, 1, "4:10"), track(1, 2, "2:05"),
+                                            track(2, 1, "4:10"), track(2, 2, "2:05"), track(2, 3, "5:30")])
+        equal(DiscLookupSession.bestMedium(of: uneven, lengths: cd), 2,
+              "a disc with the same number of tracks wins")
+
+        let single = LookupRelease(provider: .discogs, id: "z", title: "Single",
+                                   tracks: [track(nil, 1, "4:10"), track(nil, 2, "2:05")])
+        check(DiscLookupSession.bestMedium(of: single, lengths: cd) == nil,
+              "a single-disc release needs no choice")
+        equal(DiscLookupSession.tracks(of: single, medium: nil).count, 2, "and compares all tracks")
+    }
+
 }
 
 /// Answers MusicBrainz requests from `fixtures/`: the search with the stored
@@ -387,9 +471,16 @@ final class FixtureProtocol: URLProtocol {
     override func startLoading() {
         Self.requests += 1
         let path = request.url?.path ?? ""
-        let name = path.hasSuffix("/release") || path.hasSuffix("/release/")
-            ? "musicbrainz-search" : "musicbrainz-release"
-        let data = (try? LookupTests.fixture(name)) ?? Data()
+        let data: Data
+        if request.url?.host == "coverartarchive.org" {
+            // The cover: the picture from TestFiles/.
+            data = (try? Data(contentsOf: URL(fileURLWithPath:
+                FileManager.default.currentDirectoryPath + "/TestFiles/cover.jpg"))) ?? Data()
+        } else {
+            let name = path.hasSuffix("/release") || path.hasSuffix("/release/")
+                ? "musicbrainz-search" : "musicbrainz-release"
+            data = (try? LookupTests.fixture(name)) ?? Data()
+        }
         let response = HTTPURLResponse(url: request.url!, statusCode: 200,
                                        httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)

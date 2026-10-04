@@ -138,7 +138,7 @@ private struct ShadingLayer: View {
 /// The envelope: one vertical stroke per pixel, around the middle. Depends
 /// only on file and window — hence `Equatable`, so that SwiftUI leaves it
 /// alone while the playhead moves.
-private struct EnvelopeLayer: View, @preconcurrency Equatable {
+private struct EnvelopeLayer: View, Equatable {
     let waveform: WaveformSampler.Waveform
     let window: ClosedRange<Double>
 

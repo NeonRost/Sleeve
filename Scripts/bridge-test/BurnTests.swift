@@ -16,9 +16,9 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
-//  Burning back (§6.10). The burn itself is untested — the blank is missing
-//  for that. Everything before it is tested, and that is the riskier part:
-//  the producer's address arithmetic, the track layout and parsing the cue
+//  Burning back (§6.10). The burn itself needs a blank and was verified by
+//  hand (§6.10.1). What can be tested without one is the riskier part: the
+//  producer's address arithmetic, the track layout and parsing the cue
 //  sheet. An error of one sector produces a disc on which every track starts
 //  shifted, and one only notices when listening.
 //
@@ -49,6 +49,7 @@ enum BurnTests {
         cueParsing()
         try producerArithmetic()
         trackLayout()
+        try copyLayout()
         mediaNames()
         liveDevice()
 
@@ -152,14 +153,18 @@ enum BurnTests {
 
         // BIN: no header. Track 2 starts at sector 10.
         let bin = ImageTrackProducer(url: url, headerBytes: 0, startSector: 10, sectorCount: 12)
+        // The address counts bytes from the start of the track — measured on
+        // the first blank, contrary to how Apple's header reads.
         equal(bin.byteOffset(forAddress: 0), 10 * 2352, "address 0 points to the start of the track")
-        equal(bin.byteOffset(forAddress: 1), 11 * 2352, "address 1 one sector further")
-        equal(bin.byteOffset(forAddress: 11), 21 * 2352, "last sector of the track")
+        equal(bin.byteOffset(forAddress: 2352), 11 * 2352, "address 2352 is one sector further")
+        equal(bin.byteOffset(forAddress: 11 * 2352), 21 * 2352, "last sector of the track")
+        equal(bin.remainingBytes(fromAddress: 11 * 2352), 2352, "one sector left at the last one")
+        equal(bin.remainingBytes(fromAddress: 12 * 2352), 0, "nothing left past the end of the track")
 
         // WAV: 44 bytes of header, everything shifts.
         let wav = ImageTrackProducer(url: url, headerBytes: 44, startSector: 10, sectorCount: 12)
         equal(wav.byteOffset(forAddress: 0), 44 + 10 * 2352, "the WAV header is skipped")
-        equal(wav.byteOffset(forAddress: 5), 44 + 15 * 2352, "and stays skipped")
+        equal(wav.byteOffset(forAddress: 5 * 2352), 44 + 15 * 2352, "and stays skipped")
 
         // And now really read: do the bytes come out that are stored there?
         _ = bin.prepare(nil, for: nil, toMedia: nil)
@@ -180,15 +185,27 @@ enum BurnTests {
         equal(bytes[2 * 2352], 12, "then sector 12")
         check(bytes[0..<2352].allSatisfy { $0 == 10 }, "the whole first sector is right")
 
-        // From address 5 on, sector 15 has to come.
+        // From the fifth sector of the track on, sector 15 has to come.
         let second = buffer.withUnsafeMutableBufferPointer { raw -> UInt32 in
             var flags: UInt32 = 0
             return bin.produceData(for: nil, intoBuffer: raw.baseAddress,
-                                   length: 2352, atAddress: 5,
+                                   length: 2352, atAddress: 5 * 2352,
                                    blockSize: 2352, ioFlags: &flags)
         }
         equal(Int(second), 2352, "one sector delivered")
-        equal(UInt8(bitPattern: buffer[0]), 15, "address 5 of the track is sector 15")
+        equal(UInt8(bitPattern: buffer[0]), 15, "sector 5 of the track is sector 15")
+
+        // A request reaching past the end of the track stops at its end —
+        // otherwise the next track's audio would be written twice.
+        var longBuffer = [CChar](repeating: 0, count: 2352 * 4)
+        let clipped = longBuffer.withUnsafeMutableBufferPointer { raw -> UInt32 in
+            var flags: UInt32 = 0
+            return bin.produceData(for: nil, intoBuffer: raw.baseAddress,
+                                   length: UInt32(raw.count), atAddress: 10 * 2352,
+                                   blockSize: 2352, ioFlags: &flags)
+        }
+        equal(Int(clipped), 2 * 2352, "only the two sectors left in the track")
+        equal(UInt8(bitPattern: longBuffer[2352]), 21, "the last one is sector 21, not 22")
 
         // At the end of the file nothing random may come out.
         let tail = ImageTrackProducer(url: url, headerBytes: 0, startSector: 38, sectorCount: 2)
@@ -283,7 +300,7 @@ enum BurnTests {
 
     static func liveDevice() {
         print("\n— Drive and medium —")
-        guard let device = CDBurner.firstDevice() else {
+        guard let device = CDBurner.device(id: nil) else {
             print("  … skipped, no optical drive")
             return
         }
@@ -310,5 +327,54 @@ enum BurnTests {
         }
         check(!state.isReady || { if case .blank = state { true } else { false } }(),
               "only a blank counts as ready")
+
+        // Several drives (§6.12): the burner is found by its registry path,
+        // and a vanished pick does not fall back to another drive.
+        equal(CDBurner.device(id: info.id).map(CDBurner.info)?.id, info.id,
+              "the burner is found again by its id")
+        check(CDBurner.device(id: "IOService:/gone") == nil,
+              "a drive that has gone is not replaced by another")
+        if let disc = CDDriveFinder.availableDrives().first {
+            check(CDBurner.isDrive(of: disc.bsdName, burner: info.id),
+                  "the disc sits in that very burner", detail: disc.bsdName)
+        }
+    }
+
+    // MARK: - Layout for a copy
+
+    /// "Copy CD" burns what it has just read (§6.11): the layout comes
+    /// straight from the BIN image and its cue sheet.
+    static func copyLayout() throws {
+        print("\n— Layout for a copy —")
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sleeve-copy-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try Data(count: 500 * 2352).write(to: folder.appendingPathComponent("disc.bin"))
+        let cue = """
+            FILE "disc.bin" BINARY
+              TRACK 01 AUDIO
+                INDEX 01 00:00:00
+              TRACK 02 AUDIO
+                INDEX 01 00:02:00
+            """
+        let cueURL = folder.appendingPathComponent("disc.cue")
+        try cue.write(to: cueURL, atomically: true, encoding: .utf8)
+
+        guard let layout = CDBurner.layout(cueURL: cueURL) else {
+            check(false, "layout from the cue sheet")
+            return
+        }
+        equal(layout.headerBytes, 0, "BIN has no header")
+        equal(layout.tracks.count, 2, "two tracks")
+        equal(layout.sectorCounts[1], 150, "track 1 up to 00:02:00")
+        equal(layout.sectorCounts[2], 350, "track 2 up to the end of the image")
+        equal(layout.totalSectors, 500, "all sectors of the image")
+
+        let flac = folder.appendingPathComponent("flac.cue")
+        try cue.replacingOccurrences(of: "disc.bin\" BINARY", with: "disc.flac\" WAVE")
+            .write(to: flac, atomically: true, encoding: .utf8)
+        check(CDBurner.layout(cueURL: flac) == nil, "FLAC is not taken without unpacking")
     }
 }

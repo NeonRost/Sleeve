@@ -192,13 +192,8 @@ private struct DiscSection: View {
             // Short labels, the explanation hangs off the mouse pointer —
             // full sentences get cut off here.
             HStack {
-                Button("MusicBrainz") {
-                    Task { await state.lookupDisc() }
-                }
-                .disabled(state.isLookingUpDisc)
-                .help("Identify the disc through its disc ID at MusicBrainz")
-
-                if state.isLookingUpDisc { ProgressView().controlSize(.small) }
+                Button("Look Up…") { state.isShowingDiscLookup = true }
+                    .help("Find the disc at MusicBrainz or Discogs — by its disc ID, or by name")
 
                 if state.disc?.cdText != nil {
                     Button("CD-TEXT") { state.applyCDText() }
@@ -207,30 +202,12 @@ private struct DiscSection: View {
                 Spacer()
             }
 
-            if let message = state.discLookupMessage {
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if state.discLookupCandidates.count > 1 {
-                Picker("Pressing", selection: Binding(
-                    get: { state.discLookupCandidates.first?.id ?? "" },
-                    set: { id in
-                        if let match = state.discLookupCandidates.first(where: { $0.id == id }) {
-                            state.apply(match)
-                        }
-                    })) {
-                    ForEach(state.discLookupCandidates, id: \.id) { release in
-                        Text(Self.describe(release)).tag(release.id)
-                    }
-                }
-                .help("Several pressings share this table of contents")
-            }
-
             if let disc = state.disc {
-                ReadOnlyRow(label: "Drive") { Text(disc.drive.displayName) }
+                if state.sourceDrives.count > 1 {
+                    Row(label: "Drive") { SourceDrivePicker().labelsHidden() }
+                } else {
+                    ReadOnlyRow(label: "Drive") { Text(disc.drive.displayName) }
+                }
                 ReadOnlyRow(label: "Disc ID") {
                     Text(disc.discID)
                         .font(.caption.monospaced())
@@ -238,12 +215,6 @@ private struct DiscSection: View {
                 }
             }
         }
-    }
-
-    static func describe(_ release: LookupRelease) -> String {
-        [release.title, release.year.map(String.init), release.country]
-            .compactMap { $0 }
-            .joined(separator: " · ")
     }
 }
 

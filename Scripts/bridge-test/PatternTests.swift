@@ -187,6 +187,8 @@ enum PatternTests {
         equal(TextCase.titleCase.apply(to: "a", language: .english), "A",
               "a single word stays capitalized")
 
+        replacing()
+
         print("\n\(checks - failures)/\(checks) checks passed")
         if failures > 0 {
             print("✗ \(failures) failed")
@@ -194,5 +196,47 @@ enum PatternTests {
         }
         print("✓ All green.")
         return 0
+    }
+
+    // MARK: - Find and replace
+
+    static func replacing() {
+        section("Find and replace")
+        func run(_ r: TextReplacement, _ text: String) -> String? { try? r.apply(to: text) }
+
+        var feat = TextReplacement(find: "feat.", replacement: "ft.")
+        equal(run(feat, "Song (feat. Someone)"), "Song (ft. Someone)", "plain text is replaced")
+        equal(run(feat, "Song (FEAT. Someone)"), "Song (ft. Someone)", "ignoring case by default")
+        feat.matchesCase = true
+        equal(run(feat, "Song (FEAT. Someone)"), nil, "with match case no hit, and nil says so")
+        equal(run(TextReplacement(find: "x", replacement: "y"), "abc"), nil,
+              "no match yields nil, not the unchanged text")
+
+        let dot = TextReplacement(find: "a.c", replacement: "-")
+        equal(run(dot, "abc a.c"), "abc -", "without regex a dot is just a dot")
+        let dollar = TextReplacement(find: "Live", replacement: "$1 (Live)")
+        equal(run(dollar, "Live"), "$1 (Live)", "without regex $1 is literal text")
+
+        let remove = TextReplacement(find: "(Remastered 2011)")
+        equal(run(remove, "Song (Remastered 2011)"), "Song",
+              "removing leaves no trailing space")
+        equal(run(remove, "(Remastered 2011) Song  Two"), "Song Two",
+              "nor a leading one, and doubled spaces collapse")
+        equal(run(TextReplacement(find: "Song"), "Song"), "",
+              "a field can be replaced down to nothing")
+
+        var regex = TextReplacement(find: #"\s*\((Live|Remastered)[^)]*\)"#,
+                                    usesRegularExpression: true)
+        equal(run(regex, "Song (Live at Wembley)"), "Song", "regular expression")
+        regex = TextReplacement(find: #"^(\d+)\. "#, replacement: "$1 - ", usesRegularExpression: true)
+        equal(run(regex, "03. Song"), "03 - Song", "groups via $1")
+
+        let broken = TextReplacement(find: "(unclosed", usesRegularExpression: true)
+        check(broken.validate() != nil, "an invalid regular expression is reported")
+        check((try? broken.apply(to: "x")) == nil, "and throws instead of replacing")
+        check(TextReplacement(find: "(unclosed").validate() == nil,
+              "the same text without regex is fine")
+        check(TextReplacement().isEmpty, "nothing to find, nothing to do")
+        equal(run(TextReplacement(), "abc"), nil, "an empty search changes nothing")
     }
 }

@@ -71,12 +71,22 @@ struct ContentView: View {
                     .environment(state)
             }
         }
+        .sheet(isPresented: $state.isShowingDiscLookup) {
+            if let session = state.makeDiscLookupSession() {
+                DiscLookupSheet(session: session)
+                    .environment(state)
+            }
+        }
         .sheet(isPresented: $state.isShowingImageSheet) {
             DiscImageSheet()
                 .environment(state)
         }
         .sheet(isPresented: $state.isShowingBurnSheet) {
             BurnSheet()
+                .environment(state)
+        }
+        .sheet(isPresented: $state.isShowingCopySheet) {
+            CopyDiscSheet()
                 .environment(state)
         }
     }

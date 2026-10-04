@@ -37,8 +37,9 @@ extension AppState {
     func refreshDisc() async {
         isInspectingDisc = true
         defer { isInspectingDisc = false }
+        refreshSourceDrives()
         do {
-            let snapshot = try await ripEngine.inspect()
+            let snapshot = try await ripEngine.inspect(bsdName: sourceDriveName)
             disc = snapshot
             discError = nil
             // All audio tracks are preselected — that is the normal case.
@@ -53,6 +54,32 @@ extension AppState {
             discTitles = [:]
             discTrackArtists = [:]
         }
+    }
+
+    // MARK: - Several drives
+
+    /// Which drives hold an audio CD. Cheap: only IOKit's registry is asked,
+    /// not the drives — that is why the copy sheet may poll it.
+    func refreshSourceDrives() {
+        sourceDrives = CDDriveFinder.audioDrives()
+        if let name = sourceDriveName, !sourceDrives.contains(where: { $0.bsdName == name }) {
+            sourceDriveName = nil
+        }
+    }
+
+    /// The drive read from, as the pickers show it: the picked one, else the
+    /// one the shown disc came from, else the first.
+    var effectiveSourceDrive: CDDriveInfo? {
+        let name = sourceDriveName ?? disc?.drive.bsdName
+        return sourceDrives.first { $0.bsdName == name } ?? sourceDrives.first
+    }
+
+    /// Picking another drive reads its disc — the Rip section and the image
+    /// show what is in the picked drive.
+    func selectSourceDrive(_ name: String) {
+        guard name != effectiveSourceDrive?.bsdName else { return }
+        sourceDriveName = name
+        Task { await refreshDisc() }
     }
 
     /// Takes over what is on the disc itself. Costs no network and is often the
@@ -73,57 +100,103 @@ extension AppState {
                 discTrackArtists[track.number] = performer
             }
         }
-        // CD-TEXT knows neither year nor genre; both stay as they are.
+        // CD-TEXT knows neither year nor genre. What came from a lookup
+        // belongs to that release, not to this disc — away with it; what was
+        // typed by hand stays.
+        if discMetadataSource == .musicBrainz || discMetadataSource == .discogs {
+            discYear = ""
+            discGenre = ""
+        }
         discMetadataSource = .cdText
     }
 
-    /// Looks up the pressing via the disc ID. If that misses, the text search
-    /// remains — and, if need be, ripping unnamed and tagging afterwards.
-    func lookupDisc() async {
+    /// The lookup sheet for the inserted disc (spec §6.2.2). The search is
+    /// prefilled from what is known about the disc; MusicBrainz first,
+    /// because only there the disc ID means something.
+    func makeDiscLookupSession() -> DiscLookupSession? {
+        guard let disc else { return nil }
+        var query = DiscogsClient.SearchQuery()
+        query.artist = discArtist
+        query.releaseTitle = discAlbum
+        let tracks = disc.toc.audioTracks
+        return DiscLookupSession(
+            search: makeReleaseSearch(query: query, provider: .musicBrainz),
+            discNumbers: tracks.map(\.number),
+            discLengths: tracks.map { Double($0.sectorCount) / Double(CDGeometry.sectorsPerSecond) })
+    }
+
+    /// Fills the sheet with what fits this disc. The disc ID first — it hits
+    /// exactly this pressing, and a single hit is selected right away. Then
+    /// the pressings with a similar table of contents; those are only
+    /// suggestions, and nothing is taken over without looking. The first
+    /// version applied such a suggestion by itself and gave a German audio
+    /// drama the year and genre of a Japanese compilation. Last, the text
+    /// search with the prefilled terms.
+    func presentDiscMatches(in session: DiscLookupSession) async {
         guard let disc else { return }
-        isLookingUpDisc = true
-        discLookupMessage = nil
-        defer { isLookingUpDisc = false }
-
-        do {
-            // The disc ID first — it hits exactly this pressing.
-            var found = try await lookup.musicBrainz.releases(discID: disc.discID)
-            if found.isEmpty {
-                // Then the less exact search via the raw TOC.
-                found = try await lookup.musicBrainz.releases(
-                    tocParameter: disc.toc.musicBrainzTOCParameter)
+        let search = session.search
+        func results(_ releases: [LookupRelease], badge: String) -> [LookupSearchResult] {
+            releases.map {
+                LookupSearchResult(provider: .musicBrainz, id: $0.id, title: $0.title,
+                                   subtitle: $0.summary, thumbnailURL: $0.thumbnailURL,
+                                   badge: badge)
             }
-            discLookupCandidates = found
-
-            guard let best = found.first else {
-                discLookupMessage = disc.cdText == nil
-                    ? String(localized: "Not listed at MusicBrainz. Enter the details yourself.")
-                    : String(localized: "Not listed at MusicBrainz — keeping the CD-TEXT.")
+        }
+        do {
+            let exact = try await lookup.musicBrainz.releases(discID: disc.discID)
+            if !exact.isEmpty {
+                search.show(results(exact, badge: String(localized: "Disc ID")))
+                if exact.count == 1, let only = exact.first {
+                    await search.select(only.id)
+                }
                 return
             }
-            apply(best)
+            let similar = try await lookup.musicBrainz.releases(
+                tocParameter: disc.toc.musicBrainzTOCParameter)
+            if !similar.isEmpty {
+                search.show(results(similar, badge: String(localized: "Similar")),
+                            message: String(localized: "This disc ID is not listed. These pressings have a similar table of contents — check the lengths, or search by name."))
+                return
+            }
         } catch {
-            discLookupMessage = LookupService.describe(error)
+            search.show([], message: LookupService.describe(error))
+            return
+        }
+        if search.query.isEmpty {
+            search.show([], message: String(localized: "This disc is not listed at MusicBrainz. Search by artist and album, or switch to Discogs."))
+        } else {
+            await search.search()
         }
     }
 
-    /// Takes a found pressing over into the input fields.
-    func apply(_ release: LookupRelease) {
-        discAlbum = release.title
-        discArtist = release.albumArtist ?? discArtist
-        if let year = release.year { discYear = String(year) }
-        // MusicBrainz lists several genres; the first is the most common.
-        if let genre = release.genres.first { discGenre = genre }
+    /// Takes the selected release over into the disc's fields — only what is
+    /// ticked, and the titles by position on the compared disc.
+    func applyDiscLookup(_ session: DiscLookupSession) {
+        guard let release = session.release else { return }
+        let fields = session.selectedFields.intersection(session.availableFields)
+        if fields.contains(.album) { discAlbum = release.title }
+        if fields.contains(.artist), let artist = release.albumArtist { discArtist = artist }
+        if fields.contains(.year), let year = release.year { discYear = String(year) }
+        if fields.contains(.genre), let genre = genreSource.value(from: release) { discGenre = genre }
 
-        for track in release.tracks {
-            guard let number = track.number ?? track.position.flatMap({ Int($0) })
-            else { continue }
-            if let title = track.title { discTitles[number] = title }
-            if let artist = track.artistName, artist != release.albumArtist {
-                discTrackArtists[number] = artist
+        let remote = session.remoteTracks
+        for (index, number) in session.discNumbers.enumerated() {
+            guard let track = remote[safe: index] else { break }
+            if fields.contains(.title), let title = track.title { discTitles[number] = title }
+            if fields.contains(.artist) {
+                // A track artist of its own only where it differs from the album's.
+                if let artist = track.artistName, artist != release.albumArtist {
+                    discTrackArtists[number] = artist
+                } else {
+                    discTrackArtists[number] = nil
+                }
             }
         }
-        discMetadataSource = .musicBrainz
+        if fields.contains(.discNumber), let medium = session.medium {
+            discNumber = medium
+            discTotal = session.media.count
+        }
+        discMetadataSource = release.provider == .discogs ? .discogs : .musicBrainz
     }
 
     // MARK: - Ripping
@@ -239,10 +312,13 @@ extension AppState {
         ripFailures = []
         ripStage = .reading
 
+        // The drive the shown disc came from — not whichever is first now.
+        let drive = disc.drive.bsdName
         ripTask = Task { [ripEngine] in
             var produced: [Int: URL] = [:]
             for await event in ripEngine.rip(tracks: numbers, to: folder,
-                                             names: names, settings: settings) {
+                                             names: names, settings: settings,
+                                             bsdName: drive) {
                 switch event {
                 case let .trackStarted(track):
                     ripCurrentTrack = track
@@ -458,14 +534,16 @@ final class DiscWatcher {
 
 /// Where the displayed metadata comes from. The user should see whether
 /// the details come from the disc itself or from the network.
-enum DiscMetadataSource: Sendable {
+enum DiscMetadataSource: Sendable, Equatable {
     case cdText
     case musicBrainz
+    case discogs
 
     var label: LocalizedStringKey {
         switch self {
         case .cdText:      "from CD-TEXT"
         case .musicBrainz: "from MusicBrainz"
+        case .discogs:     "from Discogs"
         }
     }
 }

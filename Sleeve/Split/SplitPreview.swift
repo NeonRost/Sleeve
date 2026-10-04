@@ -113,13 +113,17 @@ final class SplitPreview {
         observer = player.addBoundaryTimeObserver(
             forTimes: [NSValue(time: end)], queue: .main
         ) { [weak self] in
-            self?.stop()
+            // Delivered on the main queue, as requested above.
+            MainActor.assumeIsolated { self?.stop() }
         }
 
         player.seek(to: CMTime(seconds: from, preferredTimescale: 600),
                     toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
-            guard finished, self?.playingID == id else { return }
-            player.play()
+            // The completion handler may come on any queue.
+            Task { @MainActor in
+                guard finished, let self, self.playingID == id else { return }
+                self.player?.play()
+            }
         }
     }
 

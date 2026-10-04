@@ -89,6 +89,22 @@ enum CDDriveFinder {
         return found
     }
 
+    /// The drives whose disc has a readable table of contents — what can be
+    /// read from. A blank or an empty tray does not count.
+    static func audioDrives() -> [CDDriveInfo] {
+        availableDrives().filter { $0.rawTOC.flatMap(DiscTOC.init(rawTOC:)) != nil }
+    }
+
+    /// The drive with that BSD name, or without one the first drive with a
+    /// disc. A drive that was picked and has lost its disc gives `nil` —
+    /// never quietly another drive.
+    static func drive(named bsdName: String?) -> CDDriveInfo? {
+        // Falls back to any medium, so that a blank in the only drive still
+        // ends in "no audio CD" rather than "no drive".
+        guard let bsdName else { return audioDrives().first ?? availableDrives().first }
+        return availableDrives().first { $0.bsdName == bsdName }
+    }
+
     private static func string(_ entry: io_registry_entry_t, _ key: String) -> String? {
         guard let value = IORegistryEntryCreateCFProperty(
             entry, key as CFString, kCFAllocatorDefault, 0) else { return nil }

@@ -32,6 +32,7 @@ swiftc -g \
   "$ROOT/Sleeve/Pattern/PatternRenderer.swift" \
   "$ROOT/Sleeve/Pattern/PatternParser.swift" \
   "$ROOT/Sleeve/Pattern/TextCase.swift" \
+  "$ROOT/Sleeve/Pattern/TextReplacement.swift" \
   "$ROOT/Sleeve/Pattern/Numbering.swift" \
   "$ROOT/Sleeve/Model/ArtworkProcessor.swift" \
   "$ROOT/Sleeve/Model/MusicApp.swift" \
@@ -67,13 +68,16 @@ swiftc -g \
   "$ROOT/Sleeve/Lookup/LookupService.swift" \
   "$ROOT/Sleeve/Lookup/ReleaseSearch.swift" \
   "$ROOT/Sleeve/Lookup/LookupSession.swift" \
+  "$ROOT/Sleeve/Lookup/DiscLookupSession.swift" \
   "$ROOT/Sleeve/Model/TrackListModel.swift" \
   "$ROOT/Sleeve/App/AppState.swift" \
   "$ROOT/Sleeve/App/AppState+Convert.swift" \
   "$ROOT/Sleeve/App/AppState+Operations.swift" \
   "$ROOT/Sleeve/App/AppState+Rip.swift" \
+  "$ROOT/Sleeve/App/AppState+Lookup.swift" \
   "$ROOT/Sleeve/App/AppState+DiscImage.swift" \
   "$ROOT/Sleeve/App/AppState+Burn.swift" \
+  "$ROOT/Sleeve/App/AppState+Copy.swift" \
   "$ROOT/Sleeve/App/AppState+Split.swift" \
   "$SCRIPT_DIR/bridge-test/BridgeTests.swift" \
   "$SCRIPT_DIR/bridge-test/AppStateTests.swift" \

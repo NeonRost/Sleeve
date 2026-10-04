@@ -71,9 +71,10 @@ files under `Sleeve/` need no project edits.
 
 - Only standard CDDA is read; copy protection is never circumvented, data
   tracks and DVDs are refused (spec §6.8).
-- **Never trigger a real burn.** Burning is untested on a real blank (spec
-  §6.10.1); only the test run (`simulated: true`) may be used, and a real burn
-  always needs the user's explicit confirmation in the app.
+- **Never trigger a real burn.** It uses up a blank. Only the test run
+  (`simulated: true`) may be used — for "Copy CD" via
+  `-SleeveDebugCopySimulated YES`. A real burn or copy is always started by
+  the user in the app.
 - The user's own media files are read-only for testing; write outputs to a
   temporary folder.
 
@@ -98,6 +99,11 @@ Capture the window with `screencapture -x -o -l <windowID>`. Add
 
 - `ARCHS = arm64` is required: the vendored TagLib is arm64-only, and a
   universal build silently links without it (spec §2.1.1).
+- `STRING_CATALOG_GENERATE_SYMBOLS = NO`: the UI uses string keys, and keys
+  such as "#", "—" or "Look Up" next to "Look Up…" cannot become symbols —
+  the build fails.
+- Xcode's "Update to recommended settings" removes `ARCHS` and switches
+  symbol generation on. After accepting it, check both and restore them.
 - Every source file starts with the GPL notice; keep it when creating files.
 
 ## Git

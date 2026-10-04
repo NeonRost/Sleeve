@@ -111,6 +111,7 @@ struct SleeveCommands: Commands {
             // picks tracks, an image is always the whole disc (spec §6.9).
             Button("Create Disc Image…") { state.showImageSheet() }
             Button("Burn Image to CD…") { state.showBurnSheet() }
+            Button("Copy CD…") { state.showCopySheet() }
 
             Divider()
 

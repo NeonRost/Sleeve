@@ -19,10 +19,9 @@
 //
 //  An image back onto CD (spec §6.10).
 //
-//  **Untested until the first blank** — the burn itself is the only place
-//  in Sleeve that has never run on real hardware. What has been checked is
-//  listed in §6.10.1. That is why the test run is the default route and the
-//  real burn needs explicit consent.
+//  Verified on one drive so far (spec §6.10.1). The test run stays the
+//  default route and the real burn needs explicit consent: it is the only
+//  function that irrevocably uses up something physical.
 //
 
 import AppKit
@@ -113,9 +112,18 @@ extension AppState {
     // MARK: - Media
 
     func refreshBurnMedia() {
-        let device = CDBurner.firstDevice()
+        burnDevices = CDBurner.devices().map(CDBurner.info)
+        if let id = burnDeviceID, !burnDevices.contains(where: { $0.id == id }) {
+            burnDeviceID = nil
+        }
+        let device = CDBurner.device(id: burnDeviceID)
         burnDevice = device.map(CDBurner.info)
         burnMedia = CDBurner.mediaState(of: device)
+    }
+
+    func selectBurnDevice(_ id: String) {
+        burnDeviceID = id
+        refreshBurnMedia()
     }
 
     /// What currently prevents burning.
@@ -161,7 +169,8 @@ extension AppState {
             }
             let temporary = burnNeedsDecoding ? layout.imageURL : nil
 
-            for await event in CDBurner.burn(layout, simulated: simulated) {
+            for await event in CDBurner.burn(layout, simulated: simulated,
+                                             deviceID: burnDevice?.id) {
                 switch event {
                 case let .progress(fraction):
                     burnProgress = fraction

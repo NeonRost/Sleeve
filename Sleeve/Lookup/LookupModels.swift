@@ -74,6 +74,9 @@ struct LookupSearchResult: Sendable, Identifiable, Hashable {
     var title: String
     var subtitle: String
     var thumbnailURL: URL?
+    /// A short mark in the result list — "Disc ID" for an exact hit on the
+    /// inserted CD.
+    var badge: String? = nil
 }
 
 struct LookupRelease: Sendable {
@@ -89,6 +92,9 @@ struct LookupRelease: Sendable {
     var genres: [String] = []
     var styles: [String] = []
     var thumbnailURL: URL?
+    /// The cover in a size worth putting into the tag — `nil` when the
+    /// source has none.
+    var coverURL: URL?
     var tracks: [LookupTrack] = []
 
     var discCount: Int {

@@ -142,8 +142,16 @@ struct DiscogsRelease: Decodable, Sendable {
     var formats: [DiscogsFormat]?
     var tracklist: [DiscogsTrack]?
     var thumb: String?
+    var images: [DiscogsImage]?
 
     var albumArtist: String? { DiscogsArtist.combined(artists) }
+
+    /// The primary image, otherwise the first one. Discogs keeps these at a
+    /// moderate size (usually 600 px), so no size needs choosing.
+    var coverURL: URL? {
+        let image = images?.first { $0.type == "primary" } ?? images?.first
+        return image?.uri.flatMap(URL.init(string:))
+    }
 
     /// Only the real pieces, in order.
     var playableTracks: [DiscogsTrack] { (tracklist ?? []).filter(\.isPlayable) }
@@ -160,6 +168,14 @@ struct DiscogsRelease: Decodable, Sendable {
         let discs = playableTracks.compactMap { TrackPosition.parse($0.position).disc }
         return Set(discs).count
     }
+}
+
+/// An image of a release. `type` is "primary" or "secondary".
+struct DiscogsImage: Decodable, Sendable {
+    var type: String?
+    var uri: String?
+    var width: Int?
+    var height: Int?
 }
 
 // MARK: - Search
@@ -218,6 +234,7 @@ extension DiscogsRelease {
             genres: genres ?? [],
             styles: styles ?? [],
             thumbnailURL: thumb.flatMap(URL.init(string:)),
+            coverURL: coverURL,
             tracks: playableTracks.map { $0.asLookupTrack() }
         )
     }

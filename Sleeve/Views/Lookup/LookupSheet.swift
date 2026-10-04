@@ -31,6 +31,12 @@ struct LookupSheet: View {
     @State var session: LookupSession
     @FocusState private var searchFocus: LookupSearchField?
 
+    /// Longest edge of a taken-over cover. Remembered, because it is a matter
+    /// of taste that does not change from album to album.
+    @AppStorage("lookup.coverSize") private var coverSize = 600
+    @State private var isLoadingCover = false
+    @State private var coverError: String?
+
     var body: some View {
         VStack(spacing: 0) {
             LookupHeader(title: "Look Up Album") {
@@ -70,6 +76,9 @@ struct LookupSheet: View {
             footer
         }
         .frame(width: 940, height: 620)
+        // A cover error belongs to the last attempt, not to a new choice.
+        .onChange(of: session.selectedFields) { coverError = nil }
+        .onChange(of: session.release?.id) { coverError = nil }
         .task {
             // Search with the guessed terms right away — as in the splitter.
             if session.search.results.isEmpty {
@@ -85,20 +94,65 @@ struct LookupSheet: View {
 
     private func takeOver(_ release: LookupRelease) -> some View {
         TakeOverSection(fields: LookupSession.selectableFields,
-                        selection: $session.selectedFields) {
+                        selection: $session.selectedFields,
+                        available: session.availableFields) {
             if release.provider == .discogs {
                 GenreSourcePicker(selection: $session.genreSource)
             }
         } more: {
-            EmptyView()
+            // The size only matters for the Cover Art Archive, which offers
+            // up to 1200 px; Discogs images are about 600 px anyway.
+            Picker("Cover size", selection: $coverSize) {
+                ForEach([600, 1000, 1200], id: \.self) { size in
+                    Text(verbatim: "\(size) px").tag(size)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+            .disabled(!session.takesCover)
+            .help("Longest edge of the cover. Smaller covers keep the files small; a cover is stored in every track.")
         }
+    }
+
+    /// Applies the proposals — after fetching the cover, if it is wanted.
+    /// If the cover cannot be fetched, nothing is applied: the sheet stays
+    /// open, and one can untick the cover and try again.
+    private func apply() async {
+        var cover: Artwork?
+        if session.takesCover, let release = session.release {
+            isLoadingCover = true
+            coverError = nil
+            defer { isLoadingCover = false }
+            do {
+                let data = try await session.search.service.cover(of: release)
+                let options = ArtworkProcessor.Options(maximumEdge: coverSize, jpegQuality: 0.85,
+                                                       output: .keepSource)
+                guard let prepared = ArtworkProcessor.prepare(data, pictureType: .frontCover,
+                                                              options: options) else {
+                    coverError = String(localized: "The cover could not be read.")
+                    return
+                }
+                cover = prepared
+            } catch {
+                coverError = String(localized: "The cover could not be loaded: \(LookupService.describe(error))")
+                return
+            }
+        }
+        // Lands in the editor state, not on disk.
+        state.applyLookup(session.proposals(), fields: session.selectedFields, cover: cover)
+        dismiss()
     }
 
     // MARK: - Footer
 
     private var footer: some View {
         HStack(spacing: 12) {
-            if session.release != nil {
+            if isLoadingCover {
+                ProgressView().controlSize(.small)
+                Text("Loading cover…").foregroundStyle(.secondary)
+            } else if let coverError {
+                LookupStatus(text: Text(verbatim: coverError), isWarning: true)
+            } else if session.release != nil {
                 let matched = session.matchedCount, count = session.local.count
                 if matched < count {
                     LookupStatus(text: Text("\(matched) of \(count) files matched"),
@@ -114,14 +168,10 @@ struct LookupSheet: View {
             Spacer()
             Button("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
-            Button("Apply") {
-                // Lands in the editor state, not on disk.
-                state.applyLookup(session.proposals(), fields: session.selectedFields)
-                dismiss()
-            }
-            .keyboardShortcut(searchFocus == nil ? .defaultAction : nil)
-            .disabled(session.release == nil || session.matchedCount == 0
-                      || session.selectedFields.isEmpty)
+            Button("Apply") { Task { await apply() } }
+                .keyboardShortcut(searchFocus == nil ? .defaultAction : nil)
+                .disabled(session.release == nil || session.matchedCount == 0
+                          || session.selectedFields.isEmpty || isLoadingCover)
         }
         .padding(14)
     }

@@ -97,6 +97,15 @@ final class ReleaseSearch {
         }
     }
 
+    /// Shows results that did not come from a text search — the disc ID
+    /// hits of an inserted CD, for instance.
+    func show(_ found: [LookupSearchResult], message: String? = nil) {
+        results = found
+        selectedID = nil
+        release = nil
+        self.message = message
+    }
+
     /// Selects a result and loads its album. If another one gets selected in
     /// the meantime, the result is dropped — otherwise the slower request
     /// would win.

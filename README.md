@@ -11,9 +11,10 @@ The name comes from the record sleeve: the thing around the music that labels an
 - **Batch editor** – drop in files or whole folders, edit in the table or in the inspector. With several tracks selected, fields that differ show `<Multiple values>` instead of an empty box. A field is only written if you actually touched it — an empty-looking field is never written as empty by accident.
 - **Numbering** – numbers tracks in their current order, with leading zeros, track totals (03/12) and per-disc or continuous counting.
 - **Capitalization** – Title Case with language-aware exceptions ("of", "the", "und", "der" …), UPPER CASE or lower case, for all fields or only chosen ones.
+- **Find and replace** – "feat." to "ft.", or remove "(Remastered 2011)" everywhere at once; plain text or regular expressions with `$1`, with a preview of every change before anything happens.
 - **Rename and extract** – one pattern syntax in both directions: `%track% - %artist% - %title%` turns tags into file names with a live preview, and the same pattern read backwards pulls tags out of file names. Missing tags drop their separators too, collisions get ` (2)`.
 - **Cover art** – every embedded image with its type (front, back, booklet page, disc …), added by drag and drop, replaced or appended, applied to all selected tracks at once, exported as a file or `folder.jpg`.
-- **Look Up Album** – finds the release on **MusicBrainz** (no account needed) or **Discogs** (with your own token) and lays its tracks next to your files, with each file's length against the release's. A file more than 3 s off is marked, so a wrong match shows up even when the titles agree. Pick which fields to take over; nothing reaches the disk until you save.
+- **Look Up Album** – finds the release on **MusicBrainz** (no account needed) or **Discogs** (with your own token) and lays its tracks next to your files, with each file's length against the release's. A file more than 3 s off is marked, so a wrong match shows up even when the titles agree. Pick which fields to take over — the front cover included, in the size you choose; nothing reaches the disk until you save.
 - **Undo** – the last save can be undone. **Add to Music** hands the selection to the Music app.
 
 ## Convert
@@ -26,13 +27,16 @@ Reads audio CDs directly — no root, no helper tool.
 
 - **Burst or secure mode** – secure reads every block twice, retries on a mismatch and decides by majority. Unresolved spots are named in the log.
 - **Read offset**, verified to the byte, **read speed**, **C2 error pointers** where the drive delivers them, and an optional **second pass** that reads every track twice and compares checksums.
-- **CD-TEXT, MCN and ISRC**, plus a **MusicBrainz Disc ID** lookup that finds exactly this pressing rather than an album of the same name.
+- **CD-TEXT, MCN and ISRC**, plus **Look Up…**: the MusicBrainz disc ID finds exactly this pressing; otherwise search MusicBrainz or Discogs by name. The disc's own track lengths sit next to the release's, so a wrong pressing shows before anything is taken over, and on a box set the disc in the drive is picked automatically.
 - **Log and cue sheet**, any output format the Convert mode offers (WAV works without ffmpeg), file names from a pattern.
 
 From the File menu:
 
 - **Create Disc Image…** – the whole disc as one continuous audio stream (BIN, WAV or FLAC) plus a cue sheet. Not ISO: an audio CD carries no file system, and an ISO container would throw away an eighth of every sector.
-- **Burn Image to CD…** – writes such an image back to a CD-R, session-at-once so track transitions stay gapless. See Known limitations.
+- **Burn Image to CD…** – writes such an image back to a CD-R, session-at-once so track transitions stay gapless.
+- **Copy CD…** – one button: reads the disc, ejects it, asks for a blank and burns a 1:1 copy. With two drives it reads in one and burns in the other.
+
+With more than one optical drive, Sleeve asks which one to read from and which to burn with.
 
 ## Split Into Tracks
 
@@ -82,7 +86,7 @@ Sleeve.app/Contents/MacOS/Sleeve -AppleLanguages '(es)'
 
 ## Known limitations
 
-- **Burning has never touched a real blank.** Everything else in Sleeve was checked against real hardware and real files; burning is built but has not yet run against a CD-R. Start with **Test run**, which goes through the whole burn with the laser off.
+- **CD-TEXT is not burned.** Images and copies carry the audio and the track boundaries, not the titles stored on the disc.
 - **No AccurateRip.** Rips are checked for repeatability (secure mode, second pass), not against other people's rips of the same pressing. The drive's read offset has to be entered by hand.
 - **Copy-protected discs are refused**, not worked around. Sleeve reads standard audio CDs only — no data tracks, no DVDs.
 - **Cue sheets mark track starts only.** Marking where the pause before a track begins (`INDEX 00`) would need the subchannel, which drives do not report reliably. The image itself is gapless; only the pause markers are missing.

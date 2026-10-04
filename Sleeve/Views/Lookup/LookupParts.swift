@@ -118,7 +118,16 @@ struct LookupResultRow: View {
         HStack(spacing: 8) {
             LookupThumbnail(url: result.thumbnailURL, size: 36)
             VStack(alignment: .leading, spacing: 1) {
-                Text(result.title).lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(result.title).lineLimit(1)
+                    if let badge = result.badge {
+                        Text(verbatim: badge)
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(.quaternary))
+                    }
+                }
                 Text(result.subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -277,12 +286,15 @@ extension TagField {
         case .artist:      "Artist"
         case .albumArtist: "Album artist"
         case .album:       "Album"
+        case .composer:    "Composer"
+        case .comment:     "Comment"
         case .year:        "Year"
         case .genre:       "Genre"
         case .trackNumber: "Track"
         case .trackTotal:  "Track total"
         case .discNumber:  "Disc"
         case .discTotal:   "Disc total"
+        case .artwork:     "Cover"
         default:           "—"
         }
     }

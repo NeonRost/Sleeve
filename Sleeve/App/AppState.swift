@@ -106,6 +106,11 @@ final class AppState {
     let ripEngine = RipEngine()
     let discWatcher = DiscWatcher()
 
+    /// The drives with an audio CD, and which one the Rip section, the
+    /// image and the copy read from. `nil` takes the first.
+    var sourceDrives: [CDDriveInfo] = []
+    var sourceDriveName: String?
+
     /// What is known about the inserted disc. `nil` means: none inserted.
     var disc: DiscSnapshot?
     var discError: String?
@@ -128,9 +133,7 @@ final class AppState {
     /// that, and CD-TEXT delivers it — throwing it away would be a pity.
     var discTrackArtists: [Int: String] = [:]
     var discMetadataSource: DiscMetadataSource?
-    var discLookupCandidates: [LookupRelease] = []
-    var discLookupMessage: String?
-    var isLookingUpDisc = false
+    var isShowingDiscLookup = false
 
     var selectedRipTracks: Set<Int> = []
     var ripSettings = RipSettings.load() {
@@ -169,6 +172,9 @@ final class AppState {
     var burnCue: CueSheet?
     var burnLayout: CDBurner.Layout?
     var burnNeedsDecoding = false
+    var burnDevices: [BurnDeviceInfo] = []
+    /// The picked burner; `nil` takes the first.
+    var burnDeviceID: String?
     var burnDevice: BurnDeviceInfo?
     var burnMedia: BurnMediaState = .noDrive
     var burnStage: BurnStage = .idle
@@ -176,6 +182,15 @@ final class AppState {
     var burnError: String?
     var burnTask: Task<Void, Never>?
     var isConfirmingBurn = false
+
+    // MARK: - Copying a disc (§6.11)
+
+    var isShowingCopySheet = false
+    var copyStage: CopyStage = .idle
+    var copyProgress: Double = 0
+    var copyError: String?
+    var copyImage: CopyImage?
+    var copyTask: Task<Void, Never>?
 
     // MARK: - Track Splitter (§7)
 

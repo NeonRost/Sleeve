@@ -38,19 +38,26 @@ final class LookupSession {
     /// album: another one selected, a new proposal.
     var pairing: ReleaseMatcher.Pairing = []
 
-    /// What is taken over. Preset with what one usually wants.
-    var selectedFields: Set<TagField> = Set(LookupSession.selectableFields)
+    /// What is taken over. Preset with what one usually wants — the cover
+    /// only when the files have none yet, so that a good cover of one's own
+    /// is not replaced by accident.
+    var selectedFields: Set<TagField>
     var genreSource: GenreSource
 
+    /// `.artwork` stands for the release's front cover.
     static let selectableFields: [TagField] = [
         .title, .artist, .albumArtist, .album, .year, .genre,
-        .trackNumber, .trackTotal, .discNumber, .discTotal,
+        .trackNumber, .trackTotal, .discNumber, .discTotal, .artwork,
     ]
 
-    init(search: ReleaseSearch, local: [ReleaseMatcher.LocalTrack], genreSource: GenreSource) {
+    init(search: ReleaseSearch, local: [ReleaseMatcher.LocalTrack], genreSource: GenreSource,
+         filesHaveCover: Bool = false) {
         self.search = search
         self.local = local
         self.genreSource = genreSource
+        var fields = Set(Self.selectableFields)
+        if filesHaveCover { fields.remove(.artwork) }
+        self.selectedFields = fields
         self.pairing = Array(repeating: nil, count: local.count)
         search.onReleaseChange = { [weak self] release in self?.pair(with: release) }
     }
@@ -106,6 +113,19 @@ final class LookupSession {
         local.indices.filter {
             LookupComparison.deviates(local[$0].duration, from: remoteDuration(for: $0))
         }.count
+    }
+
+    /// What the selected album can deliver. Without a cover at the source the
+    /// cover switch is greyed out.
+    var availableFields: Set<TagField> {
+        var fields = Set(Self.selectableFields)
+        if release?.coverURL == nil { fields.remove(.artwork) }
+        return fields
+    }
+
+    /// Whether applying includes downloading the cover.
+    var takesCover: Bool {
+        selectedFields.contains(.artwork) && release?.coverURL != nil
     }
 
     func proposals() -> [ReleaseMatcher.Proposal] {

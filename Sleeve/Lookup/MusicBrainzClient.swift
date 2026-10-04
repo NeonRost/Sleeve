@@ -78,6 +78,11 @@ struct MBReleaseGroup: Decodable, Sendable {
     }
 }
 
+/// Which pictures the Cover Art Archive holds for a release.
+struct MBCoverArtArchive: Decodable, Sendable {
+    var front: Bool?
+}
+
 struct MBTrack: Decodable, Sendable {
     var position: Int?
     var number: String?
@@ -120,12 +125,14 @@ struct MBRelease: Decodable, Sendable {
     var genres: [MBGenre]?
     var releaseGroup: MBReleaseGroup?
     var disambiguation: String?
+    var coverArtArchive: MBCoverArtArchive?
 
     enum CodingKeys: String, CodingKey {
         case id, title, date, country, media, genres, disambiguation
         case artistCredit = "artist-credit"
         case releaseGroup = "release-group"
         case labelInfo = "label-info"
+        case coverArtArchive = "cover-art-archive"
     }
 
     var labelSummary: String? {
@@ -143,6 +150,15 @@ struct MBRelease: Decodable, Sendable {
     /// The Cover Art Archive is open and needs no key either.
     var coverURL: URL? {
         URL(string: "https://coverartarchive.org/release/\(id)/front-250")
+    }
+
+    /// The largest ready-made size of the Cover Art Archive. The original can
+    /// be several megabytes — too much for every track of an album. Only
+    /// where the release says it has a front cover; search results do not
+    /// say, the full release does.
+    var largeCoverURL: URL? {
+        guard coverArtArchive?.front == true else { return nil }
+        return URL(string: "https://coverartarchive.org/release/\(id)/front-1200")
     }
 
     func asLookupRelease() -> LookupRelease {
@@ -180,7 +196,8 @@ struct MBRelease: Decodable, Sendable {
                 return own.isEmpty ? (releaseGroup?.genres ?? []).compactMap(\.name) : own
             }(),
             styles: [],
-            thumbnailURL: coverURL,
+            thumbnailURL: coverArtArchive?.front == false ? nil : coverURL,
+            coverURL: largeCoverURL,
             tracks: tracks
         )
     }
@@ -319,6 +336,26 @@ actor MusicBrainzClient {
             escaped.append(character)
         }
         return escaped
+    }
+
+    /// Downloads a cover from the Cover Art Archive. That is a service of its
+    /// own with its own limits, so the one-request-per-second rule of the
+    /// MusicBrainz API does not apply; redirects to archive.org are followed
+    /// by URLSession.
+    func imageData(from url: URL) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw ClientError.transport(error.localizedDescription)
+        }
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw http.statusCode == 404 ? ClientError.notFound : ClientError.server(http.statusCode)
+        }
+        return data
     }
 
     /// When overloaded, MusicBrainz answers with 503 and expects the caller

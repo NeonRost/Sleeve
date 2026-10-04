@@ -80,6 +80,7 @@ extension AppState {
         imageStage = .idle
         imageProgress = 0
         isShowingImageSheet = true
+        refreshSourceDrives()
         // The section may never have been opened — then we do not know the
         // disc yet.
         if disc == nil { Task { await refreshDisc() } }
@@ -96,6 +97,7 @@ extension AppState {
         let artist = discArtist.isEmpty ? nil : discArtist
         let titles = discTitles
         let tool = ffmpeg
+        let drive = disc.drive.bsdName
 
         imageStage = .reading
         imageProgress = 0
@@ -106,7 +108,7 @@ extension AppState {
             for await event in ripEngine.createImage(
                 in: folder, baseName: name, format: format, settings: settings,
                 albumTitle: album, albumArtist: artist,
-                trackTitles: titles, ffmpeg: tool)
+                trackTitles: titles, ffmpeg: tool, bsdName: drive)
             {
                 switch event {
                 case let .reading(fraction):

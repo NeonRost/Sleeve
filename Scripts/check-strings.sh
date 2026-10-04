@@ -34,7 +34,9 @@ for f in glob.glob(os.path.join(objroot, "Sleeve.build/Debug/**/*.stringsdata"),
         found.update(e["key"] for e in entries if e.get("key"))
 
 catalog = json.load(open(catalog_path, encoding="utf-8"))
-known = catalog.get("strings", {})
+# Xcode adds the empty key for `TextField("", …)`; there is nothing to
+# translate.
+known = {k: v for k, v in catalog.get("strings", {}).items() if k}
 
 missing = sorted(found - set(known))
 orphans = sorted(set(known) - found)

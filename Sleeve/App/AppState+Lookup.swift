@@ -42,7 +42,10 @@ extension AppState {
         return LookupSession(
             search: makeReleaseSearch(query: Self.guessQuery(from: targets)),
             local: local,
-            genreSource: genreSource
+            genreSource: genreSource,
+            filesHaveCover: targets.contains { track in
+                track.edited.artwork.contains { $0.pictureType == .frontCover }
+            }
         )
     }
 
@@ -88,11 +91,20 @@ extension AppState {
 
     /// Applies the proposals to the **editor state**, not to disk (spec §4.6,
     /// step 9). Nothing is written until the user saves.
-    func applyLookup(_ proposals: [ReleaseMatcher.Proposal], fields: Set<TagField>) {
+    ///
+    /// `cover` becomes the front cover of every file in the lookup — the cover
+    /// belongs to the album, not to a track. Other pictures, a booklet for
+    /// instance, stay.
+    func applyLookup(_ proposals: [ReleaseMatcher.Proposal], fields: Set<TagField>,
+                     cover: Artwork? = nil) {
         for proposal in proposals {
             guard let track = trackList.track(id: proposal.trackID) else { continue }
             for (field, value) in proposal.values where fields.contains(field) {
                 track.set(value, for: field)
+            }
+            if let cover {
+                let others = track.edited.artwork.filter { $0.pictureType != cover.pictureType }
+                track.setArtwork(others + [cover])
             }
         }
     }

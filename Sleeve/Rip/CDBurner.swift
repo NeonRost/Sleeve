@@ -19,10 +19,10 @@
 //
 //  Writing an image back onto a CD-R (spec §6.10).
 //
-//  **Untested until the first blank.** Everything else in this project has
-//  been measured on the device; here the blank disc was missing. What has
-//  been checked and what has not is in §6.10.1 — please read it before
-//  relying on this.
+//  Verified on one drive: a burned CD read back byte for byte identical to
+//  the image it came from (spec §6.10.1). The first test run on a blank
+//  found the one mistake the tests without a drive could not — what
+//  `address` counts.
 //
 //  Via DiscRecording, without a third-party library. The numbers fit
 //  without conversion: `kDRBlockSizeAudio` is 2352, exactly the sector size
@@ -43,7 +43,10 @@ enum BurnMediaState: Equatable, Sendable {
     var isReady: Bool { if case .blank = self { true } else { false } }
 }
 
-struct BurnDeviceInfo: Equatable, Sendable {
+struct BurnDeviceInfo: Equatable, Sendable, Identifiable {
+    /// The IORegistry path: stays the same while the drive is connected,
+    /// with or without a disc.
+    var id: String
     var vendor: String
     var product: String
     /// Apple distinguishes "unsupported, but will be tried" from "cannot be
@@ -60,15 +63,39 @@ struct BurnDeviceInfo: Equatable, Sendable {
 
 enum CDBurner {
 
-    static func firstDevice() -> DRDevice? {
-        for case let device as DRDevice in DRDevice.devices() { return device }
-        return nil
+    /// Every drive that can write a CD, in the order macOS lists them.
+    static func devices() -> [DRDevice] {
+        DRDevice.devices().compactMap { $0 as? DRDevice }.filter { $0.writesCD() }
+    }
+
+    /// The picked drive, or without a pick the first one. A picked drive
+    /// that has gone gives `nil` — never quietly another drive.
+    static func device(id: String?) -> DRDevice? {
+        guard let id else { return devices().first }
+        return devices().first { $0.ioRegistryEntryPath() == id }
+    }
+
+    /// Whether the disc with this BSD name sits in that burner — then a copy
+    /// has to swap discs in between. `deviceForBSDName` takes the name of
+    /// the medium (`disk4`) and returns the drive it is in; measured.
+    static func isDrive(of bsdName: String, burner id: String?) -> Bool {
+        guard let reader = DRDevice(forBSDName: bsdName),
+              let burner = device(id: id) else { return false }
+        return reader.isEqual(to: burner)
+    }
+
+    /// Unmounts and opens the tray of the drive the disc is in. `false` for a
+    /// drive DiscRecording does not know — a pure reader.
+    @discardableResult
+    static func eject(bsdName: String) -> Bool {
+        DRDevice(forBSDName: bsdName)?.ejectMedia() ?? false
     }
 
     static func info(of device: DRDevice) -> BurnDeviceInfo {
         let info = device.info() ?? [:]
         let level = (info[DRDeviceSupportLevelKey] as? String) ?? ""
         return BurnDeviceInfo(
+            id: device.ioRegistryEntryPath() ?? device.displayName() ?? "",
             vendor: (info[DRDeviceVendorNameKey] as? String) ?? "",
             product: (info[DRDeviceProductNameKey] as? String) ?? "",
             supportLevel: level,
@@ -123,9 +150,12 @@ enum CDBurner {
 /// function (`byteOffset(forAddress:)`) and tested as such, even without
 /// a drive.
 ///
-/// According to Apple's documentation, `address` is "the sector address on
-/// the disc **from the start of the track**" — i.e. relative to the track,
-/// not absolute.
+/// `address` is relative to the start of the track and counts **bytes**,
+/// not sectors. Apple's header calls it "the sector address on the disc from
+/// the start of the track", which reads like a sector number — the first test
+/// run on a blank showed otherwise: the calls come at 0, 129360, 258720,
+/// steps of exactly 55 sectors. Taking it for a sector number read far
+/// beyond the end of the image and failed the burn (spec §6.10.1).
 ///
 /// Not `Sendable`: the callbacks arrive on the burn thread, but always one
 /// after the other and only for this one track. Only `CDBurner.burn` ever
@@ -147,7 +177,12 @@ final class ImageTrackProducer: NSObject, DRTrackDataProduction {
 
     /// Pure computation, so that it can be tested without a burner.
     func byteOffset(forAddress address: UInt64) -> Int {
-        baseOffset + Int(address) * CDGeometry.bytesPerSector
+        baseOffset + Int(address)
+    }
+
+    /// Bytes of the track from `address` to its end.
+    func remainingBytes(fromAddress address: UInt64) -> Int {
+        max(0, sectorCount * CDGeometry.bytesPerSector - Int(address))
     }
 
     // MARK: DRTrackDataProduction
@@ -156,6 +191,9 @@ final class ImageTrackProducer: NSObject, DRTrackDataProduction {
 
     func prepare(_ track: DRTrack!, for burn: DRBurn!, toMedia mediaInfo: [AnyHashable: Any]!) -> Bool {
         handle = try? FileHandle(forReadingFrom: url)
+        #if DEBUG
+        BurnTrace.write("prepare start=\(baseOffset / CDGeometry.bytesPerSector) count=\(sectorCount) ok=\(handle != nil)")
+        #endif
         return handle != nil
     }
 
@@ -167,10 +205,22 @@ final class ImageTrackProducer: NSObject, DRTrackDataProduction {
     func produceData(for track: DRTrack!, intoBuffer buffer: UnsafeMutablePointer<CChar>!,
                      length bufferLength: UInt32, atAddress address: UInt64,
                      blockSize: UInt32, ioFlags flags: UnsafeMutablePointer<UInt32>!) -> UInt32 {
-        guard let handle else { return 0 }
+        let produced = fill(buffer, length: bufferLength, address: address, blockSize: blockSize)
+        #if DEBUG
+        trace(produced, length: bufferLength, address: address, blockSize: blockSize)
+        #endif
+        return produced
+    }
+
+    private func fill(_ buffer: UnsafeMutablePointer<CChar>, length bufferLength: UInt32,
+                      address: UInt64, blockSize: UInt32) -> UInt32 {
+        // Never past the end of the track: that would be the next track's
+        // audio.
+        let wanted = min(Int(bufferLength), remainingBytes(fromAddress: address))
+        guard let handle, wanted > 0 else { return 0 }
         do {
             try handle.seek(toOffset: UInt64(byteOffset(forAddress: address)))
-            guard let data = try handle.read(upToCount: Int(bufferLength)) else { return 0 }
+            guard let data = try handle.read(upToCount: wanted), !data.isEmpty else { return 0 }
             data.withUnsafeBytes { raw in
                 buffer.withMemoryRebound(to: UInt8.self, capacity: data.count) { target in
                     target.update(from: raw.bindMemory(to: UInt8.self).baseAddress!,
@@ -192,12 +242,35 @@ final class ImageTrackProducer: NSObject, DRTrackDataProduction {
         }
     }
 
+    /// The pause before track 1 is silence. Returning 0 bytes here would tell
+    /// the engine that the producer has nothing to deliver — the buffer has
+    /// to be filled.
+    func producePreGap(for track: DRTrack!, intoBuffer buffer: UnsafeMutablePointer<CChar>!,
+                       length bufferLength: UInt32, atAddress address: UInt64,
+                       blockSize: UInt32, ioFlags flags: UnsafeMutablePointer<UInt32>!) -> UInt32 {
+        memset(buffer, 0, Int(bufferLength))
+        #if DEBUG
+        BurnTrace.write("pregap start=\(baseOffset / CDGeometry.bytesPerSector) address=\(address) length=\(bufferLength)")
+        #endif
+        return bufferLength
+    }
+
+    #if DEBUG
+    private var traced = 0
+
+    /// The first calls per track, and every call that delivers less than
+    /// asked — that is where a production error comes from.
+    private func trace(_ produced: UInt32, length: UInt32, address: UInt64, blockSize: UInt32) {
+        traced += 1
+        guard traced <= 3 || produced < length else { return }
+        BurnTrace.write("data start=\(baseOffset / CDGeometry.bytesPerSector) count=\(sectorCount) "
+            + "address=\(address) length=\(length) block=\(blockSize) produced=\(produced)")
+    }
+    #endif
+
     // The remaining requirements of the interface. We leave verification
     // after burning to the system (`kDRBurnVerifyDiscKey`), hence no logic
     // of our own here.
-    func producePreGap(for track: DRTrack!, intoBuffer buffer: UnsafeMutablePointer<CChar>!,
-                       length bufferLength: UInt32, atAddress address: UInt64,
-                       blockSize: UInt32, ioFlags flags: UnsafeMutablePointer<UInt32>!) -> UInt32 { 0 }
     func prepareTrack(forVerification track: DRTrack!) -> Bool { true }
     func verifyPreGap(for track: DRTrack!, inBuffer buffer: UnsafePointer<CChar>!,
                       length bufferLength: UInt32, atAddress address: UInt64,
@@ -226,6 +299,27 @@ extension CDBurner {
         var sectorCounts: [Int: Int]
 
         var totalSectors: Int { sectorCounts.values.reduce(0, +) }
+    }
+
+    /// A layout straight from a BIN or WAV image and its cue sheet — for a
+    /// copy, where Sleeve wrote both itself a moment earlier. FLAC has to
+    /// be unpacked first and is not taken here.
+    static func layout(cueURL: URL) -> Layout? {
+        guard let text = try? String(contentsOf: cueURL, encoding: .utf8),
+              let cue = CueSheet(text: text) else { return nil }
+        let audioURL = cueURL.deletingLastPathComponent().appendingPathComponent(cue.audioFileName)
+        let header: Int
+        switch audioURL.pathExtension.lowercased() {
+        case "bin": header = 0
+        case "wav": header = 44
+        default:    return nil
+        }
+        let attributes = try? FileManager.default.attributesOfItem(
+            atPath: audioURL.path(percentEncoded: false))
+        guard let size = attributes?[.size] as? Int, size > header else { return nil }
+        let total = (size - header) / CDGeometry.bytesPerSector
+        return Layout(imageURL: audioURL, headerBytes: header, tracks: cue.tracks,
+                      sectorCounts: cue.sectorCounts(totalSectors: total))
     }
 
     /// Builds the track list without burning. Testable without a drive, hence
@@ -258,10 +352,11 @@ extension CDBurner {
     /// `simulated` keeps the laser off: the whole process runs through,
     /// nothing is written, the blank stays unwritten. That is the way to check
     /// everything except the last step.
-    static func burn(_ layout: Layout, simulated: Bool) -> AsyncStream<BurnEvent> {
+    static func burn(_ layout: Layout, simulated: Bool,
+                     deviceID: String?) -> AsyncStream<BurnEvent> {
         AsyncStream { continuation in
             let task = Task.detached {
-                guard let device = firstDevice() else {
+                guard let device = CDBurner.device(id: deviceID) else {
                     continuation.yield(.failed(String(localized: "No optical drive found.")))
                     continuation.finish()
                     return
@@ -294,6 +389,9 @@ extension CDBurner {
                     DRBurnCompletionActionKey: kDRBurnCompletionActionEject as String,
                     DRBurnVerifyDiscKey: NSNumber(value: !simulated),
                 ])
+                #if DEBUG
+                BurnTrace.start(simulated: simulated, tracks: layout.tracks.count)
+                #endif
                 burn.writeLayout(tracks)
 
                 // Instead of intercepting notifications the state is polled —
@@ -301,8 +399,9 @@ extension CDBurner {
                 while !Task.isCancelled {
                     let status = burn.status() ?? [:]
                     let state = (status[DRStatusStateKey] as? String) ?? ""
-                    if let fraction = status[DRStatusPercentCompleteKey] as? Double {
-                        continuation.yield(.progress(fraction))
+                    // -1 while the engine cannot tell yet (preparing, closing).
+                    if let fraction = status[DRStatusPercentCompleteKey] as? Double, fraction >= 0 {
+                        continuation.yield(.progress(min(fraction, 1)))
                     }
                     if state == (kDRStatusStateDone as String) {
                         if let error = status[DRErrorStatusKey] as? [AnyHashable: Any],
@@ -315,6 +414,11 @@ extension CDBurner {
                         }
                         break
                     }
+                    #if DEBUG
+                    if state == (kDRStatusStateDone as String) || state == (kDRStatusStateFailed as String) {
+                        BurnTrace.write("final status: \(status)")
+                    }
+                    #endif
                     if state == (kDRStatusStateFailed as String) {
                         let error = status[DRErrorStatusKey] as? [AnyHashable: Any]
                         continuation.yield(.failed((error?[DRErrorStatusErrorStringKey] as? String)
@@ -363,3 +467,29 @@ extension CDBurner {
         }
     }
 }
+
+#if DEBUG
+/// What DiscRecording asked the producers for, in a text file next to the
+/// temporary files — the burn engine itself logs nothing usable.
+enum BurnTrace {
+    static let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("sleeve-burn-trace.txt")
+    private static let lock = NSLock()
+
+    static func start(simulated: Bool, tracks: Int) {
+        lock.withLock {
+            try? Data().write(to: url)
+        }
+        write("burn simulated=\(simulated) tracks=\(tracks)")
+    }
+
+    static func write(_ line: String) {
+        lock.withLock {
+            guard let handle = try? FileHandle(forWritingTo: url) else { return }
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data((line + "\n").utf8))
+        }
+    }
+}
+#endif

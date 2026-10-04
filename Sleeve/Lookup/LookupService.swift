@@ -53,6 +53,15 @@ actor LookupService {
         }
     }
 
+    /// The release's cover as image data, from whichever source it came.
+    func cover(of release: LookupRelease) async throws -> Data {
+        guard let url = release.coverURL else { throw MusicBrainzClient.ClientError.notFound }
+        switch release.provider {
+        case .discogs:     return try await discogs.imageData(from: url)
+        case .musicBrainz: return try await musicBrainz.imageData(from: url)
+        }
+    }
+
     /// For the error message in the UI — each source has its own error types.
     static func describe(_ error: Error) -> String {
         if let discogs = error as? DiscogsClient.ClientError { return discogs.readableDescription }

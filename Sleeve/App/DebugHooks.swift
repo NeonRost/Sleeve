@@ -39,6 +39,10 @@ enum DebugHooks {
     ///
     ///     Sleeve -SleeveDebugTagLookup /path/to/folder [-SleeveDebugPick 1]
     private static func tagLookup(state: AppState, defaults: UserDefaults) async {
+        // Just load a folder into the track list — for the toolbar popovers.
+        if let path = defaults.string(forKey: "SleeveDebugLoad") {
+            await state.addFiles([URL(fileURLWithPath: path)])
+        }
         guard let path = defaults.string(forKey: "SleeveDebugTagLookup") else { return }
         await state.addFiles([URL(fileURLWithPath: path)])
         let pick = defaults.integer(forKey: "SleeveDebugPick")
@@ -54,6 +58,80 @@ enum DebugHooks {
         }
         if defaults.bool(forKey: "SleeveDebugLicenses") {
             openWindow(id: SleeveApp.licensesWindowID)
+        }
+        // "Look Up Disc" with the CD in the drive.
+        if defaults.bool(forKey: "SleeveDebugDiscLookup") {
+            // The Rip section reads the disc itself when it appears; reading
+            // it a second time in parallel makes one of the two fail.
+            state.activeMode = .rip
+            for _ in 0..<600 where state.disc == nil {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            let pick = defaults.integer(forKey: "SleeveDebugPick")
+            state.lookupDebugPick = pick > 0 ? pick : nil
+            state.isShowingDiscLookup = state.disc != nil
+        }
+        // "Copy CD". With -SleeveDebugCopySimulated YES the burn is a test
+        // run, and only then may -SleeveDebugCopyStart start it right away:
+        //     Sleeve -SleeveDebugCopy YES [-SleeveDebugCopySimulated YES -SleeveDebugCopyStart YES]
+        if defaults.bool(forKey: "SleeveDebugCopy") {
+            state.showCopySheet()
+            if defaults.bool(forKey: "SleeveDebugCopySimulated"),
+               defaults.bool(forKey: "SleeveDebugCopyStart") {
+                for _ in 0..<300 where state.copyBlocker != nil {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    state.refreshCopyDrives()
+                }
+                state.startCopy()
+            }
+        }
+        // The burn sheet with an image loaded, nothing started:
+        //     Sleeve -SleeveDebugBurnSheet /path/to/image.cue
+        if let path = defaults.string(forKey: "SleeveDebugBurnSheet") {
+            state.showBurnSheet()
+            state.loadBurnImage(URL(fileURLWithPath: path))
+        }
+        // A test run of the burner — always simulated, never a real burn:
+        //     Sleeve -SleeveDebugBurnTest /path/to/image.cue
+        // What the engine asked for ends up in `BurnTrace.url`.
+        if let path = defaults.string(forKey: "SleeveDebugBurnTest") {
+            state.showBurnSheet()
+            state.loadBurnImage(URL(fileURLWithPath: path))
+            for _ in 0..<300 where state.burnBlocker != nil {
+                try? await Task.sleep(for: .milliseconds(100))
+                state.refreshBurnMedia()
+            }
+            state.startBurn(simulated: true)
+        }
+        // A BIN image of the inserted disc into a given folder, with the
+        // current read settings but without touching the stored ones:
+        //     Sleeve -SleeveDebugImage /path/to/folder [-SleeveDebugImageName Copy]
+        // Writes "done <crc> clean=<bool>" or "failed <reason>" to
+        // `<folder>/image-status.txt`.
+        if let path = defaults.string(forKey: "SleeveDebugImage") {
+            let folder = URL(fileURLWithPath: path)
+            let status = folder.appendingPathComponent("image-status.txt")
+            state.activeMode = .rip
+            for _ in 0..<600 where state.disc == nil {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            var line = "failed no disc"
+            if state.disc != nil {
+                for await event in state.ripEngine.createImage(
+                    in: folder, baseName: defaults.string(forKey: "SleeveDebugImageName") ?? "Copy",
+                    format: .bin, settings: state.ripSettings,
+                    albumTitle: nil, albumArtist: nil, trackTitles: [:], ffmpeg: nil) {
+                    switch event {
+                    case let .finished(result):
+                        line = "done \(String(format: "%08X", result.crc)) clean=\(result.isClean)"
+                    case let .failed(reason):
+                        line = "failed \(reason)"
+                    default:
+                        break
+                    }
+                }
+            }
+            try? Data((line + "\n").utf8).write(to: status)
         }
         await tagLookup(state: state, defaults: defaults)
         guard let path = defaults.string(forKey: "SleeveDebugSplit") else { return }

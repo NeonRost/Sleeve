@@ -360,6 +360,25 @@ pictures, via `taglib_complex_property_get(file, "PICTURE")`.
 - lower case
 - Applicable to all fields or only chosen ones
 
+### 4.3.1 Find and replace
+
+A toolbar popover next to capitalization ("Replace"), for what capitalization
+and patterns cannot do: "feat." to "ft.", removing "(Remastered 2011)",
+tidying up what a download site left behind.
+
+- Find, replace with (empty means: remove), match case, regular expression.
+  In regex mode `$1` inserts the first group. Plain text goes through the
+  same engine, escaped (`TextReplacement`).
+- Applies to the chosen text fields of the selection (or of all tracks when
+  nothing is selected), like capitalization.
+- **Preview before anything happens:** the number of changes and the first
+  six as old (struck through) → new; a field replaced down to nothing shows
+  "cleared". An invalid regular expression is reported instead of a preview.
+- Where something was replaced, doubled spaces collapse and the edges are
+  trimmed — removing "(Live)" from "Song (Live)" gives "Song", not "Song ".
+  Fields without a match stay exactly as they are and are not marked as
+  touched (§4.1).
+
 ### 4.4 Pattern engine
 
 Both directions, the same token syntax:
@@ -468,7 +487,17 @@ keeps within it, instead of reacting to 429.
    3 s orange. Plus "shift everything by one". The most important part —
    automatic matching regularly misses on live albums, bonus tracks and
    double CDs; the duration shows it even when the titles fit
-7. Field selection under "Take over", for Discogs with the genre/style choice
+7. Field selection under "Take over", for Discogs with the genre/style
+   choice — and **Cover**: the release's front cover goes into every file of
+   the lookup, replacing only an existing front cover (booklet pages stay).
+   Size choice 600 / 1000 / 1200 px, remembered. MusicBrainz covers come from
+   the Cover Art Archive in its largest ready-made size (`front-1200`; the
+   original can be several megabytes), and only where the release says it
+   has a front cover — otherwise the switch is greyed out. Discogs delivers
+   its primary image (usually 600 px). Preset only when the files have no
+   front cover yet, so that a good cover of one's own is not replaced by
+   accident. The cover is downloaded on Apply; if that fails, nothing is
+   applied and the sheet stays open.
 8. Footer: "12 of 12 files matched", with a warning for missing matches or
    orange rows
 9. Applied to the **editor state**, not directly to disk
@@ -639,7 +668,10 @@ A chain from exact to inexact:
 1. **MusicBrainz disc ID** — SHA-1 over TOC values, Base64 with `._-`. Hits
    exactly this pressing. Checked against the official worked example
    (`49HHV7Eb8UKF3aQiNmu1GR8vKTY-`), not merely claimed.
-2. **TOC search** (`/discid/-?toc=…`) — less exact, several results.
+2. **TOC search** (`/discid/-?toc=…`) — less exact, several results. Only
+   ever **suggestions** (§6.2.2): the first version applied the first hit by
+   itself and gave a German audio drama the year and genre of a Japanese
+   compilation.
 3. **CD-TEXT** — on the disc itself, costs no network.
 4. **By hand**, or rip unnamed and finish in tag mode.
 
@@ -649,6 +681,31 @@ barcode at MusicBrainz, but carries complete CD-TEXT with titles, artists and
 composer. Without CD-TEXT this CD could not be identified.
 
 The FreeDB identifier comes as a by-product; it goes into the log.
+
+### 6.2.2 Looking up a disc
+
+**Look Up…** in the Rip section opens "Look Up Disc", built from the same
+parts as the other two lookup sheets (§4.6): search on the left with
+MusicBrainz or Discogs, prefilled from album and artist; the selected release
+on the right; "Take over" at the bottom (title, artist, album, year, genre,
+disc).
+
+- When it opens, the disc ID hits are listed, marked "Disc ID"; a single hit
+  is selected right away. Without one, the pressings with a similar TOC are
+  listed, marked "Similar", with a note to check the lengths. Without those
+  either, the text search runs with the prefilled terms.
+- **The comparison uses the disc's own track lengths** from the TOC — exact
+  to a 75th of a second — against the release's. A wrong pressing shows
+  immediately: on the test disc a "similar" hit deviated by up to three
+  minutes per track, and the footer says "probably another pressing".
+- **Multi-disc releases:** the disc that is in the drive is preselected — the
+  same number of tracks first, then the smallest total deviation — and can
+  be changed ("Compare with: Disc 2 of 4"). Only its tracks are compared and
+  taken over; before, the titles of all discs were written over each other
+  by track number. "Disc" in "Take over" sets part n of m.
+- Nothing is applied without "Apply". "CD-TEXT" goes back to the disc's own
+  details and clears year and genre if they came from a lookup — typed ones
+  stay.
 
 ### 6.2.1 Which fields the sources really fill
 
@@ -750,18 +807,24 @@ the volume disappears from the Finder, the drive then reports "No Media
 Inserted" — and the tray stays shut, the disc is still inside. Observed and
 measured on the test device (ASUS BW-16D1X-U over USB).
 
-Hence two steps in `RipEngine.eject`:
+`RipEngine.eject` therefore asks DiscRecording: `DRDevice(forBSDName:)`
+finds the drive the disc is in, and its `ejectMedia` unmounts the volume and
+opens the tray — of exactly that drive, which matters with several (§6.12).
+Measured on the test drive: afterwards `trayIsOpen` is true and the drive
+reports no medium.
+
+Only a drive DiscRecording does not know — a pure reader without burner —
+falls back to the earlier two steps:
 
 1. `diskutil unmount` — release the volume cleanly, so that macOS reports no
    improper removal. The process is waited for.
-2. `drutil tray eject` — really open the tray.
+2. `drutil tray eject` — really open the tray. `drutil` addresses the default
+   drive, which is why it is only the fallback.
 
-Proof that step 2 works: after ejecting, `drutil tray close` brings the
-medium back with the typical spin-up time of about ten seconds. Closing a
-closed tray does not do that.
-
-`drutil` addresses the default drive. With several optical drives on the same
-machine it might hit the wrong one — rare enough not to resolve it.
+Proof that the tray really opens: `drutil tray close` brings the medium back
+with the typical spin-up time of about ten seconds. Closing a closed tray
+does not do that. `DRDevice.closeTray` on the other hand reported success and
+left the tray open — Sleeve does not close trays.
 
 #### 6.5.2 Not waking the drive needlessly
 
@@ -903,10 +966,20 @@ object that fetches the bytes from the image; burning uses
 `kDRBurnStrategyCDSAO` — session-at-once, so that the transitions stay
 gapless.
 
-**Addresses are relative to the track.** Apple's documentation for
-`produceDataForTrack:…atAddress:` says so explicitly: "the sector address on
-the disc **from the start of the track**". Not guessed, looked up — a mistake
-here produces a disc on which every track starts shifted.
+**Addresses are byte offsets from the start of the track.** Apple's header
+for `produceDataForTrack:…atAddress:` calls the value "the sector address on
+the disc from the start of the track" — relative to the track is right, but
+it counts **bytes**, not sectors. Measured on the first test run: the calls
+come at 0, 129360, 258720, steps of exactly 55 sectors of 2352 bytes. Taken
+for a sector number, the third call pointed far beyond the end of the image;
+the producer delivered nothing and the engine stopped with "an error occurred
+while producing data for the burn". The producer also never reads past the
+end of its track, so a request reaching further cannot repeat the next
+track's audio.
+
+**The pause before track 1 is produced by us.** A producer that implements
+`producePreGapForTrack:` has to fill it (here: silence); returning 0 bytes
+counts as an error.
 
 **"Unsupported" is no obstacle.** The test drive reports
 `DRDeviceSupportLevelUnsupported`. Apple's header distinguishes:
@@ -923,29 +996,54 @@ The drive itself can do what is needed:
 `CD-Write: -R, -RW, BUFE, CDText, Test, IndexPts, ISRC`, strategies
 `CD-TAO, CD-SAO, CD-Raw`.
 
-### 6.10.1 Untested until the first blank
+### 6.10.1 Verified on the first blank
 
-**The only place in Sleeve that has never run on real hardware.** Everything
-else is measured — raw reading against macOS' own view, the read offset to
-the byte, the image against fresh single-track rips. Here the empty disc was
-missing.
+Until October 2026 this was the only place in Sleeve that had never run on
+real hardware. Since then it has, with one drive and one disc:
 
-The riskier part is checked:
+| | |
+|---|---|
+| Drive | ASUS BW-16D1X-U, USB, `DRDeviceSupportLevelUnsupported` |
+| Blank | CD-R, 79:57:69 |
+| Image | 10 tracks, 236015 sectors, 52:27, BIN, read in secure mode with offset 0 |
+| Strategy | SAO, test run first, then the real burn |
+
+**Result: the burned disc reads back byte for byte identical to the image** —
+all 555,107,280 bytes, the same CRC per track, the same track starts in the
+TOC, the same MusicBrainz disc ID. Read back with the same drive and the same
+read offset, so a write offset of the drive would cancel out against its
+read offset; with a second drive the comparison could show a constant
+shift of a few samples, which is not an error of Sleeve.
+
+**What the test run found.** The first test run failed with "an error
+occurred while producing data for the burn". A trace of what the engine asked
+for (`BurnTrace`, debug builds only, in the temporary folder) showed the
+address counting bytes, not sectors (§6.10). That is exactly the mistake the
+test run is there for: it costs no blank. The second test run went through,
+then the real burn.
+
+What was checked without a drive, and still is in the test suite:
 
 | What | How |
 |---|---|
 | Parsing the cue sheet | round trip: written, read, all 14 start sectors and lengths against the TOC |
-| The producer's address arithmetic | an image of recognizable sectors; address 5 of the track has to deliver sector 15 |
+| The producer's address arithmetic | an image of recognizable sectors; the fifth sector of the track (address 5 × 2352) has to deliver sector 15 |
+| Not reading past the track | a request beyond the end of the track stops at its last sector |
 | Skipping the WAV header | a 44-byte shift in every address |
 | End of file | nothing is invented beyond the end |
 | Track layout | the sum of the `DRTrack` lengths matches the TOC; a pause only before track 1 |
 | Drive detection | on the real device |
 | Refusing unsuitable media | on the real device, **both** branches: a written audio CD and an empty blank of the wrong type |
 
-Not checked: the `DRBurn` call, the drive's behaviour while writing, buffer
-underruns, the result.
+Not verified: other drives, CD-RW, buffer underruns at high speed, CD-Text
+and ISRC (not written).
 
-**A DVD does not help with that.** An audio CD is Red Book — CD format,
+**macOS does not verify audio tracks.** `DRBurnVerifyDiscKey` is set, but a
+track without `DRVerificationTypeKey` is not verified, according to Apple's
+header. The proof is reading the disc back and comparing — Sleeve does not do
+that by itself yet.
+
+**A DVD does not help with burning.** An audio CD is Red Book — CD format,
 2352-byte sectors, CDDA tracks, SAO. None of that exists on DVD media. An
 empty DVD blank does, however, cover another branch that occurs more often in
 practice than the burn itself: **empty medium, wrong type.** Measured on an
@@ -962,21 +1060,22 @@ an empty blank with 4.38 GiB of free space. That is why `CDBurner.mediaName`
 now names the medium. By the way: the media type constants are `CFString?`
 and cannot serve as `case` patterns in a `switch`.
 
-**To be done with the first blank:**
-
-1. Test run (`kDRBurnTestingKey`) — does the process run through without
-   writing?
-2. Do the progress values arrive sensibly?
-3. A real burn, then read the burned disc back in with Sleeve and hold the
-   checksums per track against the image. That is the actual proof — and it
-   includes the address arithmetic.
-4. Are the track boundaries right to the frame?
-
-One pitfall has already come up while checking: **`DRMSF.frames()` is the
-frame component of a time value (0–74), not the total** — that is what
+One pitfall came up while checking: **`DRMSF.frames()` is the frame
+component of a time value (0–74), not the total** — that is what
 `sectors()` is for. The first attempt summed 493 instead of 236218 over
 fourteen tracks. The check found the mistake before it could make its way
 into the burner code.
+
+**Repeating the check** (debug builds):
+
+```sh
+Sleeve.app/Contents/MacOS/Sleeve -SleeveDebugBurnTest /path/to/image.cue    # test run only
+Sleeve.app/Contents/MacOS/Sleeve -SleeveDebugImage /path/to/folder -SleeveDebugImageName Copy
+```
+
+The first starts a test run — never a real burn — and writes the trace; the
+second reads the inserted disc into a BIN image with the current read
+settings, without changing the stored ones. Then compare per track.
 
 ### 6.10.2 Controls
 
@@ -987,11 +1086,73 @@ whole process, the blank stays unwritten and reusable as often as needed. The
 real burn sits next to it and asks for confirmation — it is the only function
 in Sleeve that irrevocably uses up something physical.
 
-The sheet states visibly that this part has never run on real hardware. That
-belongs in the UI and not only here.
-
 FLAC images are unpacked to WAV first — the drive only takes raw PCM. The
 temporary file disappears afterwards.
+
+### 6.11 Copying a disc
+
+**File → Copy CD…**: an audio CD 1:1 onto a blank, with one button. It is
+§6.9 and §6.10 in one go, with everything decided that the two sheets let one
+set:
+
+| Question | Answer in the copy |
+|---|---|
+| Format | BIN — nothing to convert, nothing to lose |
+| Where | a temporary folder; it goes when the sheet closes |
+| Read settings | those of the Rip section — mode, offset, retries — without a log |
+| Test run | none; "Copy" burns for real. The click is the consent |
+
+**With one drive** the original has to make room: after reading Sleeve
+ejects it (§6.5.1) and asks for a blank. The burner is checked every second;
+what is wrong with the disc in it is shown while waiting — the original put
+back in, a DVD, a blank that is too small — so that it does not just look
+like waiting. As soon as a blank is recognized the burn starts. Whether one
+drive is used is decided while the original is still in: once it is out its
+BSD name is gone and the drives can no longer be matched.
+
+**With two drives** reading and burning use different ones, and with a blank
+already in the burner the copy runs through without a stop.
+
+**Copy Again** burns the same image once more — the original is not needed,
+the temporary image stays until the sheet closes. An image left behind by a
+Sleeve that quit or crashed mid-copy is removed when the sheet opens again. After every burn the drive
+ejects, so the next round starts with an empty tray.
+
+Not copied: **CD-TEXT** — the burner writes none (§6.10). The sheet says so
+when the original carries some. A disc that did not read cleanly is copied
+with the same gaps; the sheet says that too.
+
+Checked on the test drive, first with the burn as a test run (debug builds,
+`-SleeveDebugCopy YES -SleeveDebugCopySimulated YES -SleeveDebugCopyStart
+YES`): reading 236015 sectors, ejecting, waiting, recognizing the inserted
+blank, burning through, ejecting again. Then a real copy, started by hand
+with one drive: the copy read back **byte for byte identical** to the
+original's image — the same disc ID, the same CRC for all ten tracks.
+
+### 6.12 Several drives
+
+Rarely more than one, but then the question is which one is meant. Two lists,
+both cheap to ask for because only the registry is read, not the drives:
+
+- **Reading**: the drives whose disc has a table of contents
+  (`CDDriveFinder.audioDrives`), by BSD name. The Rip section, the image and
+  the copy read from the picked one; the snapshot remembers its drive, so
+  that a rip reads from the drive whose disc is shown.
+- **Burning**: DiscRecording's drives that write CDs, by IORegistry path —
+  that stays the same with and without a disc.
+
+`DRDevice(forBSDName:)` connects the two: it takes the name of the medium
+(`disk4`) and returns the drive it is in — measured. That is how the copy
+knows whether original and blank share a drive.
+
+A picker appears only with a second drive; with one, only its name is shown.
+Two drives of the same model are numbered. A picked drive that disappears is
+never quietly replaced by another — the pick falls back to "the first" and
+the picker shows it.
+
+Not testable here: the test machine has one drive. What can be checked
+without a second one is in the burn tests — finding a burner by its id, a
+vanished id giving no drive, the disc's drive matching the burner.
 
 ### 6.6 AccurateRip — open
 
@@ -1460,7 +1621,7 @@ Sleeve/
 │   │   ├── WAVWriter.swift
 │   │   ├── DiscImage.swift           // §6.9
 │   │   ├── CueSheet.swift            // reading cue sheets, for burning
-│   │   └── CDBurner.swift            // §6.10, DiscRecording
+│   │   └── CDBurner.swift            // §6.10, DiscRecording; drives §6.12
 │   ├── Split/                        // §7
 │   │   ├── AudioSplitter.swift       // silence, boundaries, cutting
 │   │   ├── SplitTrack.swift
@@ -1474,7 +1635,7 @@ Sleeve/
 │   │   │   ├── ConvertInspector.swift
 │   │   │   └── RipInspector.swift
 │   │   ├── Popovers/
-│   │   ├── Sheets/                   // disc image, burning, Track Splitter
+│   │   ├── Sheets/                   // disc image, burning, copying, drive pickers, Track Splitter
 │   │   ├── About/                    // "About Sleeve" and licenses
 │   │   └── Lookup/                   // LookupSheet + LookupParts (also used by the splitter)
 │   ├── Localization/  (en, de, es)
