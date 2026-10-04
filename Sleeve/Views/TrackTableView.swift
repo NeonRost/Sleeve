@@ -38,6 +38,7 @@ struct TrackTableView: View {
         }
         .textFieldStyle(.plain)
         .tableStyle(.inset(alternatesRowBackgrounds: true))
+        .onAppear { EditableCellClick.install(list: state.trackList) }
         // Drag and drop of files and folders, resolved recursively (spec §4.1).
         .dropDestination(for: URL.self) { urls, _ in
             Task { await state.addFiles(urls) }
@@ -273,33 +274,96 @@ private struct ColumnMenu: View {
 /// the field as touched — typing in the table and typing in the inspector
 /// are the same operation.
 ///
-/// A bare `TextField` in a table cell looks like text. To make it
-/// recognizable that something can be entered here, the cell under the
-/// mouse pointer stands out and empty fields show a dash.
+/// As in the Finder: the first click selects the row, a click into a cell
+/// of a row that is already selected starts editing. With a text field in
+/// every cell, the first click used to start editing right away — a row
+/// could only be selected by aiming at the length, the file name or the
+/// size. A double click on an unselected row does both, one after the
+/// other. With ⌘ or ⇧ held the click only changes the selection.
+///
+/// The cell under the mouse pointer stands out on a selected row, so that
+/// it shows where a click would start editing.
 private struct EditableCell: View {
+    @Environment(AppState.self) private var state
+
     let track: TrackFile
     let field: TagField
     var alignment: TextAlignment = .leading
 
     @State private var isHovering = false
+    @State private var isEditing = false
     @FocusState private var isFocused: Bool
 
+    private var isRowSelected: Bool {
+        state.trackList.selection.contains(track.id)
+    }
+
     var body: some View {
-        TextField("", text: track.textBinding(for: field), prompt: Text("—"))
-            .multilineTextAlignment(alignment)
-            .focused($isFocused)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(.quaternary.opacity(isHovering && !isFocused ? 1 : 0))
+        Group {
+            if isEditing {
+                TextField("", text: track.textBinding(for: field), prompt: Text("—"))
+                    .multilineTextAlignment(alignment)
+                    .focused($isFocused)
+                    .onSubmit { isEditing = false }
+                    .onExitCommand { isEditing = false }
+                    .onAppear { isFocused = true }
+                    .onChange(of: isFocused) { _, focused in
+                        if !focused { isEditing = false }
+                    }
+            } else {
+                let value = track.edited.stringValue(for: field) ?? ""
+                Text(verbatim: value.isEmpty ? "—" : value)
+                    .foregroundStyle(value.isEmpty ? .tertiary : .primary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity,
+                           alignment: alignment == .trailing ? .trailing : .leading)
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(TapGesture().onEnded { startEditing() })
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(Color.accentColor, lineWidth: isFocused ? 2 : 0)
-            }
-            .padding(.horizontal, -5)
-            .onHover { isHovering = $0 }
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(.quaternary.opacity(isHovering && isRowSelected && !isEditing ? 1 : 0))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 4)
+                .strokeBorder(Color.accentColor, lineWidth: isEditing && isFocused ? 2 : 0)
+        }
+        .padding(.horizontal, -5)
+        .onHover { isHovering = $0 }
+    }
+
+    /// Only on a row that was already selected before this click, and not
+    /// while the click extends or shrinks the selection.
+    private func startEditing() {
+        let modifiers = NSEvent.modifierFlags.intersection([.command, .shift])
+        guard modifiers.isEmpty, wasSelectedBeforeClick else { return }
+        isEditing = true
+    }
+
+    /// The table updates the selection on the same click. Whether the row
+    /// was selected *before* is what decides — remembered on mouse down.
+    private var wasSelectedBeforeClick: Bool {
+        EditableCellClick.selectionBeforeClick?.contains(track.id) ?? isRowSelected
+    }
+}
+
+/// Remembers the selection as it was when the mouse went down, before the
+/// table changes it on that very click. A local event monitor sees the
+/// event before SwiftUI does.
+@MainActor
+enum EditableCellClick {
+    static var selectionBeforeClick: Set<TrackFile.ID>?
+    private static var monitor: Any?
+
+    static func install(list: TrackListModel) {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            MainActor.assumeIsolated { selectionBeforeClick = list.selection }
+            return event
+        }
     }
 }
 

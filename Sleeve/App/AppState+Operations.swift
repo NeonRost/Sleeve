@@ -106,6 +106,35 @@ extension AppState {
         return changes.count
     }
 
+    // MARK: - Fill a field from a pattern (§4.3.2)
+
+    /// What filling `field` from the pattern would change, in table order.
+    /// Tracks where the pattern gives nothing — all its values missing —
+    /// are left out rather than cleared.
+    func formatPreview(_ format: FieldFormat, field: TagField) -> [ReplacementChange] {
+        guard format.containsToken else { return [] }
+        var changes: [ReplacementChange] = []
+        for track in operationTargetsInDisplayOrder {
+            guard let new = format.render(tags: track.edited, fileURL: track.url) else { continue }
+            let old = track.edited.stringValue(for: field) ?? ""
+            guard new != old else { continue }
+            changes.append(ReplacementChange(trackID: track.id, filename: track.filename,
+                                             field: field, old: old, new: new))
+        }
+        return changes
+    }
+
+    /// Applies exactly what the preview shows; only those fields count as
+    /// touched (spec §4.1).
+    @discardableResult
+    func applyFormat(_ format: FieldFormat, field: TagField) -> Int {
+        let changes = formatPreview(format, field: field)
+        for change in changes {
+            trackList.track(id: change.trackID)?.set(change.new, for: change.field)
+        }
+        return changes.count
+    }
+
     // MARK: - Tags → file name (§4.4)
 
     /// Preview before anything happens. Returns the proposed name per track —

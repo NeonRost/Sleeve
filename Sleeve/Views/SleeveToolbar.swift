@@ -181,6 +181,15 @@ struct SleeveToolbar: ToolbarContent {
         }
 
         ToolbarPopoverButton(
+            titleKey: "Fill",
+            systemImage: "text.insert",
+            help: "Fill a field from other tags or the file name",
+            debugID: "fill"
+        ) {
+            FillPopover().environment(state)
+        }
+
+        ToolbarPopoverButton(
             titleKey: "All in One",
             systemImage: "wand.and.stars",
             help: "Numbering, capitalization, renaming and saving in one go"

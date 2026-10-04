@@ -324,6 +324,13 @@ pictures, via `taglib_complex_property_get(file, "PICTURE")`.
 - Drag and drop of files and folders, recursive
 - Columns: `#`, title, artist, album, year, duration, file name, status
 - Sortable, multiple selection with Shift/Cmd, editable inline
+- Clicking as in the Finder: the first click selects the row, a click into a
+  cell of a row that is already selected edits it; a double click does both.
+  With ⌘ or ⇧ held a click only changes the selection. Before, every cell was
+  a text field and the first click started editing — a row could only be
+  selected by aiming at the length, the file name or the size. Whether the
+  row was selected *before* the click is remembered on mouse down, because
+  the table changes the selection on that same click.
 - Status column: unchanged / changed / error
 
 **Inspector panel**
@@ -380,6 +387,23 @@ tidying up what a download site left behind.
   trimmed — removing "(Live)" from "Song (Live)" gives "Song", not "Song ".
   Fields without a match stay exactly as they are and are not marked as
   touched (§4.1).
+
+### 4.3.2 Fill a field
+
+"Fill" in the toolbar — Mp3tag calls it "Format value": one field from a
+pattern. Album artist = `%artist%`, title = `%track% %title%`, or the title
+from the file name.
+
+- The placeholders of the pattern engine (§4.4), plus two about the file:
+  `%filename%` (the name without extension) and `%folder%` (the folder it is
+  in). `FieldFormat` parses and renders.
+- The result is a tag, not a file name: "/" and ":" stay, only spaces and
+  separators a dropped group leaves at the edges go. A missing value takes
+  the text before it along, as with file names.
+- Numbers as stored ("3"); leading zeros on request.
+- A track where the pattern gives nothing is left out, not cleared.
+- Preview as with replacing: number of changes, the first six old → new.
+  Only changed fields count as touched (§4.1).
 
 ### 4.4 Pattern engine
 
@@ -1593,7 +1617,9 @@ Sleeve/
 │   ├── Pattern/
 │   │   ├── PatternToken.swift
 │   │   ├── PatternRenderer.swift     // tags → string
-│   │   └── PatternParser.swift       // string → tags
+│   │   ├── PatternParser.swift       // string → tags
+│   │   ├── TextReplacement.swift     // find and replace, §4.3.1
+│   │   └── FieldFormat.swift         // fill a field, §4.3.2
 │   ├── Lookup/
 │   │   ├── LookupModels.swift        // common model of both sources
 │   │   ├── LookupService.swift       // facade in front of them

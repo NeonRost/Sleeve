@@ -8611,6 +8611,142 @@
           }
         }
       }
+    },
+    "%filename% is the file name without extension, %folder% the folder it is in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%filename% ist der Dateiname ohne Endung, %folder% der Ordner, in dem die Datei liegt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%filename% es el nombre del archivo sin extensión, %folder% la carpeta en la que está."
+          }
+        }
+      }
+    },
+    "Enter a pattern with a placeholder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Muster mit Platzhalter eingeben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduce un patrón con un marcador."
+          }
+        }
+      }
+    },
+    "Field" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Campo"
+          }
+        }
+      }
+    },
+    "Fill" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füllen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rellenar"
+          }
+        }
+      }
+    },
+    "Fill a field" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feld füllen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rellenar un campo"
+          }
+        }
+      }
+    },
+    "Fill a field from other tags or the file name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Feld aus anderen Tags oder dem Dateinamen füllen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rellenar un campo a partir de otras etiquetas o del nombre del archivo"
+          }
+        }
+      }
+    },
+    "Nothing would change." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es würde sich nichts ändern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cambiaría nada."
+          }
+        }
+      }
+    },
+    "The pattern has no placeholder — every track would get the same text." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Muster hat keinen Platzhalter — jeder Track bekäme denselben Text."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El patrón no tiene marcador — todas las pistas recibirían el mismo texto."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

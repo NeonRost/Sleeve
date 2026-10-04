@@ -33,6 +33,7 @@ swiftc -g \
   "$ROOT/Sleeve/Pattern/PatternParser.swift" \
   "$ROOT/Sleeve/Pattern/TextCase.swift" \
   "$ROOT/Sleeve/Pattern/TextReplacement.swift" \
+  "$ROOT/Sleeve/Pattern/FieldFormat.swift" \
   "$ROOT/Sleeve/Pattern/Numbering.swift" \
   "$ROOT/Sleeve/Model/ArtworkProcessor.swift" \
   "$ROOT/Sleeve/Model/MusicApp.swift" \

@@ -188,6 +188,7 @@ enum PatternTests {
               "a single word stays capitalized")
 
         replacing()
+        filling()
 
         print("\n\(checks - failures)/\(checks) checks passed")
         if failures > 0 {
@@ -238,5 +239,36 @@ enum PatternTests {
               "the same text without regex is fine")
         check(TextReplacement().isEmpty, "nothing to find, nothing to do")
         equal(run(TextReplacement(), "abc"), nil, "an empty search changes nothing")
+    }
+
+    // MARK: - Fill a field (§4.3.2)
+
+    static func filling() {
+        section("Fill a field from a pattern")
+        var tags = AudioTags()
+        tags.artist = "Böhse Mädelz"
+        tags.title = "Haut bloß ab"
+        tags.trackNumber = 3
+        let url = URL(fileURLWithPath: "/Music/Einzelfälle/03 - Haut bloß ab.mp3")
+
+        func fill(_ pattern: String, pads: Bool = false, _ t: AudioTags = tags) -> String? {
+            FieldFormat(pattern: pattern, padsNumbers: pads).render(tags: t, fileURL: url)
+        }
+        equal(fill("%filename%"), "03 - Haut bloß ab", "the file name without extension")
+        equal(fill("%folder%"), "Einzelfälle", "the folder name")
+        equal(fill("%artist%"), "Böhse Mädelz", "another tag")
+        equal(fill("%track% %title%"), "3 Haut bloß ab", "numbers as stored by default")
+        equal(fill("%track% %title%", pads: true), "03 Haut bloß ab", "with leading zeros")
+        equal(fill("%album% - %title%"), "Haut bloß ab",
+              "a missing value takes its separator along")
+        equal(fill("%title%: Live/Remix"), "Haut bloß ab: Live/Remix",
+              "slashes and colons stay — a tag is not a file name")
+        equal(fill("Vol. 2."), "Vol. 2.", "a full stop at the end stays")
+        equal(fill("100%% %title%"), "100% Haut bloß ab", "%% is a percent sign")
+        equal(fill("%nope% %title%"), "%nope% Haut bloß ab", "an unknown placeholder stays text")
+        equal(fill("%album%"), nil, "nothing left gives nil, not an empty field")
+        equal(fill("%FileName%"), "03 - Haut bloß ab", "placeholders ignore case")
+        check(FieldFormat(pattern: "%filename%").containsToken, "%filename% counts as a placeholder")
+        check(!FieldFormat(pattern: "Live").containsToken, "plain text does not")
     }
 }

@@ -132,15 +132,17 @@ struct ReplacePopover: View {
 }
 
 /// The old value struck through, the new one below it. An empty result says
-/// that the field will be cleared; the field's name is in the tooltip.
-private struct ChangeRow: View {
+/// that the field will be cleared; the field's name is in the tooltip. Also
+/// used by "Fill".
+struct ChangeRow: View {
     let change: AppState.ReplacementChange
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(verbatim: change.old)
+            // An empty field that gets filled has nothing to strike through.
+            Text(verbatim: change.old.isEmpty ? "—" : change.old)
                 .foregroundStyle(.secondary)
-                .strikethrough()
+                .strikethrough(!change.old.isEmpty)
                 .lineLimit(1)
             HStack(spacing: 4) {
                 Image(systemName: "arrow.turn.down.right")

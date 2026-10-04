@@ -319,6 +319,32 @@ enum AppStateTests {
                                              fields: [.title])) == nil,
               "an invalid regular expression throws instead of previewing")
 
+        section("Fill a field from a pattern")
+        let commentsBefore = state.trackList.tracks.map(\.edited.comment)
+        let fromName = FieldFormat(pattern: "%filename%")
+        let fills = state.formatPreview(fromName, field: .comment)
+        equal(fills.count, state.operationTargets.filter {
+            $0.edited.comment != $0.url.deletingPathExtension().lastPathComponent }.count,
+              "every track whose comment differs from its file name")
+        state.applyFormat(fromName, field: .comment)
+        check(state.trackList.tracks.allSatisfy {
+            $0.edited.comment == $0.url.deletingPathExtension().lastPathComponent },
+              "applying puts the file name into the comment")
+        check(state.trackList.tracks.allSatisfy { !$0.touchedFields.contains(.title) },
+              "no other field is touched")
+        equal(state.formatPreview(fromName, field: .comment).count, 0,
+              "a second time there is nothing left to change")
+        // One track without an album: the pattern gives nothing there.
+        let bare = state.trackList.tracks[0]
+        bare.set("", for: .album)
+        let albumFills = state.formatPreview(FieldFormat(pattern: "%album%"), field: .comment)
+        check(!albumFills.contains { $0.trackID == bare.id },
+              "a track without the value is left out, not cleared")
+        check(albumFills.contains { $0.trackID != bare.id },
+              "the others are filled")
+        state.trackList.tracks.forEach { $0.revert() }
+        equal(state.trackList.tracks.map(\.edited.comment), commentsBefore, "and can be discarded")
+
         section("Several cover pictures")
         let picture = try Data(contentsOf: URL(fileURLWithPath: root + "/TestFiles/cover.jpg"))
         let front = ArtworkProcessor.prepare(picture, pictureType: .frontCover,
