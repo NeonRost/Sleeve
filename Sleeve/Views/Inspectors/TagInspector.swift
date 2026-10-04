@@ -118,15 +118,15 @@ struct TagInspector: View {
     ) -> some View {
         LabeledContent {
             HStack(spacing: 6) {
-                TextField(label, text: binding(for: number), prompt: prompt(for: number))
+                TextField(label, text: binding(for: number), prompt: shortPrompt(for: number))
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 58)
+                    .frame(width: 64)
                 Text("of").foregroundStyle(.secondary)
-                TextField(label, text: binding(for: total), prompt: prompt(for: total))
+                TextField(label, text: binding(for: total), prompt: shortPrompt(for: total))
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 58)
+                    .frame(width: 64)
                 ClearButton(isEnabled: hasValue(number) || hasValue(total)) {
                     clear(number)
                     clear(total)
@@ -177,6 +177,12 @@ struct TagInspector: View {
     /// looks like "no value" (spec §4.1).
     private func prompt(for field: TagField) -> Text? {
         isMixed(field) ? Text("<Multiple values>") : nil
+    }
+
+    /// The same for the narrow number fields, where "<Multiple values>" was
+    /// cut off to "<Multipl".
+    private func shortPrompt(for field: TagField) -> Text? {
+        isMixed(field) ? Text("<Mixed>") : nil
     }
 
     private func binding(for field: TagField) -> Binding<String> {

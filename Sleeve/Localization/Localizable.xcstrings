@@ -8594,6 +8594,23 @@
           }
         }
       }
+    },
+    "<Mixed>" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "<Versch.>"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "<Varios>"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

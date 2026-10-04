@@ -42,6 +42,21 @@ enum DebugHooks {
         // Just load a folder into the track list — for the toolbar popovers.
         if let path = defaults.string(forKey: "SleeveDebugLoad") {
             await state.addFiles([URL(fileURLWithPath: path)])
+            // -SleeveDebugSelectAll YES selects every track, so the
+            // inspector shows the batch view (README screenshot).
+            if defaults.bool(forKey: "SleeveDebugSelectAll") {
+                state.trackList.selection = Set(state.trackList.tracks.map(\.id))
+            }
+            // -SleeveDebugWindowSize 1280x860: a defined window size for
+            // screenshots.
+            if let size = defaults.string(forKey: "SleeveDebugWindowSize")?
+                .split(separator: "x").compactMap({ Double($0) }), size.count == 2,
+               let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
+                var frame = window.frame
+                frame.origin.y += frame.height - size[1]
+                frame.size = NSSize(width: size[0], height: size[1])
+                window.setFrame(frame, display: true)
+            }
         }
         guard let path = defaults.string(forKey: "SleeveDebugTagLookup") else { return }
         await state.addFiles([URL(fileURLWithPath: path)])

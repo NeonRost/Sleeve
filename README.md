@@ -6,6 +6,13 @@ A native macOS audio tagger that also converts, rips and splits. Everything revo
 
 The name comes from the record sleeve: the thing around the music that labels and files it. That is what Sleeve does.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/screenshot-dark.png">
+  <img src="images/screenshot-light.png" alt="Sleeve in Tag mode: sixteen tracks of an album selected, the inspector showing the shared tags, <Multiple values> for the titles, and the front cover">
+</picture>
+
+<sub>The album in the screenshot is made up — artist, titles and cover alike.</sub>
+
 ## Tag
 
 - **Batch editor** – drop in files or whole folders, edit in the table or in the inspector. With several tracks selected, fields that differ show `<Multiple values>` instead of an empty box. A field is only written if you actually touched it — an empty-looking field is never written as empty by accident.

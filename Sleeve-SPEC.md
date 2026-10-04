@@ -329,7 +329,9 @@ pictures, via `taglib_complex_property_get(file, "PICTURE")`.
 **Inspector panel**
 - All fields from `AudioTags`
 - With several tracks selected and differing values: the placeholder
-  `<Multiple values>` instead of an empty field
+  `<Multiple values>` instead of an empty field — `<Mixed>` in the narrow
+  track and disc number fields, where the long one was cut off to
+  "<Multipl"
 - **A field is only written if it is in `touchedFields`.** Never decide via
   a string comparison. This is exactly where Tagr regularly wrecks fields the
   user never touched: the field looks empty, so empty gets written. This is
