@@ -150,7 +150,8 @@ struct SleeveToolbar: ToolbarContent {
         ToolbarPopoverButton(
             titleKey: "Numbers",
             systemImage: "list.number",
-            help: "Renumber tracks in the current sort order"
+            help: "Renumber tracks in the current sort order",
+            debugID: "numbers"
         ) {
             NumberingPopover().environment(state)
         }
@@ -158,7 +159,8 @@ struct SleeveToolbar: ToolbarContent {
         ToolbarPopoverButton(
             titleKey: "Rename",
             systemImage: "textformat.abc.dottedunderline",
-            help: "Build file names from tags"
+            help: "Build file names from tags",
+            debugID: "rename"
         ) {
             FilenamePopover().environment(state)
         }
@@ -166,7 +168,8 @@ struct SleeveToolbar: ToolbarContent {
         ToolbarPopoverButton(
             titleKey: "Capitalization",
             systemImage: "textformat",
-            help: "Title Case, UPPERCASE or lowercase"
+            help: "Title Case, UPPERCASE or lowercase",
+            debugID: "case"
         ) {
             CasePopover().environment(state)
         }
@@ -192,7 +195,8 @@ struct SleeveToolbar: ToolbarContent {
         ToolbarPopoverButton(
             titleKey: "All in One",
             systemImage: "wand.and.stars",
-            help: "Numbering, capitalization, renaming and saving in one go"
+            help: "Numbering, capitalization, renaming and saving in one go",
+            debugID: "allinone"
         ) {
             AllInOnePopover().environment(state)
         }
@@ -200,7 +204,8 @@ struct SleeveToolbar: ToolbarContent {
         ToolbarPopoverButton(
             titleKey: "Extract",
             systemImage: "arrow.right.doc.on.clipboard",
-            help: "Read tags out of the file names"
+            help: "Read tags out of the file names",
+            debugID: "extract"
         ) {
             ExtractPopover().environment(state)
         }

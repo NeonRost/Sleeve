@@ -4,7 +4,7 @@ Motif: a record sleeve on the left, with a CD sticking halfway out of its
 right side. The four abstract lines on the sleeve are the metadata the app
 writes — the only hint at what it does.
 
-Requirements: [`../Docs/ICON-BRIEF.md`](../Docs/ICON-BRIEF.md).
+Requirements: [`ICON-BRIEF.md`](ICON-BRIEF.md).
 
 ---
 

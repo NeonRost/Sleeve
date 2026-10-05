@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sleeve Manual</title>
+<!--
+  The source of docs/Sleeve-Manual.pdf, built like TOM's manual: one HTML
+  page with the screenshots next to it, printed to A4. Build it with
+  Scripts/build-manual.sh — that also fills in the page numbers of the
+  contents. The album in the screenshots is made up.
+-->
+<style>
+  @page { size: A4; margin: 20mm 18mm 22mm 18mm; }
+  :root{
+    --blue-900:#134a86;
+    --blue-700:#1b5da6;
+    --blue-500:#3f88cf;
+    --blue-100:#d7e8f8;
+    --ink:#2c3338;
+    --ink-soft:#5c6770;
+    --line:#e4e8ec;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+    color:var(--ink);
+    font-size:10.5pt;
+    line-height:1.55;
+  }
+  h1,h2,h3{font-weight:700;letter-spacing:-.2px;margin:0}
+  p{margin:0 0 8pt}
+  .cover{
+    height:245mm;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;
+    page-break-after:always;
+  }
+  .cover img{width:110pt;height:auto;margin-bottom:18pt}
+  .cover h1{font-size:28pt;color:var(--blue-900)}
+  .cover .tagline{font-size:12pt;color:var(--ink-soft);margin-top:6pt;max-width:110mm}
+  .cover .version{margin-top:28pt;font-size:9.5pt;color:var(--ink-soft)}
+
+  section{margin-bottom:18pt}
+  .chapter{page-break-before:always}
+  .feature{page-break-inside:avoid;margin-bottom:14pt}
+  .keep{page-break-inside:avoid}
+  .section-num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:20pt;height:20pt;border-radius:50%;
+    background:var(--blue-500);color:#fff;font-size:10pt;font-weight:700;
+    margin-right:8pt;flex:none;
+  }
+  h2{font-size:15pt;color:var(--blue-900);display:flex;align-items:center;margin-bottom:10pt}
+  h3{font-size:11.5pt;color:var(--blue-700);margin:14pt 0 6pt}
+  .lead{color:var(--ink-soft);margin-bottom:12pt}
+
+  figure{margin:10pt 0 14pt;page-break-inside:avoid}
+  figure img{display:block;max-width:100%;border-radius:8px;border:1px solid var(--line)}
+  figure.plain img{border:none;border-radius:0}
+  figcaption{font-size:8.5pt;color:var(--ink-soft);margin-top:5pt;font-style:italic}
+  /* A tool: its window or popover on the left, the explanation next to it */
+  .feature.split{display:grid;grid-template-columns:230px 1fr;column-gap:16pt;align-items:start}
+  .feature.split.wide{grid-template-columns:270px 1fr}
+  .feature.split h3{grid-column:1 / -1}
+  .feature.split figure{margin:2pt 0 0}
+  .feature.split figure img{max-width:100%}
+  /* Popovers have their own rounded shape; a frame would draw a rectangle */
+  .pop img{border:none;border-radius:0;filter:drop-shadow(0 1px 3px rgba(0,0,0,.25))}
+
+  .callout{
+    background:#f6f9fc;border:1px solid var(--line);border-left:4px solid var(--blue-500);
+    border-radius:8px;padding:10pt 14pt;margin:12pt 0;page-break-inside:avoid;
+  }
+  .callout.warn{border-left-color:#d98a1f;background:#fdf7ee}
+  .callout p:last-child{margin-bottom:0}
+  .callout strong{color:var(--ink)}
+
+  .kbd{
+    display:inline-block;padding:0 5pt;border-radius:5px;
+    background:var(--blue-100);color:var(--blue-700);font-weight:700;font-size:9.5pt;
+  }
+  code{font-family:ui-monospace,Menlo,monospace;font-size:9.3pt;background:#f2f4f6;padding:0 3pt;border-radius:3px}
+  pre{font-family:ui-monospace,Menlo,monospace;font-size:9.3pt;background:#f2f4f6;padding:7pt 10pt;border-radius:6px;margin:0 0 10pt}
+
+  ol,ul{margin:0 0 10pt;padding-left:18pt}
+  li{margin-bottom:4pt}
+
+  table{border-collapse:collapse;width:100%;margin:4pt 0 12pt;font-size:9.8pt;page-break-inside:avoid}
+  th,td{text-align:left;padding:4pt 8pt;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--ink-soft);font-weight:600;font-size:9pt}
+
+  .footer-note{
+    margin-top:24pt;padding-top:10pt;border-top:1px solid var(--line);
+    color:var(--ink-soft);font-size:8.5pt;
+  }
+
+  .toc{height:245mm;page-break-after:always}
+  .toc h2{font-size:18pt;color:var(--blue-900);margin-bottom:22pt;display:block}
+  .toc ol{list-style:none;margin:0;padding:0}
+  .toc li{
+    display:flex;align-items:baseline;gap:8pt;
+    font-size:12pt;padding:8pt 0;border-bottom:1px solid var(--line);margin:0;
+  }
+  .toc .toc-num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:20pt;height:20pt;border-radius:50%;flex:none;
+    background:var(--blue-500);color:#fff;font-size:10pt;font-weight:700;
+  }
+  .toc .toc-title{flex:1}
+  .toc .toc-page{color:var(--ink-soft);font-size:10pt}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <img src="Sleeve_Icon.png" alt="Sleeve icon">
+  <h1>Sleeve</h1>
+  <div class="tagline">Tag, convert, rip and split audio on your Mac.</div>
+  <div class="version">User Manual · Version 1.0</div>
+</div>
+
+<div class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><span class="toc-num">1</span><span class="toc-title">What Sleeve does</span><span class="toc-page" data-toc="1">3</span></li>
+    <li><span class="toc-num">2</span><span class="toc-title">Installation</span><span class="toc-page" data-toc="2">4</span></li>
+    <li><span class="toc-num">3</span><span class="toc-title">The window</span><span class="toc-page" data-toc="3">5</span></li>
+    <li><span class="toc-num">4</span><span class="toc-title">Tagging</span><span class="toc-page" data-toc="4">6</span></li>
+    <li><span class="toc-num">5</span><span class="toc-title">Converting</span><span class="toc-page" data-toc="5">11</span></li>
+    <li><span class="toc-num">6</span><span class="toc-title">Ripping CDs</span><span class="toc-page" data-toc="6">13</span></li>
+    <li><span class="toc-num">7</span><span class="toc-title">Disc images, burning and copying</span><span class="toc-page" data-toc="7">17</span></li>
+    <li><span class="toc-num">8</span><span class="toc-title">Splitting into tracks</span><span class="toc-page" data-toc="8">19</span></li>
+    <li><span class="toc-num">9</span><span class="toc-title">Settings and Discogs</span><span class="toc-page" data-toc="9">21</span></li>
+    <li><span class="toc-num">10</span><span class="toc-title">Good to know</span><span class="toc-page" data-toc="10">21</span></li>
+    <li><span class="toc-num">11</span><span class="toc-title">Uninstalling</span><span class="toc-page" data-toc="11">22</span></li>
+  </ol>
+</div>
+
+<!-- ============================================================ 1 -->
+<section>
+  <h2 data-chapter="1"><span class="section-num">1</span>What Sleeve does</h2>
+  <p class="lead">Sleeve is a free, open-source audio tagger for macOS that also converts, rips audio CDs, writes and burns disc images, copies CDs and splits long recordings into tracks. This manual walks through every part of the app and covers what is not obvious from the app itself — installing an app that is not notarized by Apple, and the few tools Sleeve relies on.</p>
+  <figure>
+    <img src="main_window.png" alt="The Sleeve window in Tag mode">
+    <figcaption>Tag mode with sixteen tracks selected: the inspector on the left, the track list on the right. The album in all screenshots is made up.</figcaption>
+  </figure>
+  <p>Everything revolves around <strong>one track list</strong>, shared by the three modes at the top of the window:</p>
+  <ul>
+    <li><strong>Tag</strong> — edit the tags of one track or a whole album, with batch tools for numbering, capitalization, find and replace, filling fields, renaming files and reading tags out of file names; look an album up on MusicBrainz or Discogs.</li>
+    <li><strong>Convert</strong> — turn the list into MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV or AIFF without losing a single tag.</li>
+    <li><strong>Rip</strong> — read an audio CD, in secure mode if you like, straight into files that land in the same list.</li>
+  </ul>
+  <p>Rip a CD, tag what came out, convert it — without importing anything twice. Two things live in the <strong>File</strong> menu instead: disc images, burning and copying CDs (chapter 7), and the Track Splitter for long recordings (chapter 8).</p>
+</section>
+
+<!-- ============================================================ 2 -->
+<section class="chapter">
+  <h2 data-chapter="2"><span class="section-num">2</span>Installation</h2>
+  <p>Sleeve needs <strong>macOS 14 Sonoma or later</strong> on a Mac with <strong>Apple Silicon</strong>. Download the latest release from the Releases page of the GitHub repository, unpack it and move <strong>Sleeve.app</strong> to your Applications folder.</p>
+
+  <h3>First launch: the security warning</h3>
+  <p>Sleeve is signed locally but not notarized by Apple — notarization requires a paid developer account. The first time you open it, macOS refuses and shows a dialog saying that <em>“Sleeve” Not Opened</em> and that Apple could not verify it.</p>
+  <ol>
+    <li>Click <strong>Done</strong> — not <em>Move to Trash</em>.</li>
+    <li>Open <strong>System Settings → Privacy &amp; Security</strong> and scroll down to the <em>Security</em> section. There is a message that Sleeve was blocked, with an <strong>Open Anyway</strong> button next to it.</li>
+    <li>Click <strong>Open Anyway</strong> and confirm with your password or Touch ID.</li>
+  </ol>
+  <p>Sleeve starts, and macOS remembers the decision for this copy of the app. A newly downloaded version needs the same steps once more.</p>
+
+  <h3>ffmpeg — only for some parts</h3>
+  <p>Tagging, and ripping to WAV, need nothing else. <strong>Converting</strong>, ripping to any other format, FLAC disc images and <strong>splitting</strong> use <code>ffmpeg</code>, a free command-line tool. Sleeve does not include it — it finds the copy on your Mac, so it stays up to date through your own package manager. The easiest way to get it is <a href="https://brew.sh">Homebrew</a>; in Terminal:</p>
+  <pre>brew install ffmpeg</pre>
+  <p>Sleeve looks in <code>/opt/homebrew/bin</code>, <code>/usr/local/bin</code> and your <code>PATH</code>, or in a location you choose in the Convert sidebar. Where ffmpeg is missing, the affected parts of Sleeve stay visible and explain what to do, with the command ready to copy. Sleeve never runs an installer itself.</p>
+
+  <div class="callout">
+    <p><strong>Languages and appearance:</strong> Sleeve speaks English, German and Spanish and follows your system language. Light and dark mode follow the system as well.</p>
+  </div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section class="chapter">
+  <h2 data-chapter="3"><span class="section-num">3</span>The window</h2>
+  <p>At the top: <strong>Hide Sidebar</strong>, the switch between <strong>Tag</strong>, <strong>Convert</strong> and <strong>Rip</strong>, and the tools of the current mode. On the left the <strong>sidebar</strong> — the inspector of the selected tracks in Tag mode, the settings in Convert and Rip. On the right the <strong>track list</strong>.</p>
+
+  <h3>Adding files</h3>
+  <p>Drag files or whole folders into the list — folders are searched completely, including subfolders — or choose <strong>File → Add Files…</strong> (<span class="kbd">⌘O</span>). Sleeve reads MP3, AAC/M4A, ALAC, FLAC, Ogg Vorbis, Opus, WAV and AIFF. The buttons at the bottom left add files (<strong>+</strong>), remove the selected ones from the list (<strong>−</strong>), clear the list (<strong>×</strong>) and discard unsaved changes (<strong>↺</strong>). Removing only takes files out of the list; nothing is deleted.</p>
+
+  <h3>Selecting and editing in the list</h3>
+  <ul>
+    <li><strong>The first click selects</strong> a row. A click into a cell of a row that is already selected starts editing that cell; a double click does both. <span class="kbd">Return</span> or <span class="kbd">Esc</span> ends editing.</li>
+    <li>Hold <span class="kbd">⌘</span> or <span class="kbd">⇧</span> to select several tracks; such a click only changes the selection.</li>
+    <li>Click a column header to sort. The menu at the right end of the header shows and hides further columns — bitrate, size, format, sample rate, album artist, genre, composer, disc, comment and folder. Sleeve remembers your choice.</li>
+    <li>The last column shows the state of a track: a pencil means <em>changed, not written yet</em>, a warning triangle means <em>writing this file failed</em>.</li>
+  </ul>
+
+  <h3>Saving and undoing</h3>
+  <p>Nothing you change reaches your files until you choose <strong>File → Save Tags</strong> (<span class="kbd">⌘S</span>) or click <strong>Save</strong> in the toolbar. Until then, <strong>Edit → Discard Changes</strong> (<span class="kbd">⇧⌘Z</span>) throws away everything not yet written. After saving, <strong>Edit → Undo Last Save</strong> (<span class="kbd">⌘Z</span>) restores the files as they were before.</p>
+
+  <div class="callout">
+    <p><strong>A field is only written if you touched it.</strong> Select twelve tracks, change the album, and every other field of those files stays exactly as it was — even one that looks empty in the inspector because the tracks disagree. An empty-looking field is never written as empty by accident.</p>
+  </div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section class="chapter">
+  <h2 data-chapter="4"><span class="section-num">4</span>Tagging</h2>
+
+  <div class="feature split wide">
+    <h3>The inspector</h3>
+    <figure><img src="tag_sidebar.png" alt="The inspector with sixteen tracks selected"></figure>
+    <div>
+      <p>The sidebar shows the tags of the selected tracks: title, artist, album, album artist, composer, genre, year, compilation, track and disc number with their totals, comment, lyrics and the artwork.</p>
+      <p>With several tracks selected, a field shows the shared value when all tracks agree. Where they differ it stays empty with the placeholder <strong>&lt;Multiple values&gt;</strong> (<strong>&lt;Mixed&gt;</strong> in the narrow number fields). Type into it and that value goes to all selected tracks; leave it alone and every track keeps its own.</p>
+      <p>The small <strong>×</strong> next to a field clears it on purpose. A dot next to a field marks it as changed.</p>
+      <p>With nothing selected, the batch tools in the toolbar work on all tracks in the list.</p>
+    </div>
+  </div>
+
+  <h3>Artwork</h3>
+  <p>The artwork well at the bottom of the inspector shows every embedded picture; with several pictures, arrows switch between them. Drop an image on it or click it to choose a file. A dialog then shows a preview, lets you pick the <strong>picture type</strong> (front cover, back cover, booklet page, disc …), scale the image down and choose format and quality — with the <em>actual</em> resulting file size. A picture that needs no change goes into the file byte for byte. Adding a picture replaces one of the same type and keeps the others, so a booklet page does not push out the front cover. The picture is applied to all selected tracks. The buttons below the picture remove it — from all selected tracks — or export it to a file.</p>
+
+  <h3>The batch tools</h3>
+  <p>Every tool in the toolbar opens a small panel and shows what will happen <strong>before</strong> anything happens. All of them work on the selection, or on all tracks when nothing is selected, and like any edit they only change the list until you save.</p>
+
+  <div class="feature split">
+    <h3>Numbers</h3>
+    <figure class="pop"><img src="pop_numbers.png" alt="Numbering"></figure>
+    <div>
+      <p>Numbers the tracks in the <strong>current sort order</strong> of the list — sort by file name or drag the order right first. <strong>Write total</strong> stores “3 of 12” instead of just “3”; <strong>Leading zeros in file names</strong> affects renaming (01 instead of 1); <strong>Restart numbering on each disc</strong> counts each disc of a multi-disc album from 1.</p>
+    </div>
+  </div>
+
+  <div class="feature split">
+    <h3>Capitalization</h3>
+    <figure class="pop"><img src="pop_case.png" alt="Capitalization"></figure>
+    <div>
+      <p><strong>Title Case</strong>, <strong>UPPERCASE</strong> or <strong>lowercase</strong> for the fields you tick. Title Case knows the small words of the chosen <strong>language</strong> — “of”, “the”, “and” in English, “und”, “der” in German — and leaves them lowercase inside a title.</p>
+    </div>
+  </div>
+
+  <div class="feature split">
+    <h3>Replace</h3>
+    <figure class="pop"><img src="pop_replace.png" alt="Find and replace"></figure>
+    <div>
+      <p>Finds text in the chosen fields and replaces it — “feat.” with “ft.”, or removes “(Remastered 2011)” everywhere at once. Leave <strong>Replace with</strong> empty to remove what was found; spaces left behind are tidied up. <strong>Match case</strong> distinguishes upper and lower case.</p>
+      <p>With <strong>Regular expression</strong> the search is a pattern, and <code>$1</code> in the replacement inserts what the first group in parentheses matched. The preview lists every change with the old value struck through.</p>
+    </div>
+  </div>
+
+  <div class="feature split">
+    <h3>Fill</h3>
+    <figure class="pop"><img src="pop_fill.png" alt="Fill a field"></figure>
+    <div>
+      <p>Fills one field from a pattern: <strong>Album artist</strong> from <code>%artist%</code>, a title like <code>%track% %title%</code>, or the title from the file name with <code>%filename%</code> (the name without extension). <code>%folder%</code> is the name of the folder the file is in.</p>
+      <p>If a value in the pattern is missing, the text before it is dropped too — <code>%artist% - %title%</code> without an artist gives just the title. A track where the pattern gives nothing at all is left out, not cleared.</p>
+    </div>
+  </div>
+
+  <div class="feature split">
+    <h3>Rename</h3>
+    <figure class="pop"><img src="pop_rename.png" alt="File naming"></figure>
+    <div>
+      <p>Builds file names from tags with a pattern such as <code>%track% - %artist% - %title%</code>. The <strong>{ }</strong> menu inserts placeholders, the list menu offers ready-made patterns. The preview shows old and new name for every track. Characters that are not allowed in file names are replaced, two files that would get the same name get “ (2)”.</p>
+      <p><strong>Apply</strong> proposes the new names — they show in blue in the list — and they are written together with the tags when you save. <strong>Clear proposals</strong> takes them back.</p>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Placeholder</th><th>Tag</th><th>Placeholder</th><th>Tag</th></tr>
+    <tr><td><code>%title%</code></td><td>Title</td><td><code>%track%</code></td><td>Track number</td></tr>
+    <tr><td><code>%artist%</code></td><td>Artist</td><td><code>%disc%</code></td><td>Disc number</td></tr>
+    <tr><td><code>%albumartist%</code></td><td>Album artist</td><td><code>%year%</code></td><td>Year</td></tr>
+    <tr><td><code>%album%</code></td><td>Album</td><td><code>%genre%</code></td><td>Genre</td></tr>
+    <tr><td><code>%composer%</code></td><td>Composer</td><td><code>%%</code></td><td>a percent sign</td></tr>
+  </table>
+
+  <div class="feature split">
+    <h3>Extract</h3>
+    <figure class="pop"><img src="pop_extract.png" alt="Extract tags from file names"></figure>
+    <div>
+      <p>The same pattern read backwards: <code>%track% - %title%</code> takes “03 - Night Bus Hymn.mp3” apart into track 3 and the title. A pattern with slashes also reads folder names, for example <code>%artist%/%album%/%track% - %title%</code>. The preview marks which files match and which values would be taken.</p>
+    </div>
+  </div>
+
+  <div class="feature split">
+    <h3>All in One</h3>
+    <figure class="pop"><img src="pop_allinone.png" alt="All in One"></figure>
+    <div>
+      <p>The usual clean-up of a freshly imported album in one go: renumber, fix the capitalization, rename the files — and, if you tick <strong>Write to disk afterwards</strong>, save right away.</p>
+    </div>
+  </div>
+
+  <h3>Look Up Album</h3>
+  <p><strong>Look Up</strong> in the toolbar searches the selected tracks' album on <strong>MusicBrainz</strong> — no account needed — or on <strong>Discogs</strong>, with your own token (chapter 9). The search is filled in from the tags; pick a result on the left and its tracks appear next to yours, with each file's length against the release's. A track more than <strong>3 seconds</strong> off is marked — so a wrong pressing or edition shows even when the titles agree.</p>
+  <p>Below the comparison you tick what to take over: titles, artists, album, year, genre, track and disc numbers, and the front <strong>cover</strong> in the size you choose. Applying changes only the list; nothing is written until you save.</p>
+
+  <h3>Add to Music</h3>
+  <p><strong>File → Add to Music</strong> hands the selected tracks to the Music app. The first time, macOS asks whether Sleeve may control Music.</p>
+</section>
+
+<!-- ============================================================ 5 -->
+<section class="chapter">
+  <h2 data-chapter="5"><span class="section-num">5</span>Converting</h2>
+  <figure>
+    <img src="convert_window.png" alt="Convert mode">
+    <figcaption>Convert mode: the settings in the sidebar, the button in the toolbar converts the selection — or all tracks.</figcaption>
+  </figure>
+  <div class="feature split wide">
+    <h3>The settings</h3>
+    <figure><img src="convert_sidebar.png" alt="Convert settings"></figure>
+    <div>
+      <p><strong>Target format</strong> — MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV or AIFF, with bitrate or compression level where the format has one. Below the format, Sleeve names the encoder your ffmpeg uses for it.</p>
+      <p><strong>Destination</strong> — next to the original or in a folder you choose. <strong>File name</strong> takes a pattern with the same placeholders as renaming; empty keeps the original name. <strong>Keep originals</strong> leaves the source files where they are; switched off, a source file is deleted once its converted copy is written.</p>
+      <p><strong>ffmpeg</strong> — which version Sleeve found and where. <strong>Search Again</strong> looks once more, <strong>Choose Manually…</strong> points Sleeve at a copy of your own. Sleeve checks which encoders your ffmpeg actually has and says so <em>before</em> a batch starts.</p>
+    </div>
+  </div>
+  <div class="callout">
+    <p><strong>Tags survive.</strong> Generic converters tend to lose the album artist, the disc number or the cover on the way. Sleeve reads the tags first, keeps ffmpeg's own tag copying switched off, and writes all tags back itself afterwards — cover included, unchanged.</p>
+  </div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section class="chapter">
+  <h2 data-chapter="6"><span class="section-num">6</span>Ripping CDs</h2>
+  <p>Insert an audio CD and switch to <strong>Rip</strong>. Sleeve reads the disc directly — no helper tool, no administrator password — and fills in what it can find on the disc itself: CD-TEXT, the barcode (MCN) and the ISRC of every track.</p>
+  <figure>
+    <img src="rip_window.png" alt="Rip mode">
+    <figcaption>Rip mode: album, artist and tracks of the disc in the sidebar. <strong>Read disc</strong> and <strong>Eject</strong> sit in the toolbar.</figcaption>
+  </figure>
+
+  <div class="feature split wide">
+    <h3>The disc</h3>
+    <figure><img src="rip_sidebar_top.png" alt="Disc details"></figure>
+    <div>
+      <p>Album, artist, year, genre and composer go into every ripped file — edit them as you like. <strong>Part of a set</strong> adds “disc 2 of 3” for multi-disc albums. <strong>Source</strong> tells you where the details came from: CD-TEXT, MusicBrainz or Discogs.</p>
+      <p><strong>Look Up…</strong> searches the disc. On MusicBrainz the <strong>disc ID</strong> computed from the table of contents finds exactly this pressing; if there is none, Sleeve looks for releases with similar track lengths, and otherwise searches by name. The CD's own lengths stand next to the release's, so a wrong pressing shows before anything is taken over. On a box set Sleeve picks the disc that is in the drive by its lengths. <strong>CD-TEXT</strong> takes the details from the disc again.</p>
+      <p>Below, under <strong>Tracks</strong>, tick which tracks to rip; titles can be edited right there.</p>
+    </div>
+  </div>
+
+  <div class="feature split wide">
+    <h3>Format and reading</h3>
+    <figure><img src="rip_reading.png" alt="Format and reading settings"></figure>
+    <div>
+      <p><strong>Format</strong> — any format of the Convert mode; WAV works without ffmpeg.</p>
+      <p><strong>Mode</strong> — <strong>Burst</strong> reads in one pass without verification, for clean discs. <strong>Secure</strong> reads every block twice and repeats where the results differ, up to the <strong>maximum retries</strong>; whatever stays unresolved is named in the log.</p>
+      <p><strong>Read every track twice and compare</strong> adds a second pass that compares checksums. <strong>C2 error pointers</strong> let the drive report uncertain bytes — only if your drive really delivers them; Sleeve checks and falls back if it does not.</p>
+      <p><strong>Read offset</strong> — every drive model reads a few samples too early or too late. Sleeve does not look the value up: enter the one your drive is known for, or leave it at zero. <strong>Speed</strong> — reading more slowly often helps a scratched disc more than any retry.</p>
+    </div>
+  </div>
+
+  <div class="feature split wide">
+    <h3>Output</h3>
+    <figure><img src="rip_output.png" alt="Output settings"></figure>
+    <div>
+      <p><strong>Location</strong> — where the album folder is created. <strong>Folder name</strong> — empty takes the suggestion from artist and album. <strong>File name</strong> — a pattern from the tags below it; <strong>Example</strong> shows the result.</p>
+      <p><strong>Write a rip log</strong> saves a log next to the files: drive, settings and, per track, whether it read cleanly and its checksum. <strong>Write a cue sheet</strong> records the track boundaries next to the separate files. <strong>Eject when finished</strong> opens the tray after a rip without errors.</p>
+      <p>Click <strong>Rip</strong> in the toolbar. Progress shows at the bottom of the window; the ripped files land in the track list, ready to be tagged or converted.</p>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <p><strong>Good to know:</strong> Sleeve reads standard audio CDs only. Copy-protected discs, discs with a data track and DVDs are refused, not worked around. Sleeve checks whether a disc reads the same way twice in your drive — it does not compare your rip with other people's rips of the same pressing.</p>
+  </div>
+</section>
+
+<!-- ============================================================ 7 -->
+<section class="chapter">
+  <h2 data-chapter="7"><span class="section-num">7</span>Disc images, burning and copying</h2>
+  <p>Three functions in the <strong>File</strong> menu work on the whole disc rather than on tracks. They use the same read settings as the Rip mode.</p>
+
+  <div class="feature split wide">
+    <h3>Create Disc Image</h3>
+    <figure><img src="sheet_image.png" alt="Create Disc Image"></figure>
+    <div>
+      <p>Writes the whole disc as one continuous audio file plus a <strong>cue sheet</strong> with the track boundaries — gapless, nothing between the tracks is lost. Not an ISO: an audio CD has no file system.</p>
+      <ul>
+        <li><strong>BIN</strong> — raw, exactly as on the disc. Best for archiving and burning; most players need the cue sheet to open it.</li>
+        <li><strong>WAV</strong> — the same with a header, plays everywhere.</li>
+        <li><strong>FLAC</strong> — lossless and smaller; needs ffmpeg.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feature split wide">
+    <h3>Burn Image to CD</h3>
+    <figure><img src="sheet_burn.png" alt="Burn Image to CD"></figure>
+    <div>
+      <p>Choose the <strong>cue sheet</strong> of a BIN, WAV or FLAC image and insert a blank <strong>CD-R or CD-RW</strong>. Sleeve shows what is on the image and whether the blank is suitable and large enough.</p>
+      <p>Start with <strong>Test run</strong>: the drive goes through the whole burn with the laser switched off, and the blank stays empty and reusable. <strong>Burn for real…</strong> asks once more before it writes — it is the only function in Sleeve that uses something up for good. The disc is written session-at-once, so the transitions between tracks stay gapless.</p>
+    </div>
+  </div>
+
+  <div class="feature split wide">
+    <h3>Copy CD</h3>
+    <figure><img src="sheet_copy.png" alt="Copy CD"></figure>
+    <div>
+      <p>A 1:1 copy with one button. Insert the original and click <strong>Copy</strong>. Sleeve reads it into a temporary image, ejects it and asks for a blank; as soon as the blank is recognized, it burns. While waiting, it says what is wrong with the disc that is in there — the original put back in, a DVD, a blank that is too small.</p>
+      <p>With two drives, Sleeve reads in one and burns in the other, without a pause. <strong>Copy Again</strong> burns another copy from what was read; the original is not needed again. The temporary image is removed when you close the window.</p>
+      <p>CD-TEXT titles are not copied — the copy carries the audio and the track boundaries.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p><strong>Several drives:</strong> with more than one optical drive connected, the Rip mode and the three windows show a <strong>Drive</strong> menu for the drive to read from and the one to burn with. With one drive there is nothing to choose.</p>
+  </div>
+</section>
+
+<!-- ============================================================ 8 -->
+<section class="chapter">
+  <h2 data-chapter="8"><span class="section-num">8</span>Splitting into tracks</h2>
+  <p><strong>File → Split Into Tracks…</strong> opens a window of its own for one long recording — an album video, a vinyl side, a live set — and cuts it into tracks <strong>without re-encoding</strong>. Video files work too; only the audio is taken.</p>
+  <figure>
+    <img src="split_window.png" alt="The Track Splitter">
+    <figcaption>The waveform of the whole recording on top, the tracks below, and the start and end of the selected track magnified on the right.</figcaption>
+  </figure>
+  <ol>
+    <li><strong>Choose…</strong> a file. Sleeve analyses it and looks for pauses. <strong>Threshold</strong> sets how quiet a pause has to be, <strong>Min. silence</strong> how long, <strong>Shortest track</strong> keeps short noises from becoming tracks of their own. <strong>Analyse again</strong> applies changed values.</li>
+    <li>Check the boundaries. The two magnifiers show the start (green) and the end (orange) of the selected track; drag the lines, or click to set the <strong>mark</strong> and use <strong>Start here</strong>, <strong>End here</strong> or <strong>Split here</strong>. While playing, these buttons use what you hear. <strong>Play from mark</strong> and the skip buttons let you listen across a boundary before you commit to it. <strong>Join with previous</strong> merges two tracks; <strong>Reset boundaries</strong> goes back to what the analysis found.</li>
+    <li>Give the tracks titles — type them into the list, or use <strong>Look Up Titles…</strong> (below).</li>
+    <li>Pick a <strong>Folder</strong>, a <strong>Format</strong> — <em>Same as the source</em> cuts without re-encoding — and a <strong>File name</strong> pattern, then click <strong>Split into … tracks</strong>. Every piece gets title, number, album, artist, year and genre.</li>
+  </ol>
+
+  <div class="keep">
+  <h3>Look Up Titles</h3>
+  <figure>
+    <img src="split_lookup.png" alt="Look Up Titles with a pasted track list">
+    <figcaption>A track list pasted from a video description, next to what the analysis found.</figcaption>
+  </figure>
+  <p>Titles come from <strong>MusicBrainz</strong>, from <strong>Discogs</strong>, or from a <strong>track list</strong> pasted straight out of a video description — one track per line with its start time, in whatever form the uploader wrote it. The list sits next to the tracks Sleeve found, with the difference per track; tracks the analysis missed are marked. Tick what to take over. With <strong>Boundaries</strong> ticked, the list also sets the boundaries — which finds transitions without any pause at all.</p>
+  </div>
+</section>
+
+<!-- ============================================================ 9 -->
+<section class="chapter">
+  <h2 data-chapter="9"><span class="section-num">9</span>Settings and Discogs</h2>
+  <p><strong>Sleeve → Settings…</strong> (<span class="kbd">⌘,</span>) holds what applies to the whole app; everything else sits in the sidebar of the mode it belongs to and is remembered there.</p>
+  <h3>Discogs token</h3>
+  <p>MusicBrainz works without an account. Discogs only allows searching with a <strong>personal access token</strong>:</p>
+  <ol>
+    <li>Sign in at discogs.com and open <strong>Settings → Developers</strong>.</li>
+    <li>Click <strong>Generate new token</strong> and copy it.</li>
+    <li>Paste it into Sleeve's Settings and click <strong>Save Token</strong>.</li>
+  </ol>
+  <p>The token is stored in your <strong>keychain</strong>, nowhere else. <strong>Remove</strong> deletes it again. <strong>Genre from</strong> chooses what goes into the genre tag from Discogs: its specific <em>style</em> (“Melodic Death Metal”), its broad <em>genre</em> (“Rock”), or both.</p>
+</section>
+
+<!-- ============================================================ 10 -->
+<section>
+  <h2 data-chapter="10"><span class="section-num">10</span>Good to know</h2>
+  <table>
+    <tr><th style="width:38%">Situation</th><th>What to do</th></tr>
+    <tr><td>Convert or Split say ffmpeg is missing</td><td>Install it with <code>brew install ffmpeg</code>, then click <strong>Search Again</strong> in the Convert sidebar — or <strong>Choose Manually…</strong> if it lives somewhere else.</td></tr>
+    <tr><td>An encoder is missing</td><td>Some ffmpeg builds lack an encoder (often Opus or AAC). Sleeve says which one before converting; a full Homebrew ffmpeg has them all.</td></tr>
+    <tr><td>Discogs finds nothing</td><td>Searching Discogs needs a token (chapter 9). MusicBrainz needs none.</td></tr>
+    <tr><td>MusicBrainz is slow</td><td>MusicBrainz allows one request per second; Sleeve waits and retries on its own.</td></tr>
+    <tr><td>A rip reports read errors</td><td>Clean the disc, rip in <strong>Secure</strong> mode, lower the <strong>Speed</strong>. The log names the tracks that did not read cleanly.</td></tr>
+    <tr><td>A disc is refused</td><td>Copy-protected discs, discs with a data track and DVDs are not read by design.</td></tr>
+    <tr><td>Saving a file failed</td><td>The track shows a warning triangle; a summary lists the reason. Other files are saved anyway — one broken file does not stop the batch.</td></tr>
+    <tr><td>macOS refuses to open Sleeve</td><td>See <em>First launch</em> in chapter 2.</td></tr>
+  </table>
+  <p>Not supported yet: comparing rips with other people's rips (AccurateRip), pause markers (<code>INDEX 00</code>) in cue sheets, writing CD-TEXT when burning, and opening disc images.</p>
+</section>
+
+<!-- ============================================================ 11 -->
+<section class="keep">
+  <h2 data-chapter="11"><span class="section-num">11</span>Uninstalling</h2>
+  <p>Quit Sleeve and move Sleeve.app from your Applications folder to the Trash. To also remove its saved settings, run this in Terminal:</p>
+  <pre>defaults delete de.neonrost.Sleeve</pre>
+  <p>If you stored a Discogs token, remove it first with <strong>Remove</strong> in Sleeve's Settings — or later in the Keychain Access app, where it is listed under <code>de.neonrost.Sleeve</code>.</p>
+  <div class="footer-note">
+    <p style="margin:0 0 4pt">Sleeve — Copyright © 2026 NeonRost. Free software under the GNU General Public License v3 or later. See LICENSE in the source repository for details; the licenses of TagLib and the other included components are shown under About Sleeve.</p>
+    <p style="margin:0">The album shown in this manual is made up — artist, titles and cover alike. Mac® is a registered trademark of Apple Inc. MusicBrainz is a trademark of the MetaBrainz Foundation; Discogs is a trademark of Zink Media, LLC.</p>
+  </div>
+</section>
+
+</body>
+</html>

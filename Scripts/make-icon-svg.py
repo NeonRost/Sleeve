@@ -5,7 +5,7 @@
 make-icon-svg.py — generates all SVG sources for the Sleeve icon.
 
 Master, individual layers and dark variant come from the same geometry, so
-that they cannot drift apart. Requirements: Docs/ICON-BRIEF.md.
+that they cannot drift apart. Requirements: Icon/ICON-BRIEF.md.
 """
 
 import colorsys

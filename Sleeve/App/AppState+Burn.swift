@@ -112,6 +112,21 @@ extension AppState {
     // MARK: - Media
 
     func refreshBurnMedia() {
+        #if DEBUG
+        // The staged disc's drive also stands in as the burner, still
+        // holding the original — no real drive shows in screenshots.
+        if DebugHooks.isStagingDisc {
+            let staged = BurnDeviceInfo(id: "staged", vendor: "External", product: "DVD Writer",
+                                        supportLevel: "", isUsable: true)
+            burnDevices = [staged]
+            burnDevice = staged
+            // -SleeveDebugStageBlank YES: a blank is in, for the burn sheet.
+            burnMedia = UserDefaults.standard.bool(forKey: "SleeveDebugStageBlank")
+                ? .blank(sectors: 359_844)
+                : .unusable(reason: String(localized: "This disc already carries data."))
+            return
+        }
+        #endif
         burnDevices = CDBurner.devices().map(CDBurner.info)
         if let id = burnDeviceID, !burnDevices.contains(where: { $0.id == id }) {
             burnDeviceID = nil

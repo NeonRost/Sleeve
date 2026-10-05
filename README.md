@@ -21,7 +21,7 @@ The name comes from the record sleeve: the thing around the music that labels an
 - **Find and replace** – "feat." to "ft.", or remove "(Remastered 2011)" everywhere at once; plain text or regular expressions with `$1`, with a preview of every change before anything happens.
 - **Fill a field** – one field from a pattern: album artist from `%artist%`, or the title from the file name with `%filename%`, with a preview.
 - **Rename and extract** – one pattern syntax in both directions: `%track% - %artist% - %title%` turns tags into file names with a live preview, and the same pattern read backwards pulls tags out of file names. Missing tags drop their separators too, collisions get ` (2)`.
-- **Cover art** – every embedded image with its type (front, back, booklet page, disc …), added by drag and drop, replaced or appended, applied to all selected tracks at once, exported as a file or `folder.jpg`.
+- **Cover art** – every embedded image with its type (front, back, booklet page, disc …), added by drag and drop, replaced or appended, applied to all selected tracks at once, exported as a file.
 - **Look Up Album** – finds the release on **MusicBrainz** (no account needed) or **Discogs** (with your own token) and lays its tracks next to your files, with each file's length against the release's. A file more than 3 s off is marked, so a wrong match shows up even when the titles agree. Pick which fields to take over — the front cover included, in the size you choose; nothing reaches the disk until you save.
 - **Undo** – the last save can be undone. **Add to Music** hands the selection to the Music app.
 
@@ -82,6 +82,8 @@ Sleeve has not been released yet. Once it is, builds will be on the [Releases](.
 
 The app will not be notarized, so macOS refuses to open it on first launch. Go to **System Settings → Privacy & Security**, scroll down to the message about Sleeve and click **Open Anyway**.
 
+The [user manual](docs/Sleeve-Manual.pdf) (PDF, English) walks through every part of the app.
+
 ## Languages
 
 The interface is available in **English**, **German** and **Spanish**, selected automatically from the system language. Unsupported languages fall back to English.
@@ -120,6 +122,7 @@ Checks from the Terminal:
 ```sh
 Scripts/run-bridge-test.sh    # tag engine, patterns, lookup, rip, burn, split — against copies of TestFiles/
 Scripts/check-strings.sh      # every string in the code has a translation
+Scripts/build-manual.sh       # docs/Sleeve-Manual.pdf from manual/source.html (needs Google Chrome)
 ```
 
 The app is not sandboxed — required for running Homebrew's ffmpeg, which is linked against libraries a sandboxed child process may not load.

@@ -51,7 +51,7 @@ struct DiscImageSheet: View {
 
             Form {
                 if let disc = state.disc {
-                    DiscFacts(disc: disc)
+                    DiscFacts(disc: disc, album: state.discAlbum)
                 } else {
                     Section {
                         Label(state.discError ?? String(localized: "No audio CD in the drive."),
@@ -214,11 +214,15 @@ struct DiscImageSheet: View {
 
 private struct DiscFacts: View {
     let disc: DiscSnapshot
+    /// What the Rip section holds — CD-TEXT, a lookup or typed by hand. It
+    /// is also what goes into the cue sheet.
+    let album: String
 
     var body: some View {
         Section("Disc") {
             LabeledContent("Album") {
-                Text(disc.cdText?.albumTitle ?? "—").foregroundStyle(.secondary)
+                Text(album.isEmpty ? disc.cdText?.albumTitle ?? "—" : album)
+                    .foregroundStyle(.secondary)
             }
             LabeledContent("Tracks") {
                 Text(verbatim: "\(disc.toc.audioTracks.count)").foregroundStyle(.secondary)

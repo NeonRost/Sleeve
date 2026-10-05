@@ -72,9 +72,12 @@ extension AppState {
         refreshBurnMedia()
     }
 
-    /// The table of contents of the disc to copy.
+    /// The table of contents of the disc to copy — the Rip section's
+    /// snapshot when it read the same drive, otherwise straight from IOKit.
     var copySourceTOC: DiscTOC? {
-        effectiveSourceDrive?.rawTOC.flatMap(DiscTOC.init(rawTOC:))
+        guard let source = effectiveSourceDrive else { return nil }
+        if let disc, disc.drive.bsdName == source.bsdName { return disc.toc }
+        return source.rawTOC.flatMap(DiscTOC.init(rawTOC:))
     }
 
     /// What prevents copying. A burner without a blank is no obstacle —
@@ -98,6 +101,9 @@ extension AppState {
     /// Whether original and blank go into the same drive one after the other.
     var copyUsesOneDrive: Bool {
         if let image = copyImage { return image.usesOneDrive }
+        #if DEBUG
+        if DebugHooks.isStagingDisc { return true }
+        #endif
         guard let source = effectiveSourceDrive else { return true }
         return CDBurner.isDrive(of: source.bsdName, burner: burnDevice?.id)
     }

@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sleeve · Tag, convert, rip and split audio on your Mac</title>
+<meta name="description" content="A native macOS audio tagger that also converts, rips and copies CDs and splits long recordings into tracks. Free and open source, GPLv3.">
+<link rel="icon" href="images/Sleeve_Icon.png">
+<script>try{var t=localStorage.getItem('sleeve-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<meta property="og:title" content="Sleeve">
+<meta property="og:description" content="An audio tagger for the Mac that also converts, rips CDs and splits long recordings.">
+<meta property="og:image" content="images/Sleeve_Icon.png">
+<style>
+:root{
+  --blue-900:#134a86;
+  --blue-700:#1b5da6;
+  --blue-500:#3f88cf;
+  --blue-300:#6db1ea;
+  --blue-100:#d7e8f8;
+  --ink:#2c3338;
+  --ink-soft:#5c6770;
+  --page:#f8f9fa;
+  --card:#ffffff;
+  --line:#e4e8ec;
+  --shadow:0 10px 30px rgba(19,74,134,.10);
+}
+/* Dark: follows the system unless switched to light by hand */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf2;
+    --ink-soft:#a4b1bd;
+    --page:#12181e;
+    --card:#1b232b;
+    --line:#2b353f;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+}
+/* A choice made by hand beats the system setting */
+:root[data-theme="dark"]{
+  --ink:#e8edf2;
+  --ink-soft:#a4b1bd;
+  --page:#12181e;
+  --card:#1b232b;
+  --line:#2b353f;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Open Sans",Helvetica,Arial,sans-serif;
+  color:var(--ink);
+  background:var(--page);
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--blue-500);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+
+/* ---------- Hero ---------- */
+.hero{
+  background:linear-gradient(160deg,var(--blue-900) 0%,var(--blue-700) 45%,var(--blue-500) 100%);
+  color:#fff;
+  padding-bottom:90px;
+}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:22px 0}
+.brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:600;font-size:15px}
+.brand img{width:26px;height:26px;object-fit:contain}
+.nav a{color:rgba(255,255,255,.85);font-size:14px}
+.nav a:hover{color:#fff}
+.nav-links{display:flex;align-items:center;gap:22px}
+
+/* Sleeve's window is wide, so the screenshot gets more of the row than
+   TOM's and MIKE's narrower windows do. */
+.hero-grid{display:grid;grid-template-columns:1fr 1.35fr;gap:48px;align-items:center;padding-top:40px}
+.hero h1{font-size:44px;line-height:1.15;margin:0 0 14px;font-weight:700;letter-spacing:-.5px}
+.tagline{font-size:19px;color:rgba(255,255,255,.92);margin:0 0 18px}
+.lede{font-size:15.5px;color:rgba(255,255,255,.78);margin:0 0 30px;max-width:46ch}
+.buttons{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+.btn{
+  display:inline-block;padding:11px 22px;border-radius:9px;
+  font-size:15px;font-weight:600;border:1px solid transparent;
+}
+.btn:hover{text-decoration:none}
+.btn-primary{background:#fff;color:var(--blue-700)}
+.btn-primary:hover{background:var(--blue-100)}
+.btn-ghost{border-color:rgba(255,255,255,.45);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.12)}
+.fineprint{font-size:13px;color:rgba(255,255,255,.65)}
+.fineprint a{color:rgba(255,255,255,.85);text-decoration:underline}
+/* No frame or shadow of its own: the capture has the window's rounded
+   corners, a CSS shadow would draw a rectangle around them. */
+.shot{width:100%;display:block}
+
+/* ---------- Sections ---------- */
+section{padding:78px 0}
+.section-head{text-align:center;max-width:660px;margin:0 auto 46px}
+.rule{width:64px;height:4px;border-radius:2px;background:var(--blue-500);margin:0 auto 26px}
+.section-head h2{font-size:30px;margin:0 0 10px;font-weight:700;letter-spacing:-.3px}
+.section-head p{margin:0;color:var(--ink-soft);font-size:16px}
+
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:26px 26px 24px;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;
+}
+.card h3{margin:0 0 8px;font-size:18px}
+.card p{margin:0;color:var(--ink-soft);font-size:15px}
+
+/* Each name is a button that swaps the card's screenshot — as on MIKE's
+   page. Until hovered they read as a plain list of what is in the area. */
+.tools{display:flex;flex-wrap:wrap;gap:4px 6px;margin:12px 0 0;padding:0;list-style:none}
+.tools button{
+  font:inherit;font-size:13px;line-height:1.3;
+  padding:3px 8px;border-radius:7px;cursor:pointer;
+  background:transparent;border:1px solid transparent;
+  color:var(--ink-soft);
+}
+.tools button:hover{border-color:var(--line);color:var(--ink)}
+.tools button[aria-pressed="true"]{
+  background:var(--blue-100);border-color:transparent;
+  color:var(--blue-700);font-weight:600;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .tools button[aria-pressed="true"]{background:#22405e;color:#bcd9f5}
+}
+:root[data-theme="dark"] .tools button[aria-pressed="true"]{background:#22405e;color:#bcd9f5}
+
+/* The screenshot is pushed to the card's bottom edge, so cards side by
+   side line their images up even when the texts differ in length. */
+.card .shot-link{display:block;margin-top:16px;line-height:0}
+.card .shot-link:hover{text-decoration:none;opacity:.9}
+.card .shot-link img{width:100%;display:block}
+.card .grow{flex:1 1 auto}
+
+/* Light/dark switch */
+.theme-toggle{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;margin-left:8px;padding:0;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);
+  border-radius:9px;color:#fff;cursor:pointer;
+}
+.theme-toggle:hover{background:rgba(255,255,255,.22)}
+.theme-toggle svg{width:17px;height:17px}
+.theme-toggle .icon-moon{display:block}
+.theme-toggle .icon-sun{display:none}
+:root[data-theme="dark"] .theme-toggle .icon-moon{display:none}
+:root[data-theme="dark"] .theme-toggle .icon-sun{display:block}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .theme-toggle .icon-moon{display:none}
+  :root:not([data-theme="light"]) .theme-toggle .icon-sun{display:block}
+}
+
+/* Language picker */
+.lang-select{
+  height:34px;margin-left:8px;padding:0 8px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);
+  border-radius:9px;color:#fff;cursor:pointer;font-size:13px;font-weight:600;
+  -webkit-appearance:none;appearance:none;
+}
+.lang-select:hover{background:rgba(255,255,255,.22)}
+.lang-select option{color:#000}
+
+.note{
+  margin-top:24px;background:var(--card);border:1px solid var(--line);
+  border-left:4px solid var(--blue-500);border-radius:12px;
+  padding:20px 24px;box-shadow:var(--shadow);
+}
+.note strong{color:var(--ink)}
+.note p{margin:0;color:var(--ink-soft);font-size:15px}
+
+.alt{background:linear-gradient(180deg,transparent,rgba(63,136,207,.06))}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:34px 22px;text-align:center}
+.fact h3{margin:0 0 6px;font-size:16px}
+.fact p{margin:0;color:var(--ink-soft);font-size:15px}
+
+.support{text-align:center}
+.support p{max-width:52ch;margin:0 auto 22px;color:var(--ink-soft)}
+.btn-kofi{background:var(--blue-500);color:#fff}
+.btn-kofi:hover{background:var(--blue-700)}
+
+footer{border-top:1px solid var(--line);padding:34px 0;font-size:14px;color:var(--ink-soft)}
+.foot-grid{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between}
+.trademark{margin:14px 0 0;font-size:12px;color:var(--ink-soft);opacity:.75}
+
+@media (max-width:860px){
+  .hero-grid{grid-template-columns:1fr;gap:38px;text-align:center}
+  .lede{margin-left:auto;margin-right:auto}
+  .buttons{justify-content:center}
+  .hero h1{font-size:34px}
+  .cards,.facts{grid-template-columns:1fr}
+  .nav-links a{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="wrap">
+    <nav class="nav">
+      <span class="brand"><img src="images/Sleeve_Icon.png" alt="">Sleeve</span>
+      <span class="nav-links">
+        <a href="#features" data-i18n="nav_features">Features</a>
+        <a href="#details" data-i18n="nav_details">Details</a>
+        <a href="https://github.com/NeonRost/Sleeve">GitHub</a>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch between light and dark">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        </button>
+        <select class="lang-select" id="langSelect" aria-label="Select language">
+          <option value="en">🇬🇧 English</option>
+          <option value="de">🇩🇪 Deutsch</option>
+          <option value="es">🇪🇸 Español</option>
+        </select>
+      </span>
+    </nav>
+
+    <div class="hero-grid">
+      <div>
+        <h1>Sleeve</h1>
+        <p class="tagline" data-i18n="tagline">An audio tagger for the Mac that also converts, rips CDs and splits long recordings.</p>
+        <p class="lede" data-i18n="lede">
+          Edit the tags of a whole album at once, look it up on MusicBrainz or Discogs,
+          convert without losing a single tag, rip CDs in secure mode, burn and copy discs,
+          and cut an album video or a vinyl side into tracks. Free, open source,
+          no account, no tracking.
+        </p>
+        <div class="buttons">
+          <a class="btn btn-primary" href="https://github.com/NeonRost/Sleeve/releases" data-i18n="btn_download">Download</a>
+          <a class="btn btn-ghost" href="https://github.com/NeonRost/Sleeve" data-i18n="btn_source">View source</a>
+        </div>
+        <p class="fineprint">
+          <span data-i18n="fineprint">macOS 14 Sonoma or later · Apple Silicon · </span><a href="https://github.com/NeonRost/Sleeve/blob/main/LICENSE">GPLv3</a>
+        </p>
+      </div>
+      <div>
+        <!-- The same captures as the Tag card below, so the two can never
+             show different states of the app. -->
+        <img class="shot" data-hero-shot src="images/shot-tag-dark.png" alt="Sleeve in Tag mode: sixteen tracks of an album selected, the inspector with the shared tags and the front cover">
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="rule"></div>
+      <h2 data-i18n="features_h2">One track list, four jobs</h2>
+      <p data-i18n="features_p">Tag, Convert and Rip share the same list of files — rip a CD, tag what came out, convert it, without importing anything twice. Splitting long recordings has a window of its own.</p>
+    </div>
+
+    <div class="cards">
+      <div class="card" data-card>
+        <h3 data-i18n="card_tag_h3">Tag</h3>
+        <p data-i18n="card_tag_p">One track or a whole album: fields that differ show &lt;Multiple values&gt;. Numbering, capitalization, find and replace, filling a field from other tags or the file name, renaming and reading tags out of file names — every batch step with a preview. Look Up Album fetches tags and cover from MusicBrainz or Discogs.</p>
+        <ul class="tools">
+          <li><button type="button" data-tool="tag" data-alt="Sixteen tracks selected, the inspector showing the shared tags and the cover">Batch editing</button></li>
+          <li><button type="button" data-tool="fill" data-alt="Fill a field: the title from the file name, with a preview of every change">Fill a field</button></li>
+          <li><button type="button" data-tool="rename" data-alt="File naming with a pattern and a live preview of the new names">Rename</button></li>
+        </ul>
+        <div class="grow"></div>
+        <a class="shot-link" href="images/shot-tag-light.png">
+          <img src="images/shot-tag-light.png" alt="Sixteen tracks selected, the inspector showing the shared tags and the cover" loading="lazy">
+        </a>
+      </div>
+      <div class="card" data-card>
+        <h3 data-i18n="card_convert_h3">Convert</h3>
+        <p data-i18n="card_convert_p">MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV and AIFF with ffmpeg. Sleeve reads the tags first and writes them back itself, cover included — the album artist and the disc number survive the trip, which generic converters tend to lose.</p>
+        <ul class="tools">
+          <li><button type="button" data-tool="convert" data-alt="Convert mode with MP3 at 320 kbit/s chosen for sixteen tracks">Convert</button></li>
+        </ul>
+        <div class="grow"></div>
+        <a class="shot-link" href="images/shot-convert-light.png">
+          <img src="images/shot-convert-light.png" alt="Convert mode with MP3 at 320 kbit/s chosen for sixteen tracks" loading="lazy">
+        </a>
+      </div>
+      <div class="card" data-card>
+        <h3 data-i18n="card_rip_h3">Rip, image, burn, copy</h3>
+        <p data-i18n="card_rip_p">Reads audio CDs directly: burst or secure mode, read offset, C2 error pointers, an optional second pass and a log. CD-TEXT, ISRC and the MusicBrainz disc ID fill in the tags. The File menu adds a gapless image of the whole disc, burning it back, and a one-button 1:1 copy.</p>
+        <ul class="tools">
+          <li><button type="button" data-tool="rip" data-alt="Rip mode with the disc's album, artist and track list in the sidebar">Rip</button></li>
+          <li><button type="button" data-tool="image" data-alt="Create Disc Image: the whole disc as BIN plus a cue sheet">Disc image</button></li>
+          <li><button type="button" data-tool="copy" data-alt="Copy CD: the original is read, ejected, and the copy burned onto a blank in the same drive">Copy CD</button></li>
+        </ul>
+        <div class="grow"></div>
+        <a class="shot-link" href="images/shot-rip-light.png">
+          <img src="images/shot-rip-light.png" alt="Rip mode with the disc's album, artist and track list in the sidebar" loading="lazy">
+        </a>
+      </div>
+      <div class="card" data-card>
+        <h3 data-i18n="card_split_h3">Split into tracks</h3>
+        <p data-i18n="card_split_p">An album video, a vinyl side or a live set, cut into tracks without re-encoding. Silence detection finds the boundaries, two magnifiers set them exactly, and the titles come from MusicBrainz, Discogs or a track list pasted from the video description.</p>
+        <ul class="tools">
+          <li><button type="button" data-tool="split" data-alt="The Track Splitter: waveform, six tracks with titles, and the start and end of the third one magnified">Track Splitter</button></li>
+        </ul>
+        <div class="grow"></div>
+        <a class="shot-link" href="images/shot-split-light.png">
+          <img src="images/shot-split-light.png" alt="The Track Splitter: waveform, six tracks with titles, and the start and end of the third one magnified" loading="lazy">
+        </a>
+      </div>
+    </div>
+
+    <div class="note">
+      <p><strong data-i18n="note_title">A field is only written if you touched it.</strong><span data-i18n="note_body"> Select twelve tracks, change the album, and every other field stays exactly as it was — an empty-looking field is never written as empty by accident. Nothing reaches your files until you save, and the last save can be undone.</span></p>
+    </div>
+  </div>
+</section>
+
+<section id="details" class="alt">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="rule"></div>
+      <h2 data-i18n="details_h2">Good to know</h2>
+      <p data-i18n="details_p">A few practical details before you download.</p>
+    </div>
+
+    <div class="facts">
+      <div class="fact">
+        <h3 data-i18n="fact1_h3">Three languages</h3>
+        <p data-i18n="fact1_p">English, German and Spanish, picked from your system language. Light and dark follow the system too.</p>
+      </div>
+      <div class="fact">
+        <h3 data-i18n="fact2_h3">ffmpeg stays external</h3>
+        <p data-i18n="fact2_p">Tagging and ripping to WAV need nothing extra. Converting, other rip formats and splitting use ffmpeg from Homebrew — Sleeve finds it, never bundles it.</p>
+      </div>
+      <div class="fact">
+        <h3 data-i18n="fact3_h3">MusicBrainz and Discogs</h3>
+        <p data-i18n="fact3_p">MusicBrainz works without an account. For Discogs you add your own token, which is kept in the keychain.</p>
+      </div>
+      <div class="fact">
+        <h3 data-i18n="fact4_h3">Every common format</h3>
+        <p data-i18n="fact4_p">MP3, AAC, ALAC, FLAC, Ogg Vorbis, Opus, WAV and AIFF, read and written with TagLib.</p>
+      </div>
+      <div class="fact">
+        <h3 data-i18n="fact5_h3">Checked on real discs</h3>
+        <p data-i18n="fact5_p">A burned image and a copied CD both read back byte for byte identical to their source. Copy-protected discs are refused, not worked around.</p>
+      </div>
+      <div class="fact">
+        <h3 data-i18n="fact6_h3">No account, no tracking</h3>
+        <p data-i18n="fact6_p">Everything runs on your Mac. The network is only used when you look something up.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="support">
+  <div class="wrap">
+    <div class="rule"></div>
+    <h2 style="font-size:30px;margin:0 0 12px" data-i18n="support_h2">Free, and staying that way</h2>
+    <p data-i18n="support_p">Sleeve is free software under the GNU GPL v3. If it saved you some hassle, you can leave a tip.</p>
+    <a class="btn btn-kofi" href="https://ko-fi.com/neonrost" data-i18n="btn_kofi">Buy me a coffee</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-grid">
+    <span>Copyright © <span id="copyrightYears">2026</span> NeonRost · <span data-i18n="footer_license">Released under the GNU GPL v3</span></span>
+    <span><a href="https://github.com/NeonRost/Sleeve">GitHub</a> · <a href="https://github.com/NeonRost/Sleeve/releases">Releases</a> · <a href="Sleeve-Manual.pdf" data-i18n="footer_manual">Manual (PDF)</a> · <a href="https://ko-fi.com/neonrost">Ko-fi</a></span>
+  </div>
+  <div class="wrap">
+    <p class="trademark" data-i18n="trademark">The album in the screenshots is made up — artist, titles and cover alike. Mac® is a registered trademark of Apple Inc.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  var stored = null;
+  try { stored = localStorage.getItem('sleeve-theme'); } catch(e){}
+  var systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+  function effective(){
+    return stored ? stored : (systemDark.matches ? 'dark' : 'light');
+  }
+  // Each card shows one screenshot at a time, in the page's current theme.
+  // Swapped in script rather than with <picture> media queries: those only
+  // follow the system setting and would ignore the switch above, and one
+  // <img> per card keeps the page from loading every capture up front.
+  var cards = [].slice.call(document.querySelectorAll('[data-card]'));
+
+  function paintCard(card){
+    var active = card.querySelector('.tools button[aria-pressed="true"]')
+              || card.querySelector('.tools button');
+    if (!active) return;
+    var img = card.querySelector('.shot-link img');
+    var link = card.querySelector('.shot-link');
+    var src = 'images/shot-' + active.getAttribute('data-tool') + '-' + effective() + '.png';
+    if (img.getAttribute('src') !== src) { img.setAttribute('src', src); }
+    img.setAttribute('alt', active.getAttribute('data-alt'));
+    link.setAttribute('href', src);
+  }
+
+  cards.forEach(function(card){
+    var btns = [].slice.call(card.querySelectorAll('.tools button'));
+    btns.forEach(function(btn, i){
+      btn.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+      btn.addEventListener('click', function(){
+        btns.forEach(function(b){ b.setAttribute('aria-pressed', 'false'); });
+        btn.setAttribute('aria-pressed', 'true');
+        paintCard(card);
+      });
+    });
+  });
+
+  var heroShot = document.querySelector('[data-hero-shot]');
+
+  function apply(){
+    if (stored) { root.setAttribute('data-theme', stored); }
+    else { root.removeAttribute('data-theme'); }
+    cards.forEach(paintCard);
+    if (heroShot) { heroShot.setAttribute('src', 'images/shot-tag-' + effective() + '.png'); }
+  }
+  document.getElementById('themeToggle').addEventListener('click', function(){
+    stored = effective() === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('sleeve-theme', stored); } catch(e){}
+    apply();
+  });
+  // Follow the system setting until the visitor picks one
+  systemDark.addEventListener('change', function(){ if (!stored) apply(); });
+  apply();
+
+  // Copyright range: "2026" while that is the current year, afterwards
+  // "2026–<current year>" — no yearly edit needed.
+  var startYear = 2026;
+  var currentYear = new Date().getFullYear();
+  var years = document.getElementById('copyrightYears');
+  if (years) {
+    years.textContent = currentYear > startYear ? (startYear + '–' + currentYear) : String(startYear);
+  }
+})();
+
+(function(){
+  // As on TOM's and MIKE's pages: one dictionary per language, applied to
+  // every [data-i18n] element. The screenshots show the English app, so
+  // their alt texts stay English.
+  var translations = {
+    en: {
+      title: "Sleeve · Tag, convert, rip and split audio on your Mac",
+      metaDescription: "A native macOS audio tagger that also converts, rips and copies CDs and splits long recordings into tracks. Free and open source, GPLv3.",
+      nav_features: "Features",
+      nav_details: "Details",
+      tagline: "An audio tagger for the Mac that also converts, rips CDs and splits long recordings.",
+      lede: "Edit the tags of a whole album at once, look it up on MusicBrainz or Discogs, convert without losing a single tag, rip CDs in secure mode, burn and copy discs, and cut an album video or a vinyl side into tracks. Free, open source, no account, no tracking.",
+      btn_download: "Download",
+      btn_source: "View source",
+      fineprint: "macOS 14 Sonoma or later · Apple Silicon · ",
+      features_h2: "One track list, four jobs",
+      features_p: "Tag, Convert and Rip share the same list of files — rip a CD, tag what came out, convert it, without importing anything twice. Splitting long recordings has a window of its own.",
+      card_tag_h3: "Tag",
+      card_tag_p: "One track or a whole album: fields that differ show <Multiple values>. Numbering, capitalization, find and replace, filling a field from other tags or the file name, renaming and reading tags out of file names — every batch step with a preview. Look Up Album fetches tags and cover from MusicBrainz or Discogs.",
+      card_convert_h3: "Convert",
+      card_convert_p: "MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV and AIFF with ffmpeg. Sleeve reads the tags first and writes them back itself, cover included — the album artist and the disc number survive the trip, which generic converters tend to lose.",
+      card_rip_h3: "Rip, image, burn, copy",
+      card_rip_p: "Reads audio CDs directly: burst or secure mode, read offset, C2 error pointers, an optional second pass and a log. CD-TEXT, ISRC and the MusicBrainz disc ID fill in the tags. The File menu adds a gapless image of the whole disc, burning it back, and a one-button 1:1 copy.",
+      card_split_h3: "Split into tracks",
+      card_split_p: "An album video, a vinyl side or a live set, cut into tracks without re-encoding. Silence detection finds the boundaries, two magnifiers set them exactly, and the titles come from MusicBrainz, Discogs or a track list pasted from the video description.",
+      note_title: "A field is only written if you touched it.",
+      note_body: " Select twelve tracks, change the album, and every other field stays exactly as it was — an empty-looking field is never written as empty by accident. Nothing reaches your files until you save, and the last save can be undone.",
+      details_h2: "Good to know",
+      details_p: "A few practical details before you download.",
+      fact1_h3: "Three languages",
+      fact1_p: "English, German and Spanish, picked from your system language. Light and dark follow the system too.",
+      fact2_h3: "ffmpeg stays external",
+      fact2_p: "Tagging and ripping to WAV need nothing extra. Converting, other rip formats and splitting use ffmpeg from Homebrew — Sleeve finds it, never bundles it.",
+      fact3_h3: "MusicBrainz and Discogs",
+      fact3_p: "MusicBrainz works without an account. For Discogs you add your own token, which is kept in the keychain.",
+      fact4_h3: "Every common format",
+      fact4_p: "MP3, AAC, ALAC, FLAC, Ogg Vorbis, Opus, WAV and AIFF, read and written with TagLib.",
+      fact5_h3: "Checked on real discs",
+      fact5_p: "A burned image and a copied CD both read back byte for byte identical to their source. Copy-protected discs are refused, not worked around.",
+      fact6_h3: "No account, no tracking",
+      fact6_p: "Everything runs on your Mac. The network is only used when you look something up.",
+      support_h2: "Free, and staying that way",
+      support_p: "Sleeve is free software under the GNU GPL v3. If it saved you some hassle, you can leave a tip.",
+      btn_kofi: "Buy me a coffee",
+      footer_license: "Released under the GNU GPL v3",
+      footer_manual: "Manual (PDF)",
+      trademark: "The album in the screenshots is made up — artist, titles and cover alike. Mac® is a registered trademark of Apple Inc.",
+      tool_names: ["Batch editing", "Fill a field", "Rename", "Convert", "Rip", "Disc image", "Copy CD", "Track Splitter"],
+      theme_toggle_label: "Switch between light and dark",
+      lang_select_label: "Select language"
+    },
+    de: {
+      title: "Sleeve · Audio taggen, konvertieren, rippen und schneiden auf dem Mac",
+      metaDescription: "Ein nativer Audio-Tagger für macOS, der auch konvertiert, CDs rippt und kopiert und lange Aufnahmen in Tracks schneidet. Kostenlos und Open Source, GPLv3.",
+      nav_features: "Funktionen",
+      nav_details: "Details",
+      tagline: "Ein Audio-Tagger für den Mac, der auch konvertiert, CDs rippt und lange Aufnahmen schneidet.",
+      lede: "Bearbeite die Tags eines ganzen Albums auf einmal, schlag es bei MusicBrainz oder Discogs nach, konvertiere ohne ein einziges Tag zu verlieren, rippe CDs im sicheren Modus, brenne und kopiere CDs und schneide ein Album-Video oder eine Plattenseite in Tracks. Kostenlos, Open Source, kein Konto, kein Tracking.",
+      btn_download: "Herunterladen",
+      btn_source: "Quellcode ansehen",
+      fineprint: "macOS 14 Sonoma oder neuer · Apple Silicon · ",
+      features_h2: "Eine Trackliste, vier Aufgaben",
+      features_p: "Taggen, Konvertieren und Rippen teilen sich dieselbe Liste — CD rippen, das Ergebnis taggen, konvertieren, ohne irgendetwas zweimal zu importieren. Lange Aufnahmen schneiden hat ein eigenes Fenster.",
+      card_tag_h3: "Taggen",
+      card_tag_p: "Ein Track oder ein ganzes Album: Felder mit unterschiedlichen Werten zeigen <Verschiedene>. Nummerieren, Schreibweise, Suchen und Ersetzen, ein Feld aus anderen Tags oder dem Dateinamen füllen, Umbenennen und Tags aus Dateinamen lesen — jeder Stapelschritt mit Vorschau. „Album nachschlagen“ holt Tags und Cover von MusicBrainz oder Discogs.",
+      card_convert_h3: "Konvertieren",
+      card_convert_p: "MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV und AIFF mit ffmpeg. Sleeve liest die Tags vorher und schreibt sie danach selbst zurück, Cover inklusive — Album-Interpret und CD-Nummer überstehen den Weg, die gehen bei üblichen Konvertern gern verloren.",
+      card_rip_h3: "Rippen, Abbild, Brennen, Kopieren",
+      card_rip_p: "Liest Audio-CDs direkt: Burst- oder sicherer Modus, Leseversatz, C2-Fehlerzeiger, auf Wunsch ein zweiter Durchgang und ein Log. CD-TEXT, ISRC und die MusicBrainz-Disc-ID füllen die Tags. Im Menü Ablage: ein lückenloses Abbild der ganzen CD, das Zurückbrennen und eine 1:1-Kopie mit einem Knopf.",
+      card_split_h3: "In Tracks aufteilen",
+      card_split_p: "Ein Album-Video, eine Plattenseite oder ein Live-Mitschnitt, in Tracks geschnitten, ohne neu zu kodieren. Die Pausenerkennung findet die Grenzen, zwei Lupen setzen sie genau, und die Titel kommen von MusicBrainz, Discogs oder aus einer Titelliste aus der Videobeschreibung.",
+      note_title: "Ein Feld wird nur geschrieben, wenn du es angefasst hast.",
+      note_body: " Zwölf Tracks auswählen, das Album ändern — jedes andere Feld bleibt genau, wie es war. Ein Feld, das leer aussieht, wird nie versehentlich leer geschrieben. Erst beim Speichern kommt etwas in deine Dateien, und das letzte Speichern lässt sich rückgängig machen.",
+      details_h2: "Gut zu wissen",
+      details_p: "Ein paar praktische Details vor dem Download.",
+      fact1_h3: "Drei Sprachen",
+      fact1_p: "Englisch, Deutsch und Spanisch, passend zur Systemsprache. Hell und dunkel folgen ebenfalls dem System.",
+      fact2_h3: "ffmpeg bleibt extern",
+      fact2_p: "Taggen und Rippen als WAV brauchen nichts weiter. Konvertieren, andere Rip-Formate und das Schneiden nutzen ffmpeg aus Homebrew — Sleeve findet es, liefert es aber nie mit.",
+      fact3_h3: "MusicBrainz und Discogs",
+      fact3_p: "MusicBrainz geht ohne Konto. Für Discogs trägst du deinen eigenen Token ein, er liegt im Schlüsselbund.",
+      fact4_h3: "Alle gängigen Formate",
+      fact4_p: "MP3, AAC, ALAC, FLAC, Ogg Vorbis, Opus, WAV und AIFF, gelesen und geschrieben mit TagLib.",
+      fact5_h3: "An echten CDs geprüft",
+      fact5_p: "Ein gebranntes Abbild und eine kopierte CD lesen sich beide Byte für Byte identisch zu ihrer Quelle zurück. Kopiergeschützte CDs werden abgelehnt, nicht umgangen.",
+      fact6_h3: "Kein Konto, kein Tracking",
+      fact6_p: "Alles läuft auf deinem Mac. Das Netz wird nur benutzt, wenn du etwas nachschlägst.",
+      support_h2: "Kostenlos, und das bleibt so",
+      support_p: "Sleeve ist freie Software unter der GNU GPL v3. Wenn dir Sleeve nützlich war, freue ich mich über ein Trinkgeld.",
+      btn_kofi: "Spendier mir einen Kaffee",
+      footer_license: "Veröffentlicht unter der GNU GPL v3",
+      footer_manual: "Handbuch (PDF)",
+      trademark: "Das Album auf den Screenshots ist erfunden — Interpret, Titel und Cover. Mac® ist eine eingetragene Marke von Apple Inc.",
+      tool_names: ["Stapelbearbeitung", "Feld füllen", "Umbenennen", "Konvertieren", "Rippen", "CD-Abbild", "CD kopieren", "Track Splitter"],
+      theme_toggle_label: "Zwischen hell und dunkel wechseln",
+      lang_select_label: "Sprache auswählen"
+    },
+    es: {
+      title: "Sleeve · Etiquetar, convertir, extraer y dividir audio en tu Mac",
+      metaDescription: "Un editor de etiquetas de audio nativo para macOS que además convierte, extrae y copia CD y divide grabaciones largas en pistas. Gratis y de código abierto, GPLv3.",
+      nav_features: "Funciones",
+      nav_details: "Detalles",
+      tagline: "Un editor de etiquetas de audio para Mac que además convierte, extrae CD y divide grabaciones largas.",
+      lede: "Edita las etiquetas de un álbum entero de una vez, búscalo en MusicBrainz o Discogs, convierte sin perder ni una etiqueta, extrae CD en modo seguro, graba y copia discos, y corta un vídeo de álbum o una cara de vinilo en pistas. Gratis, código abierto, sin cuenta, sin seguimiento.",
+      btn_download: "Descargar",
+      btn_source: "Ver código fuente",
+      fineprint: "macOS 14 Sonoma o posterior · Apple Silicon · ",
+      features_h2: "Una lista de pistas, cuatro tareas",
+      features_p: "Etiquetar, Convertir y Extraer comparten la misma lista de archivos — extrae un CD, etiqueta el resultado, conviértelo, sin importar nada dos veces. Dividir grabaciones largas tiene su propia ventana.",
+      card_tag_h3: "Etiquetar",
+      card_tag_p: "Una pista o un álbum entero: los campos con valores distintos muestran <Varios valores>. Numerar, mayúsculas, buscar y reemplazar, rellenar un campo a partir de otras etiquetas o del nombre del archivo, renombrar y leer etiquetas de los nombres de archivo — cada paso por lotes con vista previa. «Buscar álbum» trae etiquetas y portada de MusicBrainz o Discogs.",
+      card_convert_h3: "Convertir",
+      card_convert_p: "MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV y AIFF con ffmpeg. Sleeve lee antes las etiquetas y luego las vuelve a escribir él mismo, portada incluida — el artista del álbum y el número de disco sobreviven al viaje, algo que los conversores genéricos suelen perder.",
+      card_rip_h3: "Extraer, imagen, grabar, copiar",
+      card_rip_p: "Lee CD de audio directamente: modo ráfaga o seguro, desplazamiento de lectura, punteros de error C2, una segunda pasada opcional y un registro. CD-TEXT, ISRC y el ID de disco de MusicBrainz rellenan las etiquetas. El menú Archivo añade una imagen sin huecos del disco entero, volver a grabarla y una copia 1:1 con un solo botón.",
+      card_split_h3: "Dividir en pistas",
+      card_split_p: "Un vídeo de álbum, una cara de vinilo o un directo, cortados en pistas sin recodificar. La detección de silencios encuentra los límites, dos lupas los ajustan con precisión, y los títulos vienen de MusicBrainz, Discogs o de una lista pegada desde la descripción del vídeo.",
+      note_title: "Un campo solo se escribe si lo has tocado.",
+      note_body: " Selecciona doce pistas, cambia el álbum, y todos los demás campos quedan exactamente como estaban — un campo que parece vacío nunca se escribe vacío por error. Nada llega a tus archivos hasta que guardas, y el último guardado se puede deshacer.",
+      details_h2: "Información útil",
+      details_p: "Algunos detalles prácticos antes de descargar.",
+      fact1_h3: "Tres idiomas",
+      fact1_p: "Inglés, alemán y español, según el idioma de tu sistema. El modo claro y oscuro también sigue al sistema.",
+      fact2_h3: "ffmpeg queda fuera",
+      fact2_p: "Etiquetar y extraer a WAV no necesitan nada más. Convertir, otros formatos de extracción y dividir usan ffmpeg de Homebrew — Sleeve lo encuentra, nunca lo incluye.",
+      fact3_h3: "MusicBrainz y Discogs",
+      fact3_p: "MusicBrainz funciona sin cuenta. Para Discogs añades tu propio token, que se guarda en el llavero.",
+      fact4_h3: "Todos los formatos habituales",
+      fact4_p: "MP3, AAC, ALAC, FLAC, Ogg Vorbis, Opus, WAV y AIFF, leídos y escritos con TagLib.",
+      fact5_h3: "Probado con discos reales",
+      fact5_p: "Una imagen grabada y un CD copiado se leen byte a byte idénticos a su origen. Los discos con protección anticopia se rechazan, no se eluden.",
+      fact6_h3: "Sin cuenta, sin seguimiento",
+      fact6_p: "Todo funciona en tu Mac. La red solo se usa cuando buscas algo.",
+      support_h2: "Gratis, y seguirá siéndolo",
+      support_p: "Sleeve es software libre bajo la GNU GPL v3. Si te ahorró algún problema, puedes dejar una propina.",
+      btn_kofi: "Invítame a un café",
+      footer_license: "Publicado bajo la GNU GPL v3",
+      footer_manual: "Manual (PDF)",
+      trademark: "El álbum de las capturas es inventado — artista, títulos y portada. Mac® es una marca registrada de Apple Inc.",
+      tool_names: ["Edición por lotes", "Rellenar un campo", "Renombrar", "Convertir", "Extraer", "Imagen de disco", "Copiar CD", "Track Splitter"],
+      theme_toggle_label: "Cambiar entre claro y oscuro",
+      lang_select_label: "Seleccionar idioma"
+    }
+  };
+
+  var root = document.documentElement;
+  var select = document.getElementById('langSelect');
+  var themeToggle = document.getElementById('themeToggle');
+  var metaDesc = document.querySelector('meta[name="description"]');
+  var toolButtons = [].slice.call(document.querySelectorAll('.tools button'));
+
+  function detectLang(){
+    try {
+      var stored = localStorage.getItem('sleeve-lang');
+      if (stored && translations[stored]) return stored;
+    } catch(e){}
+    var sys = (navigator.language || 'en').slice(0,2).toLowerCase();
+    return translations[sys] ? sys : 'en';
+  }
+
+  function applyLang(lang){
+    var dict = translations[lang] || translations.en;
+    root.setAttribute('lang', lang);
+    document.title = dict.title;
+    if (metaDesc) metaDesc.setAttribute('content', dict.metaDescription);
+    document.querySelectorAll('[data-i18n]').forEach(function(el){
+      var key = el.getAttribute('data-i18n');
+      if (dict[key] != null) el.textContent = dict[key];
+    });
+    toolButtons.forEach(function(btn, i){
+      if (dict.tool_names[i]) btn.textContent = dict.tool_names[i];
+    });
+    if (themeToggle) themeToggle.setAttribute('aria-label', dict.theme_toggle_label);
+    if (select) { select.setAttribute('aria-label', dict.lang_select_label); select.value = lang; }
+  }
+
+  applyLang(detectLang());
+
+  if (select) {
+    select.addEventListener('change', function(){
+      try { localStorage.setItem('sleeve-lang', select.value); } catch(e){}
+      applyLang(select.value);
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

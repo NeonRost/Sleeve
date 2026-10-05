@@ -445,7 +445,8 @@ no logic of its own.
   picture only replaces an existing one **of the same** type.
 - Remove, individually or all
 - **Apply to all selected tracks** — the most common case
-- Export as a file, optionally as `folder.jpg` in the album folder
+- Export as a file (the save panel suggests `cover.jpg` or `cover.png`); a
+  dedicated `folder.jpg` in the album folder is not built
 - Resizing **per picture when adding**, not as a global preset. The import
   dialog shows a preview, free pixel size, format and quality — and the
   **actual** file size, not an estimated one. Measuring it costs a few
@@ -1684,11 +1685,13 @@ Sleeve/
 │   ├── build-icon.sh          // + make-icon-svg.py, make-icon-preview.py
 │   ├── run-bridge-test.sh     // the test suite, see bridge-test/
 │   ├── check-strings.sh       // every UI string translated
+│   ├── build-manual.sh        // the PDF manual, printed by headless Chrome
 │   ├── run-smoketest.sh
 │   └── taglib-smoketest.swift
-├── Icon/                      // icon design: SVG master, layers, .icns, preview
-├── Docs/                      // briefs and notes — deliberately NOT in Sleeve/,
-│                              // otherwise they would end up in the app bundle
+├── Icon/                      // icon design: brief, SVG master, layers, .icns, preview
+├── docs/                      // the website (GitHub Pages) and Sleeve-Manual.pdf, as for MIKE and TOM
+├── manual/                    // source.html + screenshots of the manual; Scripts/build-manual.sh
+├── images/                    // icon and screenshots for the README
 ├── TestFiles/                 // §10 — self-made, checked in: the tests need them
 ├── LICENSE  (GPLv3)
 ├── LICENSES/

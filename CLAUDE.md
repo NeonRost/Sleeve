@@ -31,6 +31,7 @@ Scripts/run-bridge-test.sh      # the test suite, against copies of TestFiles/
 Scripts/check-strings.sh        # every UI string in the catalog, with de/es
 Scripts/run-smoketest.sh        # TagLib from Swift, after a TagLib update
 Scripts/build-taglib.sh         # rebuild Vendor/taglib (needs cmake)
+Scripts/build-manual.sh         # docs/Sleeve-Manual.pdf from manual/source.html
 ```
 
 The test suite compiles the app's model and engine files directly (see the
@@ -89,6 +90,16 @@ Sleeve.app/Contents/MacOS/Sleeve -SleeveDebugSplit /path/to/file -SleeveDebugSel
 Sleeve.app/Contents/MacOS/Sleeve -SleeveDebugTagLookup /path/to/folder -SleeveDebugPick 1
 Sleeve.app/Contents/MacOS/Sleeve -SleeveDebugAbout YES
 ```
+
+Screenshots for the README, the website (`docs/`) and the manual (`manual/`)
+show **made-up data only** — no real album, no real drive, no path with a
+user name. `-SleeveDebugStageDisc tracks.txt` (with `…StageAlbum`,
+`…StageArtist`, `…StageBlank`) stands in a disc and a burner,
+`-SleeveDebugWindowSize 1512x880` fixes the size, `-SleeveDebugSelectAll`,
+`-SleeveDebugMode`, `-SleeveDebugPopover <id>`, `-SleeveDebugImageSheet`,
+`-SleeveDebugCopy` and `-SleeveDebugBurnSheet` open the rest. Settings can be
+overridden for one launch with `-<key> <value>` (e.g. `-rip.destination`)
+without touching the stored ones.
 
 Capture the window with `screencapture -x -o -l <windowID>`. Add
 `-NSRequiresAquaSystemAppearance YES` to check light mode,

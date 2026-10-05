@@ -35,6 +35,10 @@ extension AppState {
 
     /// Reads TOC, CD-TEXT and identifiers of the inserted disc.
     func refreshDisc() async {
+        #if DEBUG
+        // A disc staged for screenshots stays (DebugHooks.stageDisc).
+        if DebugHooks.isStagingDisc { return }
+        #endif
         isInspectingDisc = true
         defer { isInspectingDisc = false }
         refreshSourceDrives()
@@ -61,6 +65,12 @@ extension AppState {
     /// Which drives hold an audio CD. Cheap: only IOKit's registry is asked,
     /// not the drives — that is why the copy sheet may poll it.
     func refreshSourceDrives() {
+        #if DEBUG
+        if DebugHooks.isStagingDisc, let disc {
+            sourceDrives = [disc.drive]
+            return
+        }
+        #endif
         sourceDrives = CDDriveFinder.audioDrives()
         if let name = sourceDriveName, !sourceDrives.contains(where: { $0.bsdName == name }) {
             sourceDriveName = nil

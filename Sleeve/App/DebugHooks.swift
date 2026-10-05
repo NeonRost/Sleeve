@@ -34,6 +34,49 @@ import SwiftUI
 @MainActor
 enum DebugHooks {
 
+    /// Set by `-SleeveDebugStageDisc`: a made-up disc stands in for the
+    /// drive, and reading the real one is skipped.
+    static var isStagingDisc = false
+
+    /// A disc for screenshots of the Rip section, the image and the copy —
+    /// made up, so that no real album and no real drive shows on the
+    /// website. Track lengths and titles come from a text file, one
+    /// "Title|seconds" per line; album and artist from the launch arguments.
+    ///
+    ///     Sleeve -SleeveDebugStageDisc tracks.txt -SleeveDebugStageAlbum "…" -SleeveDebugStageArtist "…"
+    private static func stageDisc(state: AppState, defaults: UserDefaults) {
+        guard let path = defaults.string(forKey: "SleeveDebugStageDisc"),
+              let text = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        let lines = text.split(separator: "\n").map { $0.split(separator: "|") }
+            .filter { $0.count == 2 }
+        var tracks: [DiscTrack] = []
+        var start = 0
+        for (index, line) in lines.enumerated() {
+            let sectors = (Int(line[1]) ?? 180) * CDGeometry.sectorsPerSecond
+            tracks.append(DiscTrack(number: index + 1, startLBA: start, sectorCount: sectors,
+                                    isData: false, isrc: nil))
+            start += sectors
+        }
+        guard !tracks.isEmpty else { return }
+        isStagingDisc = true
+        let drive = CDDriveInfo(bsdName: "disk9", vendor: "External", product: "DVD Writer",
+                                revision: "1.00", rawTOC: nil)
+        let toc = DiscTOC(firstTrack: 1, lastTrack: tracks.count, leadOutLBA: start, tracks: tracks)
+        state.disc = DiscSnapshot(drive: drive, toc: toc, cdText: nil, mcn: nil,
+                                  currentSpeed: nil, supportsC2: true)
+        state.sourceDrives = [drive]
+        state.discError = nil
+        state.discAlbum = defaults.string(forKey: "SleeveDebugStageAlbum") ?? ""
+        state.discArtist = defaults.string(forKey: "SleeveDebugStageArtist") ?? ""
+        state.discYear = defaults.string(forKey: "SleeveDebugStageYear") ?? ""
+        state.discGenre = defaults.string(forKey: "SleeveDebugStageGenre") ?? ""
+        state.discTitles = Dictionary(uniqueKeysWithValues: lines.enumerated().map {
+            ($0.offset + 1, String($0.element[0]))
+        })
+        state.selectedRipTracks = Set(tracks.map(\.number))
+        state.discMetadataSource = .musicBrainz
+    }
+
     /// Opens "Look Up Album" with a folder full of files, optionally picking
     /// a result right away:
     ///
@@ -47,16 +90,6 @@ enum DebugHooks {
             if defaults.bool(forKey: "SleeveDebugSelectAll") {
                 state.trackList.selection = Set(state.trackList.tracks.map(\.id))
             }
-            // -SleeveDebugWindowSize 1280x860: a defined window size for
-            // screenshots.
-            if let size = defaults.string(forKey: "SleeveDebugWindowSize")?
-                .split(separator: "x").compactMap({ Double($0) }), size.count == 2,
-               let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
-                var frame = window.frame
-                frame.origin.y += frame.height - size[1]
-                frame.size = NSSize(width: size[0], height: size[1])
-                window.setFrame(frame, display: true)
-            }
         }
         guard let path = defaults.string(forKey: "SleeveDebugTagLookup") else { return }
         await state.addFiles([URL(fileURLWithPath: path)])
@@ -67,6 +100,22 @@ enum DebugHooks {
 
     static func run(state: AppState, openWindow: OpenWindowAction) async {
         let defaults = UserDefaults.standard
+        stageDisc(state: state, defaults: defaults)
+        // -SleeveDebugWindowSize 1512x880: a defined window size for
+        // screenshots.
+        if let size = defaults.string(forKey: "SleeveDebugWindowSize")?
+            .split(separator: "x").compactMap({ Double($0) }), size.count == 2,
+           let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
+            var frame = window.frame
+            frame.origin.y += frame.height - size[1]
+            frame.size = NSSize(width: size[0], height: size[1])
+            window.setFrame(frame, display: true)
+        }
+        // -SleeveDebugMode convert|rip switches the mode.
+        if let mode = defaults.string(forKey: "SleeveDebugMode").flatMap(AppMode.init(rawValue:)) {
+            state.activeMode = mode
+        }
+        if defaults.bool(forKey: "SleeveDebugImageSheet") { state.showImageSheet() }
         // "About Sleeve", optionally with the licenses window next to it.
         if defaults.bool(forKey: "SleeveDebugAbout") {
             openWindow(id: SleeveApp.aboutWindowID)
