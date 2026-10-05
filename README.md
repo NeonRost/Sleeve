@@ -2,7 +2,7 @@
 
 <img src="images/Sleeve_Icon.png" width="200" alt="Sleeve Icon">
 
-A native macOS audio tagger that also converts, rips and splits. Everything revolves around one track list: ripping produces files, tagging edits them, converting turns them into something else — and the list stays put when you switch between the three modes.
+A native macOS audio tagger that also converts, rips and burns CDs, and splits long recordings. Everything revolves around one track list: ripping produces files, tagging edits them, converting turns them into something else — and the list stays put when you switch between the three modes.
 
 The name comes from the record sleeve: the thing around the music that labels and files it. That is what Sleeve does.
 
@@ -78,7 +78,7 @@ Discogs only allows searching with a token. Create a personal access token in yo
 
 ## Installation
 
-Sleeve has not been released yet. Once it is, builds will be on the [Releases](../../releases) page.
+Sleeve has not been released yet. Once it is, builds will be on the [Releases](../../releases) page — either the installer (`.dmg`: open it and drag Sleeve onto the Applications folder) or the `.zip` (unzip it and move `Sleeve.app` to your Applications folder).
 
 The app will not be notarized, so macOS refuses to open it on first launch. Go to **System Settings → Privacy & Security**, scroll down to the message about Sleeve and click **Open Anyway**.
 
@@ -123,6 +123,7 @@ Checks from the Terminal:
 Scripts/run-bridge-test.sh    # tag engine, patterns, lookup, rip, burn, split — against copies of TestFiles/
 Scripts/check-strings.sh      # every string in the code has a translation
 Scripts/build-manual.sh       # docs/Sleeve-Manual.pdf from manual/source.html (needs Google Chrome)
+Scripts/make-dmg.sh           # Release build → Sleeve-<version>-arm64.dmg and .zip (needs create-dmg)
 ```
 
 The app is not sandboxed — required for running Homebrew's ffmpeg, which is linked against libraries a sandboxed child process may not load.

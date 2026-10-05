@@ -32,6 +32,8 @@ Scripts/check-strings.sh        # every UI string in the catalog, with de/es
 Scripts/run-smoketest.sh        # TagLib from Swift, after a TagLib update
 Scripts/build-taglib.sh         # rebuild Vendor/taglib (needs cmake)
 Scripts/build-manual.sh         # docs/Sleeve-Manual.pdf from manual/source.html
+Scripts/make-dmg.sh             # Release → Sleeve-<version>-arm64.dmg + .zip (run it in
+                                # the user's Terminal: create-dmg drives the Finder)
 ```
 
 The test suite compiles the app's model and engine files directly (see the

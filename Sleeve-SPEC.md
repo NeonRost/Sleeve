@@ -1686,6 +1686,8 @@ Sleeve/
 │   ├── run-bridge-test.sh     // the test suite, see bridge-test/
 │   ├── check-strings.sh       // every UI string translated
 │   ├── build-manual.sh        // the PDF manual, printed by headless Chrome
+│   ├── make-dmg.sh            // Release → installer DMG + zip, as for MIKE and TOM
+│   ├── make-dmg-background.py // its background: a disc rising over the blue
 │   ├── run-smoketest.sh
 │   └── taglib-smoketest.swift
 ├── Icon/                      // icon design: brief, SVG master, layers, .icns, preview
