@@ -103,6 +103,13 @@ user name. `-SleeveDebugStageDisc tracks.txt` (with `…StageAlbum`,
 overridden for one launch with `-<key> <value>` (e.g. `-rip.destination`)
 without touching the stored ones.
 
+The README layout matches TOM's and MIKE's: a centered header (icon, tagline,
+badges, buttons, link row), a four-column table of advantages and a two-column
+feature grid, followed by the detailed Tag / Convert / Rip / Split sections.
+The grid images `images/Sleeve_<Mode>_dark.png` / `_light.png` are copies of
+the website shots in `docs/images/`, scaled to 1200 px wide and switched with
+`<picture>`; refresh them when those shots are retaken.
+
 Capture the window with `screencapture -x -o -l <windowID>`. Add
 `-NSRequiresAquaSystemAppearance YES` to check light mode,
 `-AppleLanguages '(en)'` for another language and

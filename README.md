@@ -1,17 +1,147 @@
-# Sleeve
+<h1 align="center">Sleeve</h1>
 
-<img src="images/Sleeve_Icon.png" width="200" alt="Sleeve Icon">
+<p align="center">
+  <img src="images/Sleeve_Icon.png" width="200" alt="Sleeve Icon">
+</p>
 
-A native macOS audio tagger that also converts, rips and burns CDs, and splits long recordings. Everything revolves around one track list: ripping produces files, tagging edits them, converting turns them into something else — and the list stays put when you switch between the three modes.
+<p align="center">
+  <b>A native macOS audio tagger that also converts, rips and burns CDs, and splits long recordings.</b><br>
+  Everything revolves around one track list: ripping produces files, tagging edits them, converting turns them into something else.<br>
+  <i>The name comes from the record sleeve: the thing around the music that labels and files it. That is what Sleeve does.</i>
+</p>
 
-The name comes from the record sleeve: the thing around the music that labels and files it. That is what Sleeve does.
+<p align="center">
+  <img alt="macOS 14 or later" src="https://img.shields.io/badge/macOS-14%2B-0a84ff?style=flat-square&logo=apple&logoColor=white">
+  <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-555555?style=flat-square">
+  <img alt="Swift and SwiftUI" src="https://img.shields.io/badge/Swift-SwiftUI-f05138?style=flat-square&logo=swift&logoColor=white">
+  <img alt="Languages: English, German, Spanish" src="https://img.shields.io/badge/EN%20%C2%B7%20DE%20%C2%B7%20ES-languages-2f7bf5?style=flat-square">
+  <img alt="License: GPLv3" src="https://img.shields.io/badge/license-GPLv3-3a3a3a?style=flat-square">
+  <a href="../../releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/NeonRost/Sleeve?style=flat-square&label=release&color=3f88cf"></a>
+</p>
 
+<p align="center">
+  <a href="../../releases/latest"><img alt="Download Sleeve" src="https://img.shields.io/badge/Download-for%20macOS-1b5da6?style=for-the-badge&logo=apple&logoColor=white" height="40"></a>
+  <a href="https://x.com/NeonRostDEV"><img alt="Follow @NeonRostDEV on X" src="https://img.shields.io/badge/Follow-@NeonRostDEV-000000?style=for-the-badge&logo=x&logoColor=white" height="40"></a>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#tag">Tag</a> ·
+  <a href="#convert">Convert</a> ·
+  <a href="#rip">Rip</a> ·
+  <a href="#split-into-tracks">Split</a> ·
+  <a href="#requirements">Requirements</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="#known-limitations">Known limitations</a> ·
+  <a href="#support">Support</a> ·
+  <a href="https://neonrost.github.io/Sleeve/">Website</a> ·
+  <a href="docs/Sleeve-Manual.pdf">Manual (PDF)</a>
+</p>
+
+<p align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/screenshot-dark.png">
   <img src="images/screenshot-light.png" alt="Sleeve in Tag mode: sixteen tracks of an album selected, the inspector showing the shared tags, <Multiple values> for the titles, and the front cover">
 </picture>
+  <br>
+  <sub>The album in the screenshot is made up — artist, titles and cover alike.</sub>
+</p>
 
-<sub>The album in the screenshot is made up — artist, titles and cover alike.</sub>
+<table>
+  <tr>
+    <td width="25%" valign="top">
+      <h3>🏷️ One track list</h3>
+      Rip a CD, tag what came out, convert it, without importing anything twice.
+    </td>
+    <td width="25%" valign="top">
+      <h3>🔎 MusicBrainz and Discogs</h3>
+      Look up the album or the exact pressing, with track lengths side by side before anything is taken over.
+    </td>
+    <td width="25%" valign="top">
+      <h3>💿 Secure ripping</h3>
+      Secure mode, read offset, C2 pointers, log and cue sheet, plus gapless disc images and 1:1 copies.
+    </td>
+    <td width="25%" valign="top">
+      <h3>🔒 No account, no tracking</h3>
+      Everything runs on your Mac. The network is only used when you look something up.
+    </td>
+  </tr>
+</table>
+
+<br>
+
+## Features
+
+Tag, Convert and Rip share one list of files; splitting long recordings has a window of its own. The album in every screenshot is made up.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="images/Sleeve_Tag_dark.png">
+        <img src="images/Sleeve_Tag_light.png" alt="Sixteen tracks selected, the inspector showing the shared tags and the cover" width="100%">
+      </picture>
+      <br>
+      <sub>Sixteen tracks selected; the inspector shows the shared tags and the cover.</sub>
+      <h3>🏷️ Tag</h3>
+      One track or a whole album: fields that differ show <code>&lt;Multiple values&gt;</code>, and only fields you touched are written. Numbering, capitalization, find and replace and filling a field from a pattern, every batch step with a preview.
+    </td>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="images/Sleeve_Rename_dark.png">
+        <img src="images/Sleeve_Rename_light.png" alt="File naming with a pattern and a live preview of the new names" width="100%">
+      </picture>
+      <br>
+      <sub>File naming from a pattern, with a live preview of the new names.</sub>
+      <h3>✏️ Rename and look up</h3>
+      One pattern syntax in both directions: tags to file names, and file names back to tags. <b>Look Up Album</b> finds the release on MusicBrainz or Discogs and lays its tracks next to your files, lengths included, so a wrong match shows.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="images/Sleeve_Convert_dark.png">
+        <img src="images/Sleeve_Convert_light.png" alt="Convert mode with MP3 at 320 kbit/s chosen for sixteen tracks" width="100%">
+      </picture>
+      <br>
+      <sub>Convert mode, with MP3 at 320 kbit/s chosen for sixteen tracks.</sub>
+      <h3>🔄 Convert</h3>
+      MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV and AIFF with ffmpeg. Sleeve reads the tags first and writes them back itself, cover included, so the album artist and the disc number survive the trip.
+    </td>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="images/Sleeve_Rip_dark.png">
+        <img src="images/Sleeve_Rip_light.png" alt="Rip mode with the disc's album, artist and track list in the sidebar" width="100%">
+      </picture>
+      <br>
+      <sub>Rip mode, with the disc's album, artist and track list in the sidebar.</sub>
+      <h3>💿 Rip</h3>
+      Reads audio CDs directly, no helper tool: burst or secure mode, a verified read offset, C2 error pointers, an optional second pass, a log and a cue sheet. CD-TEXT, ISRC and the MusicBrainz disc ID fill in the tags.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="images/Sleeve_CopyCD_dark.png">
+        <img src="images/Sleeve_CopyCD_light.png" alt="Copy CD: the original is read, ejected, and the copy burned onto a blank in the same drive" width="100%">
+      </picture>
+      <br>
+      <sub>Copy CD: read, eject, and burn the copy onto a blank in the same drive.</sub>
+      <h3>📀 Image, burn, copy</h3>
+      From the File menu: a gapless image of the whole disc (BIN, WAV or FLAC plus a cue sheet), burning such an image back to a CD-R, and a one-button 1:1 copy, with one drive or two.
+    </td>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="images/Sleeve_Split_dark.png">
+        <img src="images/Sleeve_Split_light.png" alt="The Track Splitter: waveform, six tracks with titles, and the start and end of the third one magnified" width="100%">
+      </picture>
+      <br>
+      <sub>The Track Splitter: waveform, six titled tracks, and the third one's boundaries magnified.</sub>
+      <h3>✂️ Split into tracks</h3>
+      An album video, a vinyl side or a live set, cut into tracks without re-encoding. Silence detection finds the boundaries, two magnifiers set them exactly, and the titles come from MusicBrainz, Discogs or a pasted track list.
+    </td>
+  </tr>
+</table>
 
 ## Tag
 
@@ -78,9 +208,9 @@ Discogs only allows searching with a token. Create a personal access token in yo
 
 ## Installation
 
-Sleeve has not been released yet. Once it is, builds will be on the [Releases](../../releases) page — either the installer (`.dmg`: open it and drag Sleeve onto the Applications folder) or the `.zip` (unzip it and move `Sleeve.app` to your Applications folder).
+Grab the latest build from the [Releases](../../releases) page — either the installer (`.dmg`: open it and drag Sleeve onto the Applications folder) or the `.zip` (unzip it and move `Sleeve.app` to your Applications folder).
 
-The app will not be notarized, so macOS refuses to open it on first launch. Go to **System Settings → Privacy & Security**, scroll down to the message about Sleeve and click **Open Anyway**.
+The app is not notarized, so macOS refuses to open it on first launch. Go to **System Settings → Privacy & Security**, scroll down to the message about Sleeve and click **Open Anyway**.
 
 The [user manual](docs/Sleeve-Manual.pdf) (PDF, English) walks through every part of the app.
 
