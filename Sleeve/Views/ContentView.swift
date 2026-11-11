@@ -97,6 +97,28 @@ struct ContentView: View {
 private struct StatusBar: View {
     @Environment(AppState.self) private var state
 
+    /// What is waiting for the "unsaved changes" question.
+    private enum Removal { case selection, all }
+    @State private var pendingRemoval: Removal?
+
+    private func remove(_ removal: Removal) {
+        switch removal {
+        case .selection: state.trackList.removeSelected()
+        case .all:       state.trackList.removeAll()
+        }
+    }
+
+    /// Removes right away when nothing is lost by it, asks otherwise.
+    private func request(_ removal: Removal) {
+        let affected = removal == .all ? state.trackList.tracks
+                                       : state.trackList.selectedTracks
+        if affected.contains(where: \.isDirty) {
+            pendingRemoval = removal
+        } else {
+            remove(removal)
+        }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Button {
@@ -106,21 +128,35 @@ private struct StatusBar: View {
             }
             .help("Add files or folders")
 
+            // Not while files are being written or converted: the work in
+            // progress refers to these tracks.
             Button {
-                state.trackList.removeSelected()
+                request(.selection)
             } label: {
                 Image(systemName: "minus")
             }
-            .disabled(state.trackList.selection.isEmpty)
+            .disabled(state.trackList.selection.isEmpty || state.isBusy)
             .help("Remove selected tracks from the list")
 
             Button {
-                state.trackList.removeAll()
+                request(.all)
             } label: {
                 Image(systemName: "xmark")
             }
-            .disabled(state.trackList.tracks.isEmpty)
+            .disabled(state.trackList.tracks.isEmpty || state.isBusy)
             .help("Clear the list")
+            .confirmationDialog("Remove tracks with unsaved changes?",
+                                isPresented: Binding(
+                                    get: { pendingRemoval != nil },
+                                    set: { if !$0 { pendingRemoval = nil } })) {
+                Button("Remove", role: .destructive) {
+                    if let pendingRemoval { remove(pendingRemoval) }
+                    pendingRemoval = nil
+                }
+                Button("Cancel", role: .cancel) { pendingRemoval = nil }
+            } message: {
+                Text("The changes that have not been saved are lost.")
+            }
 
             Button {
                 state.revertSelection()

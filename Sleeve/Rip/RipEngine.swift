@@ -164,7 +164,11 @@ actor RipEngine {
                     }
                 }
                 let base = names[number] ?? String(format: "%02d", number)
-                let url = destination.appendingPathComponent("\(base).wav")
+                // Never over a file that is already there — neither an
+                // earlier rip nor another track of this one whose pattern
+                // renders to the same name.
+                let url = ConversionQueue.freePath(
+                    for: destination.appendingPathComponent("\(base).wav"))
                 try WAVWriter.write(pcm: result.audio, to: url)
 
                 let entry = RipReport.Entry(result: result)
@@ -185,6 +189,25 @@ actor RipEngine {
         let report = RipReport(drive: info, toc: toc, settings: effective,
                                entries: entries, started: started, ended: Date())
         continuation.yield(.finished(report))
+    }
+
+    /// `name`, or `name (2)`, `name (3)` … — the first for which none of the
+    /// files `name.<extension>` exists in `folder`.
+    static func freeBaseName(_ name: String, in folder: URL, extensions: [String]) -> String {
+        func isTaken(_ candidate: String) -> Bool {
+            extensions.contains { ext in
+                FileManager.default.fileExists(
+                    atPath: folder.appendingPathComponent("\(candidate).\(ext)")
+                        .path(percentEncoded: false))
+            }
+        }
+        var candidate = name
+        var counter = 2
+        while isTaken(candidate) {
+            candidate = "\(name) (\(counter))"
+            counter += 1
+        }
+        return candidate
     }
 
     /// Ejects the disc — for real, and from the right drive.
@@ -306,9 +329,27 @@ extension RipEngine {
             for index in toc.tracks.indices { toc.tracks[index].isrc = isrcs[toc.tracks[index].number] }
         }
 
+        // Never over an image that is already there: a second attempt that
+        // fails or is stopped would take the good first one with it. The
+        // name gets a number instead, for image, cue sheet and log alike.
+        let baseName = Self.freeBaseName(baseName, in: folder,
+                                         extensions: [format.fileExtension, "cue"])
+
         // For FLAC the WAV is only an intermediate and goes away afterwards.
+        // It is written outside the destination folder, where a WAV of the
+        // same name may be lying.
         let audioExtension = format == .flac ? "wav" : format.fileExtension
-        let audioURL = folder.appendingPathComponent("\(baseName).\(audioExtension)")
+        var workFolder = folder
+        if format == .flac {
+            workFolder = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Sleeve-image-\(UUID().uuidString)", isDirectory: true)
+            try? FileManager.default.createDirectory(at: workFolder,
+                                                     withIntermediateDirectories: true)
+        }
+        defer {
+            if format == .flac { try? FileManager.default.removeItem(at: workFolder) }
+        }
+        let audioURL = workFolder.appendingPathComponent("\(baseName).\(audioExtension)")
         let totalBytes = toc.leadOutLBA * CDGeometry.bytesPerSector
 
         guard FileManager.default.createFile(atPath: audioURL.path(percentEncoded: false),

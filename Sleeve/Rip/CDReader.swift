@@ -269,6 +269,8 @@ final class CDReader {
 
         var sector = firstSector
         while sector < lastSector {
+            // Stop means now, not after the rest of the track.
+            try Task.checkCancellation()
             let count = min(Self.chunkSectors, lastSector - sector)
 
             // Before the start and beyond the end of the disc there is silence.

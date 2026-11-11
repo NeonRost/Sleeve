@@ -124,7 +124,13 @@ actor DiscogsClient {
 
         var components = URLComponents(
             url: Self.baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
-        if !items.isEmpty { components.queryItems = items }
+        if !items.isEmpty {
+            components.queryItems = items
+            // URLComponents leaves "+" alone, and a server reads it as a
+            // space: "Songs + Stories" would be searched as "Songs  Stories".
+            components.percentEncodedQuery = components.percentEncodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+        }
 
         var request = URLRequest(url: components.url!)
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")

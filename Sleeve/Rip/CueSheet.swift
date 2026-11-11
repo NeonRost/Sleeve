@@ -56,6 +56,23 @@ struct CueSheet: Equatable, Sendable {
     var albumPerformer: String?
     var catalog: String?
     var tracks: [Track]
+    /// How many `FILE` lines the sheet has. Sleeve reads and burns images
+    /// that are one file; a sheet with one file per track (EAC, XLD) parses,
+    /// but its track starts count from each file's own beginning — burning
+    /// it as one image would write the last file as a single track.
+    var fileCount = 1
+
+    /// Reads a cue sheet from disk. UTF-8 first; sheets from Windows
+    /// programs are usually in the local code page, and one umlaut in a
+    /// title makes those invalid UTF-8.
+    static func load(_ url: URL) -> CueSheet? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let text = String(data: data, encoding: .utf8)
+                ?? String(data: data, encoding: .windowsCP1252)
+                ?? String(data: data, encoding: .isoLatin1) else { return nil }
+        // A byte order mark would end up in the first keyword.
+        return CueSheet(text: text.hasPrefix("\u{FEFF}") ? String(text.dropFirst()) : text)
+    }
 
     // MARK: - Parsing
 
@@ -65,6 +82,7 @@ struct CueSheet: Equatable, Sendable {
         var title: String?
         var performer: String?
         var catalog: String?
+        var files = 0
         var parsed: [Track] = []
         /// Before the first `TRACK` line, TITLE and PERFORMER belong to the
         /// album, after it to the respective track.
@@ -77,6 +95,7 @@ struct CueSheet: Equatable, Sendable {
 
             switch keyword {
             case "FILE":
+                files += 1
                 // FILE "name with spaces.bin" BINARY
                 if let quoted = Self.quoted(rest) {
                     fileName = quoted.value
@@ -130,6 +149,7 @@ struct CueSheet: Equatable, Sendable {
         self.albumTitle = title
         self.albumPerformer = performer
         self.catalog = catalog
+        self.fileCount = files
         self.tracks = parsed.sorted { $0.number < $1.number }
     }
 

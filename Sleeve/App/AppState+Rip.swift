@@ -309,6 +309,22 @@ extension AppState {
 
         let numbers = selectedRipTracks.sorted()
         let settings = ripSettings
+
+        // When another format is wanted, the WAVs are only intermediates.
+        // They never go into the album folder: a WAV rip already lying there
+        // under the same name would be overwritten and then deleted.
+        var workFolder = folder
+        if settings.needsFFmpeg {
+            workFolder = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Sleeve-rip-\(UUID().uuidString)", isDirectory: true)
+            do {
+                try FileManager.default.createDirectory(at: workFolder,
+                                                        withIntermediateDirectories: true)
+            } catch {
+                discError = String(localized: "Cannot create the destination folder")
+                return
+            }
+        }
         var names: [Int: String] = [:]
         var wanted: [Int: AudioTags] = [:]
         for number in numbers {
@@ -326,7 +342,7 @@ extension AppState {
         let drive = disc.drive.bsdName
         ripTask = Task { [ripEngine] in
             var produced: [Int: URL] = [:]
-            for await event in ripEngine.rip(tracks: numbers, to: folder,
+            for await event in ripEngine.rip(tracks: numbers, to: workFolder,
                                              names: names, settings: settings,
                                              bsdName: drive) {
                 switch event {
@@ -349,22 +365,33 @@ extension AppState {
             ripCurrentTrack = nil
 
             // Convert, if another format is wanted. The WAVs are only
-            // intermediates then and go away.
-            var finalURLs = numbers.compactMap { produced[$0] }
-            if settings.needsFFmpeg, !finalURLs.isEmpty, !Task.isCancelled {
-                ripStage = .converting
-                finalURLs = await convertRipped(produced, tags: wanted,
+            // intermediates then and go away with their folder.
+            var final = produced
+            if settings.needsFFmpeg {
+                final = [:]
+                if !produced.isEmpty, !Task.isCancelled {
+                    ripStage = .converting
+                    final = await convertRipped(produced, tags: wanted,
                                                 to: folder, settings: settings)
+                }
+                try? FileManager.default.removeItem(at: workFolder)
             }
+            let stopped = Task.isCancelled
 
+            // Only here, at the very end, is the rip over — `cancelRip` just
+            // asks for the stop. Resetting the state there let this tail run
+            // into a rip started in the meantime.
             ripStage = .idle
             isRipping = false
             ripTask = nil
 
-            await addFiles(finalURLs)
-            applyRippedTags(finalURLs, numbers: numbers, produced: produced, wanted: wanted)
+            // By track number, never by the order of file names: a pattern
+            // that does not sort by number, or one failed conversion, would
+            // shift every tag onto its neighbour.
+            await addFiles(numbers.compactMap { final[$0] })
+            applyRippedTags(final, wanted: wanted)
 
-            if settings.ejectsWhenDone, ripFailures.isEmpty {
+            if settings.ejectsWhenDone, ripFailures.isEmpty, !stopped {
                 ripEngine.eject(bsdName: disc.drive.bsdName)
             }
         }
@@ -375,8 +402,8 @@ extension AppState {
     private func convertRipped(_ produced: [Int: URL],
                                tags wanted: [Int: AudioTags],
                                to folder: URL,
-                               settings: RipSettings) async -> [URL] {
-        guard let ffmpeg else { return Array(produced.values) }
+                               settings: RipSettings) async -> [Int: URL] {
+        guard let ffmpeg else { return rescue(produced, into: folder) }
 
         var conversion = ConversionSettings()
         conversion.format = settings.format
@@ -398,25 +425,52 @@ extension AppState {
             ripFailures.append(SaveFailure(
                 filename: String(localized: "Conversion"),
                 message: settings.format.missingEncoderHint))
-            return Array(produced.values)
+            return rescue(produced, into: folder)
         }
 
-        var results: [URL] = []
+        // Which track a finished file belongs to: by its source, the only
+        // thing that survives the conversion unchanged.
+        let numberBySource = Dictionary(
+            produced.map { ($0.value.standardizedFileURL.path, $0.key) },
+            uniquingKeysWith: { first, _ in first })
+
+        var results: [Int: URL] = [:]
         var done = 0
         for await outcome in ConversionQueue(planner: planner,
                                              artworkOptions: .passthrough).run(jobs) {
+            let number = numberBySource[outcome.source.standardizedFileURL.path]
             if let destination = outcome.destination {
-                results.append(destination)
+                if let number { results[number] = destination }
             } else {
                 ripFailures.append(SaveFailure(
                     filename: outcome.source.lastPathComponent,
                     message: Self.describeConversion(outcome.error)))
+                // The track was read, only its conversion failed: keep the
+                // WAV instead of losing the rip with the temporary folder.
+                if !Task.isCancelled, let number,
+                   let kept = rescue([number: outcome.source], into: folder)[number] {
+                    results[number] = kept
+                }
             }
             done += 1
             ripConversionProgress = Double(done) / Double(max(1, jobs.count))
             if Task.isCancelled { break }
         }
-        return results.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return results
+    }
+
+    /// Moves intermediate WAVs into the album folder, each under a name that
+    /// is free there.
+    private func rescue(_ wavs: [Int: URL], into folder: URL) -> [Int: URL] {
+        var kept: [Int: URL] = [:]
+        for (number, url) in wavs {
+            let target = ConversionQueue.freePath(
+                for: folder.appendingPathComponent(url.lastPathComponent))
+            if (try? FileManager.default.moveItem(at: url, to: target)) != nil {
+                kept[number] = target
+            }
+        }
+        return kept
     }
 
     private static func describeConversion(_ error: ConversionQueue.ConversionError?) -> String {
@@ -429,10 +483,11 @@ extension AppState {
         }
     }
 
+    /// Asks the running rip to stop. The state is reset by the rip itself
+    /// once the drive has let go — the reader checks between two blocks, so
+    /// that is a matter of a moment, not of the rest of the track.
     func cancelRip() {
         ripTask?.cancel()
-        ripTask = nil
-        isRipping = false
         ripCurrentTrack = nil
     }
 
@@ -459,16 +514,12 @@ extension AppState {
 
     /// Enters the details into the list. When converting, ffmpeg has already
     /// written them; this is about showing them in the view as well.
-    private func applyRippedTags(_ urls: [URL], numbers: [Int],
-                                 produced: [Int: URL], wanted: [Int: AudioTags]) {
-        // Matching by order — after conversion the files are named
-        // differently from how they were ripped.
-        let ordered = numbers.filter { produced[$0] != nil }
-        for (index, url) in urls.sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
-            .enumerated() {
-            guard index < ordered.count,
-                  let track = trackList.tracks.first(where: { $0.url == url }),
-                  let tags = wanted[ordered[index]] else { continue }
+    private func applyRippedTags(_ final: [Int: URL], wanted: [Int: AudioTags]) {
+        for (number, url) in final {
+            let path = url.standardizedFileURL.path
+            guard let track = trackList.tracks.first(where: {
+                      $0.url.standardizedFileURL.path == path }),
+                  let tags = wanted[number] else { continue }
             for field in TagField.allCases where field != .artwork {
                 if let value = tags.stringValue(for: field) {
                     track.set(value, for: field)

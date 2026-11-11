@@ -181,6 +181,13 @@ final class AppState {
     var burnProgress: Double = 0
     var burnError: String?
     var burnTask: Task<Void, Never>?
+    /// Unpacking a FLAC image before the burn — the one part of it that
+    /// stops by cancellation.
+    var burnDecodeTask: Task<URL?, Never>?
+    /// The stop request of the burn in progress, from the burn sheet or a copy.
+    var burnStop: CDBurner.Stop?
+    /// Stop was asked for and the drive is still aborting.
+    var isStoppingBurn = false
     var isConfirmingBurn = false
 
     // MARK: - Copying a disc (§6.11)
@@ -294,6 +301,12 @@ final class AppState {
     // MARK: - Work in progress
 
     var isBusy = false
+    /// Tags are going to disk right now. TagLib writes in place and moves the
+    /// audio data when a tag grows — quitting in the middle of that leaves a
+    /// broken file, so quitting waits for this (see `AppDelegate`).
+    var isWritingTags = false
+    /// Set when quitting: the write loops stop after the file in hand.
+    var stopsAfterCurrentFile = false
     var progress: Double = 0
     var progressLabel: LocalizedStringKey = ""
     /// Progress only from this count on (spec §4.1).
@@ -393,12 +406,16 @@ final class AppState {
         progressLabel = "Writing tags…"
         showsProgress = dirty.count >= Self.progressThreshold
         failures.removeAll()
-        defer { finishWork() }
+        isWritingTags = true
+        defer {
+            isWritingTags = false
+            finishWork()
+        }
 
         var undo: [UndoEntry] = []
 
         for (index, track) in dirty.enumerated() {
-            if Task.isCancelled { break }
+            if Task.isCancelled || stopsAfterCurrentFile { break }
 
             let request = TagEngine.WriteRequest(
                 url: track.url,
@@ -422,7 +439,12 @@ final class AppState {
                 if let proposed = track.proposedFilename, proposed != track.filename {
                     track.url = try await engine.rename(track.url, to: proposed)
                 }
-                track.commit()
+                // Only what went to disk is saved. A field edited while the
+                // write was running stays an unsaved change — committing the
+                // editor state here would mark it as written.
+                if track.edited == request.tags, track.touchedFields == request.fields {
+                    track.commit()
+                }
                 undo.append(snapshot)
             } catch {
                 track.lastError = error as? TagError
@@ -449,9 +471,14 @@ final class AppState {
         progressLabel = "Undoing…"
         showsProgress = entries.count >= Self.progressThreshold
         failures.removeAll()
-        defer { finishWork() }
+        isWritingTags = true
+        defer {
+            isWritingTags = false
+            finishWork()
+        }
 
         for (index, entry) in entries.enumerated() {
+            if stopsAfterCurrentFile { break }
             guard let track = trackList.track(id: entry.trackID) else { continue }
             track.restore(entry.tags, fields: entry.fields)
             do {

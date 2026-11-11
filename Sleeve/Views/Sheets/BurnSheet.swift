@@ -145,9 +145,14 @@ struct BurnSheet: View {
             case .running(let simulated):
                 ProgressView(value: state.burnProgress)
                     .progressViewStyle(.linear).frame(width: 130)
-                Text(simulated ? "Test run…" : "Burning…").foregroundStyle(.secondary)
+                if state.isStoppingBurn {
+                    Text("Stopping…").foregroundStyle(.secondary)
+                } else {
+                    Text(simulated ? "Test run…" : "Burning…").foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("Stop", role: .cancel) { state.cancelBurn() }
+                    .disabled(state.isStoppingBurn)
 
             case .done(let simulated):
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)

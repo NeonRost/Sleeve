@@ -82,14 +82,18 @@ struct PatternParser: Sendable {
     /// folder patterns with as many parent folders in front as the pattern
     /// has levels.
     func subject(for url: URL) -> String {
+        // File names come from the file system in decomposed form ("u" plus
+        // combining dots). Taken into a tag like that, "Für" no longer
+        // equals "Für" in searches and in other programs — so compose.
         let base = url.deletingPathExtension().lastPathComponent
+            .precomposedStringWithCanonicalMapping
         guard usesFolders else { return base }
 
         let levels = pattern.filter { $0 == "/" }.count
         var components: [String] = [base]
         var folder = url.deletingLastPathComponent()
         for _ in 0..<levels {
-            let name = folder.lastPathComponent
+            let name = folder.lastPathComponent.precomposedStringWithCanonicalMapping
             guard !name.isEmpty, name != "/" else { break }
             components.insert(name, at: 0)
             folder = folder.deletingLastPathComponent()

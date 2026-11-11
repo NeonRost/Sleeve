@@ -376,5 +376,90 @@ enum BurnTests {
         try cue.replacingOccurrences(of: "disc.bin\" BINARY", with: "disc.flac\" WAVE")
             .write(to: flac, atomically: true, encoding: .utf8)
         check(CDBurner.layout(cueURL: flac) == nil, "FLAC is not taken without unpacking")
+
+        // ---- WAV images: the samples are looked for, not assumed at byte 44 ----
+        print("\n— WAV images —")
+        let pcm = Data((0..<(300 * 2352)).map { UInt8(truncatingIfNeeded: $0 &* 31) })
+        func wavCue(_ name: String) throws -> URL {
+            let url = folder.appendingPathComponent("\(name).cue")
+            try cue.replacingOccurrences(of: "disc.bin\" BINARY", with: "\(name).wav\" WAVE")
+                .write(to: url, atomically: true, encoding: .utf8)
+            return url
+        }
+
+        // Sleeve's own: the canonical header.
+        var own = WAVWriter.header(forPCMByteCount: pcm.count)
+        own.append(pcm)
+        try own.write(to: folder.appendingPathComponent("own.wav"))
+        let ownLayout = CDBurner.layout(cueURL: try wavCue("own"))
+        equal(ownLayout?.headerBytes, 44, "Sleeve's own WAV: samples at byte 44")
+        equal(ownLayout?.totalSectors, 300, "Sleeve's own WAV: all sectors")
+
+        // As ffmpeg writes it: a LIST chunk before the samples, another
+        // chunk after them that must not count as audio.
+        let canonical = WAVWriter.header(forPCMByteCount: pcm.count)
+        var foreign = Data(canonical.prefix(36))
+        let list = Data("LIST".utf8) + Data([26, 0, 0, 0]) + Data("INFOISFT".utf8)
+            + Data([14, 0, 0, 0]) + Data("Lavf60.16.100\0".utf8)
+        foreign.append(list)
+        foreign.append(canonical.suffix(8))
+        foreign.append(pcm)
+        foreign.append(Data("id3 ".utf8) + Data([4, 0, 0, 0]) + Data([1, 2, 3, 4]))
+        try foreign.write(to: folder.appendingPathComponent("foreign.wav"))
+        let foreignLayout = CDBurner.layout(cueURL: try wavCue("foreign"))
+        equal(foreignLayout?.headerBytes, 78, "foreign WAV: samples found behind the LIST chunk")
+        equal(foreignLayout?.totalSectors, 300, "foreign WAV: the trailing chunk is not audio")
+        if let offset = foreignLayout?.headerBytes {
+            check(foreign.subdata(in: offset..<(offset + 16)) == pcm.prefix(16),
+                  "foreign WAV: the first sample is the first sample")
+        }
+
+        // 48 kHz is not CD audio, whatever the cue sheet says.
+        var wrongRate = own
+        wrongRate.replaceSubrange(24..<28, with: [0x80, 0xBB, 0x00, 0x00])
+        try wrongRate.write(to: folder.appendingPathComponent("rate.wav"))
+        check(CDBurner.layout(cueURL: try wavCue("rate")) == nil, "a 48 kHz WAV is refused")
+        do {
+            _ = try CDBurner.audioRange(of: folder.appendingPathComponent("rate.wav"))
+            check(false, "a 48 kHz WAV names its problem")
+        } catch {
+            check(error as? CDBurner.ImageProblem == .notCDAudio, "a 48 kHz WAV names its problem")
+        }
+
+        try Data("not a wave file at all".utf8).write(to: folder.appendingPathComponent("junk.wav"))
+        check(CDBurner.layout(cueURL: try wavCue("junk")) == nil, "a file that is no WAV is refused")
+
+        // ---- Cue sheets from other programs ----
+        print("\n— Cue sheets from other programs —")
+        let perTrack = CueSheet(text: """
+            FILE "01.wav" WAVE
+              TRACK 01 AUDIO
+                INDEX 01 00:00:00
+            FILE "02.wav" WAVE
+              TRACK 02 AUDIO
+                INDEX 01 00:00:00
+            """)
+        equal(perTrack?.fileCount, 2, "a sheet with one file per track is recognised")
+        let perTrackURL = folder.appendingPathComponent("pertrack.cue")
+        try """
+            FILE "own.wav" WAVE
+              TRACK 01 AUDIO
+                INDEX 01 00:00:00
+            FILE "foreign.wav" WAVE
+              TRACK 02 AUDIO
+                INDEX 01 00:00:00
+            """.write(to: perTrackURL, atomically: true, encoding: .utf8)
+        check(CDBurner.layout(cueURL: perTrackURL) == nil, "… and not burned as one image")
+
+        // Windows code page: "Für Elise" is invalid UTF-8 there.
+        let latin = folder.appendingPathComponent("latin.cue")
+        try """
+            TITLE "Für Elise"
+            FILE "disc.bin" BINARY
+              TRACK 01 AUDIO
+                INDEX 01 00:00:00
+            """.data(using: .windowsCP1252)!.write(to: latin)
+        equal(CueSheet.load(latin)?.albumTitle, "Für Elise", "a cue sheet in a Windows code page is read")
+        equal(CueSheet.load(cueURL)?.fileCount, 1, "Sleeve's own sheet names one file")
     }
 }

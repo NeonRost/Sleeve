@@ -221,9 +221,10 @@ struct CopyDiscSheet: View {
             case .burning:
                 ProgressView(value: state.copyProgress)
                     .progressViewStyle(.linear).frame(width: 130)
-                Text("Burning…").foregroundStyle(.secondary)
+                Text(state.isStoppingBurn ? "Stopping…" : "Burning…").foregroundStyle(.secondary)
                 Spacer()
                 Button("Stop", role: .cancel) { state.cancelCopy() }
+                    .disabled(state.isStoppingBurn)
 
             case .idle, .done:
                 if state.copyStage == .idle, let blocker = state.copyBlocker {

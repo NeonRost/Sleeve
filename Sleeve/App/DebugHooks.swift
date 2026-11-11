@@ -135,6 +135,51 @@ enum DebugHooks {
             state.lookupDebugPick = pick > 0 ? pick : nil
             state.isShowingDiscLookup = state.disc != nil
         }
+        // A rip of the inserted disc into the folder `-rip.destination`
+        // names, with made-up titles so that pattern and tags can be told
+        // apart from the track numbers:
+        //     Sleeve -SleeveDebugRip 1,2,3 -SleeveDebugRipTitles Zebra,Apple,Mango \
+        //            -rip.destination /path [-SleeveDebugRipStopAfter 5]
+        // When the rip is over, `<destination>/rip-status.txt` lists what
+        // is in the track list: file name, track number, title.
+        if let list = defaults.string(forKey: "SleeveDebugRip") {
+            state.activeMode = .rip
+            for _ in 0..<600 where state.disc == nil {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            let numbers = list.split(separator: ",").compactMap { Int($0) }
+            state.selectedRipTracks = Set(numbers)
+            state.ripFolderName = "Test"
+            let titles = (defaults.string(forKey: "SleeveDebugRipTitles") ?? "")
+                .split(separator: ",").map(String.init)
+            for (number, title) in zip(numbers, titles) { state.discTitles[number] = title }
+
+            let started = Date()
+            state.startRip()
+            let stopAfter = defaults.double(forKey: "SleeveDebugRipStopAfter")
+            var stopTook: TimeInterval?
+            if stopAfter > 0 {
+                try? await Task.sleep(for: .seconds(stopAfter))
+                let asked = Date()
+                state.cancelRip()
+                while state.isRipping { try? await Task.sleep(for: .milliseconds(20)) }
+                stopTook = Date().timeIntervalSince(asked)
+            }
+            while state.isRipping { try? await Task.sleep(for: .milliseconds(100)) }
+            // The files are added after the rip has ended.
+            try? await Task.sleep(for: .seconds(2))
+
+            var lines = [String(format: "rip over after %.1f s", Date().timeIntervalSince(started))]
+            if let stopTook { lines.append(String(format: "stop took %.2f s", stopTook)) }
+            lines.append("failures: \(state.ripFailures.map { "\($0.filename): \($0.message)" })")
+            lines.append("disc still present: \(state.disc != nil)")
+            for track in state.trackList.tracks {
+                lines.append("list: \(track.filename) | track \(track.edited.trackNumber.map(String.init) ?? "-") | \(track.edited.title ?? "-")")
+            }
+            try? lines.joined(separator: "\n").write(
+                to: state.ripDestinationFolder.appendingPathComponent("rip-status.txt"),
+                atomically: true, encoding: .utf8)
+        }
         // "Copy CD". With -SleeveDebugCopySimulated YES the burn is a test
         // run, and only then may -SleeveDebugCopyStart start it right away:
         //     Sleeve -SleeveDebugCopy YES [-SleeveDebugCopySimulated YES -SleeveDebugCopyStart YES]
@@ -166,6 +211,13 @@ enum DebugHooks {
                 state.refreshBurnMedia()
             }
             state.startBurn(simulated: true)
+            // -SleeveDebugBurnStopAfter 12: Stop after that many seconds, to
+            // see how the drive lets go. Only ever of a test run.
+            let stopAfter = defaults.double(forKey: "SleeveDebugBurnStopAfter")
+            if stopAfter > 0 {
+                try? await Task.sleep(for: .seconds(stopAfter))
+                state.cancelBurn()
+            }
         }
         // A BIN image of the inserted disc into a given folder, with the
         // current read settings but without touching the stored ones:

@@ -199,7 +199,7 @@
   </ul>
 
   <h3>Saving and undoing</h3>
-  <p>Nothing you change reaches your files until you choose <strong>File → Save Tags</strong> (<span class="kbd">⌘S</span>) or click <strong>Save</strong> in the toolbar. Until then, <strong>Edit → Discard Changes</strong> (<span class="kbd">⇧⌘Z</span>) throws away everything not yet written. After saving, <strong>Edit → Undo Last Save</strong> (<span class="kbd">⌘Z</span>) restores the files as they were before.</p>
+  <p>Nothing you change reaches your files until you choose <strong>File → Save Tags</strong> (<span class="kbd">⌘S</span>) or click <strong>Save</strong> in the toolbar. Until then, <strong>Edit → Discard Changes</strong> (<span class="kbd">⌥⇧⌘Z</span>) throws away everything not yet written. After saving, <strong>Edit → Undo Last Save</strong> (<span class="kbd">⌥⌘Z</span>) restores the files as they were before.</p>
 
   <div class="callout">
     <p><strong>A field is only written if you touched it.</strong> Select twelve tracks, change the album, and every other field of those files stays exactly as it was — even one that looks empty in the inspector because the tracks disagree. An empty-looking field is never written as empty by accident.</p>
@@ -315,7 +315,7 @@
     <figure><img src="convert_sidebar.png" alt="Convert settings"></figure>
     <div>
       <p><strong>Target format</strong> — MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV or AIFF, with bitrate or compression level where the format has one. Below the format, Sleeve names the encoder your ffmpeg uses for it.</p>
-      <p><strong>Destination</strong> — next to the original or in a folder you choose. <strong>File name</strong> takes a pattern with the same placeholders as renaming; empty keeps the original name. <strong>Keep originals</strong> leaves the source files where they are; switched off, a source file is deleted once its converted copy is written.</p>
+      <p><strong>Destination</strong> — next to the original or in a folder you choose. <strong>File name</strong> takes a pattern with the same placeholders as renaming; empty keeps the original name. <strong>Keep originals</strong> leaves the source files where they are; switched off, a source file is moved to the Trash once its converted copy is written.</p>
       <p><strong>ffmpeg</strong> — which version Sleeve found and where. <strong>Search Again</strong> looks once more, <strong>Choose Manually…</strong> points Sleeve at a copy of your own. Sleeve checks which encoders your ffmpeg actually has and says so <em>before</em> a batch starts.</p>
     </div>
   </div>

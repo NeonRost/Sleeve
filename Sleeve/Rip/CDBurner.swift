@@ -289,6 +289,19 @@ extension CDBurner {
         case progress(Double)
         case finished(wasSimulated: Bool)
         case failed(String)
+        /// Stopped on request, and the drive has let go.
+        case stopped
+    }
+
+    /// The request to stop a burn. Not task cancellation: that would end
+    /// the listening at once, while the drive still needs a while to abort —
+    /// and whoever starts again in that time finds it busy.
+    final class Stop: @unchecked Sendable {
+        private let lock = NSLock()
+        private var requested = false
+
+        func request() { lock.withLock { requested = true } }
+        var isRequested: Bool { lock.withLock { requested } }
     }
 
     struct Layout: Sendable {
@@ -305,21 +318,41 @@ extension CDBurner {
     /// copy, where Sleeve wrote both itself a moment earlier. FLAC has to
     /// be unpacked first and is not taken here.
     static func layout(cueURL: URL) -> Layout? {
-        guard let text = try? String(contentsOf: cueURL, encoding: .utf8),
-              let cue = CueSheet(text: text) else { return nil }
+        guard let cue = CueSheet.load(cueURL), cue.fileCount == 1 else { return nil }
         let audioURL = cueURL.deletingLastPathComponent().appendingPathComponent(cue.audioFileName)
-        let header: Int
-        switch audioURL.pathExtension.lowercased() {
-        case "bin": header = 0
-        case "wav": header = 44
-        default:    return nil
-        }
+        guard let audio = try? audioRange(of: audioURL) else { return nil }
+        return Layout(imageURL: audioURL, headerBytes: audio.offset, tracks: cue.tracks,
+                      sectorCounts: cue.sectorCounts(
+                        totalSectors: audio.byteCount / CDGeometry.bytesPerSector))
+    }
+
+    enum ImageProblem: Error, Equatable {
+        case empty
+        case unsupportedType
+        case notWAV
+        case notCDAudio
+    }
+
+    /// Where the raw sectors lie in a BIN or WAV image. BIN is nothing but
+    /// sectors; in a WAV they are looked for — see `WAVProbe`.
+    static func audioRange(of url: URL) throws -> WAVProbe.Location {
         let attributes = try? FileManager.default.attributesOfItem(
-            atPath: audioURL.path(percentEncoded: false))
-        guard let size = attributes?[.size] as? Int, size > header else { return nil }
-        let total = (size - header) / CDGeometry.bytesPerSector
-        return Layout(imageURL: audioURL, headerBytes: header, tracks: cue.tracks,
-                      sectorCounts: cue.sectorCounts(totalSectors: total))
+            atPath: url.path(percentEncoded: false))
+        guard let size = attributes?[.size] as? Int, size > 0 else { throw ImageProblem.empty }
+        switch url.pathExtension.lowercased() {
+        case "bin":
+            return WAVProbe.Location(offset: 0, byteCount: size)
+        case "wav":
+            do {
+                return try WAVProbe.locate(url)
+            } catch WAVProbe.Problem.notCDAudio {
+                throw ImageProblem.notCDAudio
+            } catch {
+                throw ImageProblem.notWAV
+            }
+        default:
+            throw ImageProblem.unsupportedType
+        }
     }
 
     /// Builds the track list without burning. Testable without a drive, hence
@@ -353,7 +386,7 @@ extension CDBurner {
     /// nothing is written, the blank stays unwritten. That is the way to check
     /// everything except the last step.
     static func burn(_ layout: Layout, simulated: Bool,
-                     deviceID: String?) -> AsyncStream<BurnEvent> {
+                     deviceID: String?, stop: Stop = Stop()) -> AsyncStream<BurnEvent> {
         AsyncStream { continuation in
             let task = Task.detached {
                 guard let device = CDBurner.device(id: deviceID) else {
@@ -380,7 +413,11 @@ extension CDBurner {
                     return
                 }
 
-                let burn = DRBurn(device: device)!
+                guard let burn = DRBurn(device: device) else {
+                    continuation.yield(.failed(String(localized: "macOS cannot use this drive for burning.")))
+                    continuation.finish()
+                    return
+                }
                 burn.setProperties([
                     DRBurnTestingKey: NSNumber(value: simulated),
                     // Gapless: all tracks in one pass, disc closed.
@@ -396,7 +433,7 @@ extension CDBurner {
 
                 // Instead of intercepting notifications the state is polled —
                 // less flexible, and progress only comes coarsely anyway.
-                while !Task.isCancelled {
+                while !Task.isCancelled, !stop.isRequested {
                     let status = burn.status() ?? [:]
                     let state = (status[DRStatusStateKey] as? String) ?? ""
                     // -1 while the engine cannot tell yet (preparing, closing).
@@ -427,7 +464,23 @@ extension CDBurner {
                     }
                     try? await Task.sleep(for: .milliseconds(400))
                 }
-                if Task.isCancelled { burn.abort() }
+                if Task.isCancelled || stop.isRequested {
+                    burn.abort()
+                    // `abort` returns while the drive is still cleaning up.
+                    // The burn is only over when the engine says so — at most
+                    // a minute is waited for that.
+                    for _ in 0..<150 where !Task.isCancelled {
+                        let state = (burn.status()?[DRStatusStateKey] as? String) ?? ""
+                        #if DEBUG
+                        BurnTrace.write("after abort: \(state)")
+                        #endif
+                        if state == (kDRStatusStateDone as String)
+                            || state == (kDRStatusStateFailed as String)
+                            || state == (kDRStatusStateNone as String) { break }
+                        try? await Task.sleep(for: .milliseconds(400))
+                    }
+                    continuation.yield(.stopped)
+                }
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }

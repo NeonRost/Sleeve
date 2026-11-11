@@ -23,7 +23,7 @@
 //  the original comes out in between and Sleeve waits for the blank.
 //
 
-import Foundation
+import AppKit
 
 enum CopyStage: Sendable, Equatable {
     case idle
@@ -174,6 +174,14 @@ extension AppState {
         guard let image = copyImage else { return }
         let target = burnDevice?.id
 
+        // A blank is written once. If the original did not read cleanly,
+        // the decision to spend one on it is the user's — before the
+        // original is ejected, so that it can still be cleaned and read again.
+        if !image.isClean, !confirmsUncleanCopy() {
+            copyStage = .idle
+            return
+        }
+
         // With one drive the original has to make room. After the burn the
         // drive ejects by itself, so a second round starts with an empty tray.
         if image.usesOneDrive {
@@ -205,18 +213,34 @@ extension AppState {
         guard !Task.isCancelled else { return }
 
         copyStage = .burning
+        isStoppingBurn = false
+        let stop = CDBurner.Stop()
+        burnStop = stop
         var finished = false
         for await event in CDBurner.burn(image.layout, simulated: copyIsSimulated,
-                                         deviceID: target) {
+                                         deviceID: target, stop: stop) {
             switch event {
             case let .progress(fraction): copyProgress = fraction
             case .finished:               finished = true
             case let .failed(reason):     copyError = reason
+            case .stopped:                copyProgress = 0
             }
         }
+        burnStop = nil
+        isStoppingBurn = false
         guard !Task.isCancelled else { return }
         copyStage = finished ? .done : .idle
         refreshCopyDrives()
+    }
+
+    private func confirmsUncleanCopy() -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(localized: "Burn the copy anyway?")
+        alert.informativeText = String(localized: "Not everything on the original read reliably. The copy would carry the same gaps.")
+        alert.addButton(withTitle: String(localized: "Burn"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private func failCopy(_ reason: String) {
@@ -226,6 +250,13 @@ extension AppState {
 
     /// Stops whatever runs. An image already read stays for "Copy Again".
     func cancelCopy() {
+        // A burn stops on request and takes a moment to — the copy ends
+        // itself once the drive has let go.
+        if copyStage == .burning, let burnStop {
+            isStoppingBurn = true
+            burnStop.request()
+            return
+        }
         copyTask?.cancel()
         copyTask = nil
         copyStage = .idle

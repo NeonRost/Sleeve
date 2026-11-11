@@ -351,7 +351,25 @@ pictures, via `taglib_complex_property_get(file, "PICTURE")`.
 - Fault-tolerant per file: one broken file does not abort the batch
 - Collect errors, summarize them in a sheet at the end
 - **Undo:** keep an `original` snapshot per file; one session-wide undo step
-  is enough. Cmd+Z has to work.
+  is enough. It is **⌥⌘Z, not ⌘Z**: ⌘Z belongs to the text field one is
+  typing in. Bound to "Undo Last Save" it rewrote every file of the last
+  save when all that was meant was a typo. "Discard Changes" is ⌥⇧⌘Z, so
+  that ⇧⌘Z stays Redo.
+- **Only what went to disk counts as saved.** A track is committed after its
+  write only if the editor still shows what was written; a field edited while
+  the save was running stays an unsaved change.
+- **Quitting waits for the file in hand.** TagLib writes in place and moves
+  the audio data when a tag grows — a process that ends in the middle leaves
+  a broken file. `AppDelegate.applicationShouldTerminate` asks when tags are
+  being written, a disc is being read or burned, or changes are unsaved; when
+  the user quits during a save, the loop stops after the current file and
+  only then is the reply sent.
+- **Removing asks.** Clearing the list or removing tracks with unsaved
+  changes needs a confirmation, and both are locked while `isBusy`.
+- **A change of spelling is not a collision.** On a case-insensitive volume
+  "song.mp3" → "Song.mp3" finds its target "existing" — it is the same file
+  (compared by `fileResourceIdentifier`) and is renamed directly instead of
+  becoming "Song (2).mp3".
 - Optional: backup copy next to the file
 
 ### 4.2 Numbering
@@ -578,7 +596,10 @@ layer and writes the tags correctly after conversion. The pitch is not "can
 convert too" but "converts without you having to tag again afterwards".
 
 **UI:** target format, quality/bitrate, target folder, file name template
-(the same pattern engine), checkbox "Keep originals".
+(the same pattern engine), checkbox "Keep originals". Switched off, a source goes to the **Trash**,
+not away for good (`ConversionQueue.discard`); only Sleeve's own
+intermediates under the temporary directory are deleted. Where there is no
+Trash, the original stays.
 
 **Formats:** MP3 (LAME), FLAC, AAC, ALAC, Opus, Vorbis, WAV/AIFF
 
@@ -815,6 +836,26 @@ is decided by the setting:
 Checked on the test disc: ripped to FLAC, decodes bit-exact to what macOS
 reads from the same track (`MD5 2070ab26…` on both sides).
 
+**Intermediates never touch the album folder.** When another format is
+wanted, the WAVs go to a folder of their own under the temporary directory
+and disappear with it. Written into the album folder they overwrote a WAV
+rip of the same name already lying there — and deleted it after converting.
+A WAV that is the final format gets a free name (`" (2)"`) instead of
+replacing a file, which also keeps two tracks apart whose pattern renders to
+the same name. If a conversion fails, the WAV of that track is moved into the
+album folder: the track was read, and the rip should not be lost with it.
+
+**Tags are matched by track number.** The finished files are tied to their
+tracks through the source of each conversion, never through the order of the
+file names — a pattern that does not sort by number, or one failed
+conversion, would shift every tag onto its neighbour.
+
+**Stop means now.** `cancelRip` only asks; the rip resets its own state when
+the reader has returned, which is at the next block (`readCorrected` checks
+for cancellation like `readContiguous`). Resetting in `cancelRip` let the
+tail of the old rip run into one started in the meantime. A stopped rip does
+not eject.
+
 **File names** come from the same pattern as when converting
 (`%track% - %title%`, default). Important: **pattern and tags come from the
 same source** — otherwise the file is named differently from what it
@@ -945,6 +986,12 @@ first would be wasteful. The checksum is continued along the way
 
 **Data tracks are refused**, not written along. Extracting a data track raw
 is not what this mode is for (§6.8).
+
+**Nothing is overwritten.** If an image, cue sheet or log of the name is
+already there, the new one gets a number (`RipEngine.freeBaseName`). A
+second attempt that fails or is stopped removes its own half-written file —
+before this it removed the good first one. The WAV behind a FLAC image is
+written under the temporary directory, not next to a WAV of the same name.
 
 #### Which format for what
 
@@ -1113,8 +1160,37 @@ whole process, the blank stays unwritten and reusable as often as needed. The
 real burn sits next to it and asks for confirmation — it is the only function
 in Sleeve that irrevocably uses up something physical.
 
-FLAC images are unpacked to WAV first — the drive only takes raw PCM. The
-temporary file disappears afterwards.
+FLAC images are unpacked first — the drive only takes raw PCM — and
+unpacked to **raw samples (`-f s16le`), not to WAV**: ffmpeg's WAV header is
+not 44 bytes but 78, 104 or 140, depending on the tags of the source
+(measured), and every byte of header taken for audio shifts the whole disc.
+Only after unpacking is the length known, so the track lengths are computed
+again then; before that the last track counts as one sector, enough to show
+the list. The temporary file disappears afterwards.
+
+**WAV images are probed, not assumed.** `WAVProbe.locate` walks the RIFF
+chunks to the samples and checks the format: anything but 44.1 kHz, 16 bit,
+stereo PCM is refused with a message, and chunks after the samples do not
+count as audio. Sleeve's own WAVs have the canonical 44 bytes; a WAV from
+another program does not.
+
+**One file per image.** A cue sheet with several `FILE` lines (one file per
+track, as EAC and XLD write them) is refused: its track starts count from
+each file's beginning, and read as one image it would burn the last file as
+a single track. Cue sheets are read as UTF-8, then as Windows-1252.
+
+**Stopping takes as long as the drive takes.** Measured on the test drive
+with a test run stopped after nine seconds: after `abort()` the engine goes
+through `TrackWrite → Finishing → SessionClose → Finishing → Failed`, about
+**20 seconds**, then ejects. So the stop is a request (`CDBurner.Stop`), not
+task cancellation — that would end the listening at once and report "idle"
+while the drive is still busy. The sheet shows "Stopping…" until the engine
+reports the end; the same in Copy CD.
+
+Checked as test runs on a blank that stayed blank (`Space Used 00:00:00`
+after all three): a WAV written by ffmpeg (samples at byte 104), a FLAC image
+(three tracks of 2250 sectors each — before, the last one was 1), and the
+stop.
 
 ### 6.11 Copying a disc
 
@@ -1146,8 +1222,10 @@ Sleeve that quit or crashed mid-copy is removed when the sheet opens again. Afte
 ejects, so the next round starts with an empty tray.
 
 Not copied: **CD-TEXT** — the burner writes none (§6.10). The sheet says so
-when the original carries some. A disc that did not read cleanly is copied
-with the same gaps; the sheet says that too.
+when the original carries some. A disc that did not read cleanly would be
+copied with the same gaps — so Sleeve **asks before burning**, while the
+original is still in the drive and can be cleaned and read again. A blank is
+not spent on that without a decision.
 
 Checked on the test drive, first with the burn as a test run (debug builds,
 `-SleeveDebugCopy YES -SleeveDebugCopySimulated YES -SleeveDebugCopyStart

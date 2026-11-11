@@ -61,9 +61,12 @@ extension AppState {
         burnCue = nil
         burnLayout = nil
 
-        guard let text = try? String(contentsOf: cueURL, encoding: .utf8),
-              let cue = CueSheet(text: text) else {
+        guard let cue = CueSheet.load(cueURL) else {
             burnError = String(localized: "This cue sheet could not be read.")
+            return
+        }
+        guard cue.fileCount == 1 else {
+            burnError = String(localized: "This cue sheet names several files. Sleeve burns images that are a single file.")
             return
         }
         let audioURL = cueURL.deletingLastPathComponent()
@@ -79,34 +82,33 @@ extension AppState {
     }
 
     private func buildBurnLayout(audioURL: URL, cue: CueSheet) {
-        let attributes = try? FileManager.default.attributesOfItem(
-            atPath: audioURL.path(percentEncoded: false))
-        let size = (attributes?[.size] as? Int) ?? 0
-        guard size > 0 else {
+        // FLAC has to be unpacked first — `startBurn` does that and only
+        // then knows the real length. Until then the last track counts as
+        // one sector, which is enough to show the track list.
+        burnNeedsDecoding = audioURL.pathExtension.lowercased() == "flac"
+        if burnNeedsDecoding {
+            let total = cue.tracks.last.map { $0.startLBA + 1 } ?? 0
+            burnLayout = CDBurner.Layout(imageURL: audioURL, headerBytes: 0,
+                                         tracks: cue.tracks,
+                                         sectorCounts: cue.sectorCounts(totalSectors: total))
+            return
+        }
+
+        do {
+            let audio = try CDBurner.audioRange(of: audioURL)
+            burnLayout = CDBurner.Layout(
+                imageURL: audioURL, headerBytes: audio.offset, tracks: cue.tracks,
+                sectorCounts: cue.sectorCounts(
+                    totalSectors: audio.byteCount / CDGeometry.bytesPerSector))
+        } catch CDBurner.ImageProblem.empty {
             burnError = String(localized: "The image file is empty.")
-            return
-        }
-
-        // BIN has no header, WAV the usual 44 bytes. FLAC would have to be
-        // unpacked first — `prepareBurn` does that before burning.
-        let ext = audioURL.pathExtension.lowercased()
-        let header: Int
-        switch ext {
-        case "bin":  header = 0
-        case "wav":  header = 44
-        case "flac": header = 0      // only valid after unpacking
-        default:
+        } catch CDBurner.ImageProblem.notWAV {
+            burnError = String(localized: "The image file is not a readable WAV file.")
+        } catch CDBurner.ImageProblem.notCDAudio {
+            burnError = String(localized: "The image is not CD audio — it has to be 44.1 kHz, 16 bit, stereo.")
+        } catch {
             burnError = String(localized: "Sleeve can burn BIN, WAV and FLAC images.")
-            return
         }
-        burnNeedsDecoding = ext == "flac"
-
-        let totalSectors = burnNeedsDecoding
-            ? cue.tracks.last.map { $0.startLBA + 1 } ?? 0      // only exact after unpacking
-            : (size - header) / CDGeometry.bytesPerSector
-        burnLayout = CDBurner.Layout(imageURL: audioURL, headerBytes: header,
-                                     tracks: cue.tracks,
-                                     sectorCounts: cue.sectorCounts(totalSectors: totalSectors))
     }
 
     // MARK: - Media
@@ -169,23 +171,55 @@ extension AppState {
         burnError = nil
         burnProgress = 0
         burnStage = .running(simulated: simulated)
+        isStoppingBurn = false
+        let stop = CDBurner.Stop()
+        burnStop = stop
 
         burnTask = Task {
+            var temporary: URL?
+            defer {
+                if let temporary { try? FileManager.default.removeItem(at: temporary) }
+                burnTask = nil
+                burnDecodeTask = nil
+                burnStop = nil
+                isStoppingBurn = false
+            }
+
             // FLAC has to be unpacked first — the drive only takes raw PCM.
             if burnNeedsDecoding {
-                guard let decoded = await decodeImageForBurn(layout.imageURL) else {
-                    burnError = String(localized: "The FLAC image could not be unpacked.")
+                let source = layout.imageURL
+                let decoding = Task { await decodeImageForBurn(source) }
+                burnDecodeTask = decoding
+                temporary = await decoding.value
+                guard !stop.isRequested else {
                     burnStage = .idle
-                    burnTask = nil
                     return
                 }
+                let attributes = temporary.flatMap {
+                    try? FileManager.default.attributesOfItem(atPath: $0.path(percentEncoded: false))
+                }
+                guard let decoded = temporary, let cue = burnCue,
+                      let size = attributes?[.size] as? Int,
+                      size >= CDGeometry.bytesPerSector else {
+                    burnError = String(localized: "The FLAC image could not be unpacked.")
+                    burnStage = .idle
+                    return
+                }
+                // Raw samples, no header to guess at — and only now is the
+                // length known, so the track lengths are worked out again.
                 layout.imageURL = decoded
-                layout.headerBytes = 44
+                layout.headerBytes = 0
+                layout.sectorCounts = cue.sectorCounts(
+                    totalSectors: size / CDGeometry.bytesPerSector)
+                if case .blank(let free) = burnMedia, free > 0, free < layout.totalSectors {
+                    burnError = String(localized: "The image does not fit on this disc.")
+                    burnStage = .idle
+                    return
+                }
             }
-            let temporary = burnNeedsDecoding ? layout.imageURL : nil
 
             for await event in CDBurner.burn(layout, simulated: simulated,
-                                             deviceID: burnDevice?.id) {
+                                             deviceID: burnDevice?.id, stop: stop) {
                 switch event {
                 case let .progress(fraction):
                     burnProgress = fraction
@@ -194,33 +228,43 @@ extension AppState {
                 case let .failed(reason):
                     burnError = reason
                     burnStage = .idle
+                case .stopped:
+                    burnStage = .idle
+                    burnProgress = 0
                 }
             }
-            if let temporary { try? FileManager.default.removeItem(at: temporary) }
-            burnTask = nil
             refreshBurnMedia()
         }
     }
 
+    /// Asks the burn to stop. The sheet stays on "Stopping…" until the drive
+    /// has let go; only then can the next burn start.
     func cancelBurn() {
-        burnTask?.cancel()
-        burnTask = nil
-        burnStage = .idle
-        burnProgress = 0
+        guard burnTask != nil else { return }
+        isStoppingBurn = true
+        burnStop?.request()
+        burnDecodeTask?.cancel()
     }
 
-    /// Unpacks a FLAC image into a WAV file so that the burner gets raw
-    /// sectors.
+    /// Unpacks a FLAC image into raw samples, the form the burner takes.
+    ///
+    /// Raw, not WAV: ffmpeg's WAV header is 78 or 140 bytes long depending
+    /// on the tags of the source (measured), and every byte of header taken
+    /// for audio shifts the whole disc.
     private func decodeImageForBurn(_ url: URL) async -> URL? {
         guard let ffmpeg else { return nil }
         let target = FileManager.default.temporaryDirectory
-            .appendingPathComponent("sleeve-burn-\(UUID().uuidString).wav")
+            .appendingPathComponent("sleeve-burn-\(UUID().uuidString).raw")
         let result = try? await ProcessRunner.run(ffmpeg.url, arguments: [
             "-hide_banner", "-loglevel", "error",
             "-i", url.path(percentEncoded: false),
-            "-c:a", "pcm_s16le", "-ar", "44100", "-ac", "2",
+            "-vn", "-f", "s16le", "-c:a", "pcm_s16le", "-ar", "44100", "-ac", "2",
             target.path(percentEncoded: false),
         ])
-        return result?.succeeded == true ? target : nil
+        guard result?.succeeded == true else {
+            try? FileManager.default.removeItem(at: target)
+            return nil
+        }
+        return target
     }
 }

@@ -26,6 +26,7 @@ struct SleeveApp: App {
     static let aboutWindowID = "about"
     static let licensesWindowID = "licenses"
 
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var state = AppState()
 
     var body: some Scene {
@@ -33,6 +34,7 @@ struct SleeveApp: App {
             ContentView()
                 .environment(state)
                 .frame(minWidth: 900, minHeight: 500)
+                .onAppear { appDelegate.state = state }
         }
         .commands { SleeveCommands(state: state) }
 
@@ -83,17 +85,23 @@ struct SleeveCommands: Commands {
                 .keyboardShortcut("o")
         }
 
-        CommandGroup(replacing: .undoRedo) {
+        // After the system's Undo and Redo, not in their place: ⌘Z belongs
+        // to the text field one is typing in. As the shortcut for "Undo Last
+        // Save" it rewrote every file of the last save — when all that was
+        // meant was a typo.
+        CommandGroup(after: .undoRedo) {
+            Divider()
+
             Button("Undo Last Save") {
                 Task { await state.undoLastSave() }
             }
-            .keyboardShortcut("z")
+            .keyboardShortcut("z", modifiers: [.command, .option])
             .disabled(!state.canUndo)
 
             Button("Discard Changes") {
                 state.revertSelection()
             }
-            .keyboardShortcut("z", modifiers: [.command, .shift])
+            .keyboardShortcut("z", modifiers: [.command, .option, .shift])
             .disabled(state.trackList.changedCount == 0)
         }
 

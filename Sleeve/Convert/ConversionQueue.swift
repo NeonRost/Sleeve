@@ -152,7 +152,7 @@ struct ConversionQueue: Sendable {
         var finalURL = safeTarget
         if !planner.settings.keepsOriginals,
            job.source.standardizedFileURL != safeTarget.standardizedFileURL {
-            try? FileManager.default.removeItem(at: job.source)
+            Self.discard(job.source)
             // If the desired name has become free by now, take it after all.
             if safeTarget != job.destination,
                !FileManager.default.fileExists(atPath: job.destination.path(percentEncoded: false)),
@@ -166,6 +166,19 @@ struct ConversionQueue: Sendable {
     }
 
     // MARK: - Helpers
+
+    /// Gets rid of a converted source. A file of the user's goes to the
+    /// Trash, where it can be fetched back — only Sleeve's own intermediates
+    /// in the temporary folder are deleted. If the Trash is not available
+    /// (some network volumes), the original simply stays.
+    static func discard(_ url: URL) {
+        let temporary = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path
+        if url.resolvingSymlinksInPath().path.hasPrefix(temporary) {
+            try? FileManager.default.removeItem(at: url)
+        } else {
+            try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        }
+    }
 
     /// Appends `" (2)"`, `" (3)"` … until the path is free.
     static func freePath(for url: URL, avoiding blocked: [URL] = []) -> URL {

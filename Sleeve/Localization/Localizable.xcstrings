@@ -8747,6 +8747,261 @@
           }
         }
       }
+    },
+    "Remove tracks with unsaved changes?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titel mit ungespeicherten Änderungen entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Quitar pistas con cambios sin guardar?"
+          }
+        }
+      }
+    },
+    "The changes that have not been saved are lost." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die nicht gespeicherten Änderungen gehen verloren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los cambios que no se han guardado se pierden."
+          }
+        }
+      }
+    },
+    "Quit Sleeve?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleeve beenden?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Salir de Sleeve?"
+          }
+        }
+      }
+    },
+    "Quit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salir"
+          }
+        }
+      }
+    },
+    "A disc is being burned. Quitting now ruins the blank." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine CD wird gerade gebrannt. Beenden macht den Rohling unbrauchbar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se está grabando un disco. Salir ahora inutiliza el disco virgen."
+          }
+        }
+      }
+    },
+    "Tags are still being written. Sleeve finishes the current file and then quits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es werden noch Tags geschrieben. Sleeve schreibt die aktuelle Datei zu Ende und beendet sich dann."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún se están escribiendo etiquetas. Sleeve termina el archivo actual y después se cierra."
+          }
+        }
+      }
+    },
+    "A disc is being read. Quitting now stops that." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine CD wird gerade gelesen. Beenden bricht das ab."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se está leyendo un disco. Salir ahora lo interrumpe."
+          }
+        }
+      }
+    },
+    "Files are still being processed. Quitting now stops that." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es werden noch Dateien verarbeitet. Beenden bricht das ab."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún se están procesando archivos. Salir ahora lo interrumpe."
+          }
+        }
+      }
+    },
+    "There are unsaved changes. They are lost when you quit." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es gibt ungespeicherte Änderungen. Beim Beenden gehen sie verloren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hay cambios sin guardar. Se pierden al salir."
+          }
+        }
+      }
+    },
+    "This cue sheet names several files. Sleeve burns images that are a single file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Cue-Sheet nennt mehrere Dateien. Sleeve brennt Abbilder, die aus einer einzigen Datei bestehen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta hoja cue nombra varios archivos. Sleeve graba imágenes que constan de un solo archivo."
+          }
+        }
+      }
+    },
+    "The image file is not a readable WAV file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Abbilddatei ist keine lesbare WAV-Datei."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de imagen no es un archivo WAV legible."
+          }
+        }
+      }
+    },
+    "The image is not CD audio — it has to be 44.1 kHz, 16 bit, stereo." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Abbild ist kein CD-Audio – es muss 44,1 kHz, 16 Bit, Stereo sein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La imagen no es audio de CD: tiene que ser 44,1 kHz, 16 bits, estéreo."
+          }
+        }
+      }
+    },
+    "Stopping…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird gestoppt…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deteniendo…"
+          }
+        }
+      }
+    },
+    "Burn the copy anyway?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Kopie trotzdem brennen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Grabar la copia de todos modos?"
+          }
+        }
+      }
+    },
+    "Not everything on the original read reliably. The copy would carry the same gaps." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht alles auf dem Original ließ sich zuverlässig lesen. Die Kopie hätte dieselben Lücken."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No todo el original se pudo leer de forma fiable. La copia tendría los mismos huecos."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

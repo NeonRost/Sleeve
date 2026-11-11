@@ -137,7 +137,10 @@ enum AudioSplitter {
         let result: ProcessRunner.Result
         do {
             result = try await ProcessRunner.run(ffmpeg.url, arguments: [
-                "-hide_banner", "-i", file.path(percentEncoded: false), "-f", "null", "-",
+                // -vn: the picture of a concert film need not be decoded
+                // to learn how long its sound is.
+                "-hide_banner", "-i", file.path(percentEncoded: false),
+                "-vn", "-f", "null", "-",
             ])
         } catch {
             throw SplitError.analysisFailed

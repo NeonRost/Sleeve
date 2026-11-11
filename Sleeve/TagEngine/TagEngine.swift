@@ -67,6 +67,17 @@ actor TagEngine {
         while FileManager.default.fileExists(atPath: target.path(percentEncoded: false)) {
             // The same path is no collision — then there is nothing to do.
             if target.standardizedFileURL == url.standardizedFileURL { return url }
+            // On a case-insensitive volume "song.mp3" and "Song.mp3" are one
+            // file: the target "exists", but it is the file being renamed.
+            // That is a change of spelling, not a collision — without this
+            // it came out as "Song (2).mp3".
+            if Self.isSameFile(target, url) {
+                guard Darwin.rename(url.path(percentEncoded: false),
+                                    target.path(percentEncoded: false)) == 0 else {
+                    throw TagError.renameFailed(url)
+                }
+                return target
+            }
             let candidate = ext.isEmpty ? "\(base) (\(counter))" : "\(base) (\(counter)).\(ext)"
             target = folder.appendingPathComponent(candidate)
             counter += 1
@@ -78,6 +89,14 @@ actor TagEngine {
             throw TagError.renameFailed(url)
         }
         return target
+    }
+
+    private static func isSameFile(_ first: URL, _ second: URL) -> Bool {
+        let key = URLResourceKey.fileResourceIdentifierKey
+        guard let a = try? first.resourceValues(forKeys: [key]).fileResourceIdentifier,
+              let b = try? second.resourceValues(forKeys: [key]).fileResourceIdentifier
+        else { return false }
+        return a.isEqual(b)
     }
 
     // MARK: - Collecting files
