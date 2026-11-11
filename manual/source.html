@@ -117,7 +117,7 @@
   <img src="Sleeve_Icon.png" alt="Sleeve icon">
   <h1>Sleeve</h1>
   <div class="tagline">Tag, convert, rip, burn and split audio on your Mac.</div>
-  <div class="version">User Manual · Version 1.0</div>
+  <div class="version">User Manual · Version 1.1</div>
 </div>
 
 <div class="toc">
@@ -350,7 +350,7 @@
       <p><strong>Format</strong> — any format of the Convert mode; WAV works without ffmpeg.</p>
       <p><strong>Mode</strong> — <strong>Burst</strong> reads in one pass without verification, for clean discs. <strong>Secure</strong> reads every block twice and repeats where the results differ, up to the <strong>maximum retries</strong>; whatever stays unresolved is named in the log.</p>
       <p><strong>Read every track twice and compare</strong> adds a second pass that compares checksums. <strong>C2 error pointers</strong> let the drive report uncertain bytes — only if your drive really delivers them; Sleeve checks and falls back if it does not.</p>
-      <p><strong>Read offset</strong> — every drive model reads a few samples too early or too late. Sleeve does not look the value up: enter the one your drive is known for, or leave it at zero. <strong>Speed</strong> — reading more slowly often helps a scratched disc more than any retry.</p>
+      <p><strong>Read offset</strong> — every drive model reads a few samples too early or too late. Sleeve does not look the value up: enter the correction AccurateRip lists for your drive (for example <strong>+6</strong>), or leave it at zero. The sign means what it means in EAC and XLD: a positive value reads later. <strong>Speed</strong> — reading more slowly often helps a scratched disc more than any retry.</p>
     </div>
   </div>
 
@@ -393,6 +393,7 @@
     <div>
       <p>Choose the <strong>cue sheet</strong> of a BIN, WAV or FLAC image and insert a blank <strong>CD-R or CD-RW</strong>. Sleeve shows what is on the image and whether the blank is suitable and large enough.</p>
       <p>Start with <strong>Test run</strong>: the drive goes through the whole burn with the laser switched off, and the blank stays empty and reusable. <strong>Burn for real…</strong> asks once more before it writes — it is the only function in Sleeve that uses something up for good. The disc is written session-at-once, so the transitions between tracks stay gapless.</p>
+      <p><strong>Speed</strong> sets how fast the drive writes; older players often read a disc burned more slowly better. A written <strong>CD-RW</strong> can be erased right in the sheet with <strong>Erase CD-RW…</strong>. <strong>Stop</strong> waits until the drive has really let go — that can take some twenty seconds — and a blank stopped during a real burn is lost.</p>
     </div>
   </div>
 
@@ -459,7 +460,7 @@
     <tr><td>An encoder is missing</td><td>Some ffmpeg builds lack an encoder (often Opus or AAC). Sleeve says which one before converting; a full Homebrew ffmpeg has them all.</td></tr>
     <tr><td>Discogs finds nothing</td><td>Searching Discogs needs a token (chapter 9). MusicBrainz needs none.</td></tr>
     <tr><td>MusicBrainz is slow</td><td>MusicBrainz allows one request per second; Sleeve waits and retries on its own.</td></tr>
-    <tr><td>A rip reports read errors</td><td>Clean the disc, rip in <strong>Secure</strong> mode, lower the <strong>Speed</strong>. The log names the tracks that did not read cleanly.</td></tr>
+    <tr><td>A rip reports read errors</td><td>Clean the disc, rip in <strong>Secure</strong> mode, lower the <strong>Speed</strong>. A spot the drive cannot read at all is filled with silence, and the log names the sectors; the rest of the track is kept.</td></tr>
     <tr><td>A disc is refused</td><td>Copy-protected discs, discs with a data track and DVDs are not read by design.</td></tr>
     <tr><td>Saving a file failed</td><td>The track shows a warning triangle; a summary lists the reason. Other files are saved anyway — one broken file does not stop the batch.</td></tr>
     <tr><td>macOS refuses to open Sleeve</td><td>See <em>First launch</em> in chapter 2.</td></tr>
