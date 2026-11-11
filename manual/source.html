@@ -199,7 +199,8 @@
   </ul>
 
   <h3>Saving and undoing</h3>
-  <p>Nothing you change reaches your files until you choose <strong>File → Save Tags</strong> (<span class="kbd">⌘S</span>) or click <strong>Save</strong> in the toolbar. Until then, <strong>Edit → Discard Changes</strong> (<span class="kbd">⌥⇧⌘Z</span>) throws away everything not yet written. After saving, <strong>Edit → Undo Last Save</strong> (<span class="kbd">⌥⌘Z</span>) restores the files as they were before.</p>
+  <p>Nothing you change reaches your files until you choose <strong>File → Save Tags</strong> (<span class="kbd">⌘S</span>) or click <strong>Save</strong> in the toolbar. Until then, <strong>Edit → Discard Changes</strong> (<span class="kbd">⌥⇧⌘Z</span>) throws away everything not yet written. After saving, <strong>Edit → Undo Last Save</strong> (<span class="kbd">⌥⌘Z</span>) restores the files as they were before, file names included. <span class="kbd">⌘Z</span> on its own stays with the text field you are typing in.</p>
+  <p>Saving or reading many files can be stopped with the button next to the progress bar; saving finishes the file in hand first, and what was not reached stays an unsaved change. Quitting while tags are being written, a disc is read or burned, or changes are unsaved asks first.</p>
 
   <div class="callout">
     <p><strong>A field is only written if you touched it.</strong> Select twelve tracks, change the album, and every other field of those files stays exactly as it was — even one that looks empty in the inspector because the tracks disagree. An empty-looking field is never written as empty by accident.</p>
@@ -216,13 +217,14 @@
     <div>
       <p>The sidebar shows the tags of the selected tracks: title, artist, album, album artist, composer, genre, year, compilation, track and disc number with their totals, comment, lyrics and the artwork.</p>
       <p>With several tracks selected, a field shows the shared value when all tracks agree. Where they differ it stays empty with the placeholder <strong>&lt;Multiple values&gt;</strong> (<strong>&lt;Mixed&gt;</strong> in the narrow number fields). Type into it and that value goes to all selected tracks; leave it alone and every track keeps its own.</p>
+      <p>A file with several artists, composers or genres shows them separated by a semicolon (<code>Peter; der Wolf</code>); separated the same way, they are written back as several values. An MP3 keeps its ID3 version — a tag in ID3v2.3 stays 2.3.</p>
       <p>The small <strong>×</strong> next to a field clears it on purpose. A dot next to a field marks it as changed.</p>
       <p>With nothing selected, the batch tools in the toolbar work on all tracks in the list.</p>
     </div>
   </div>
 
   <h3>Artwork</h3>
-  <p>The artwork well at the bottom of the inspector shows every embedded picture; with several pictures, arrows switch between them. Drop an image on it or click it to choose a file. A dialog then shows a preview, lets you pick the <strong>picture type</strong> (front cover, back cover, booklet page, disc …), scale the image down and choose format and quality — with the <em>actual</em> resulting file size. A picture that needs no change goes into the file byte for byte. Adding a picture replaces one of the same type and keeps the others, so a booklet page does not push out the front cover. The picture is applied to all selected tracks. The buttons below the picture remove it — from all selected tracks — or export it to a file.</p>
+  <p>The artwork well at the bottom of the inspector shows every embedded picture; with several pictures, arrows switch between them. Drop an image on it or click it to choose a file. A dialog then shows a preview, lets you pick the <strong>picture type</strong> (front cover, back cover, booklet page, disc …), scale the image down and choose format and quality — with the <em>actual</em> resulting file size. A picture that needs no change goes into the file byte for byte. A new front cover, back cover or icon replaces the one of its type and keeps the others, so a booklet page does not push out the front cover; booklet pages and other pictures are added, so a whole booklet fits into the file. The picture is applied to all selected tracks. The buttons below the picture remove it — from all selected tracks — or export it to a file.</p>
 
   <h3>The batch tools</h3>
   <p>Every tool in the toolbar opens a small panel and shows what will happen <strong>before</strong> anything happens. All of them work on the selection, or on all tracks when nothing is selected, and like any edit they only change the list until you save.</p>
@@ -403,6 +405,7 @@
     <div>
       <p>A 1:1 copy with one button. Insert the original and click <strong>Copy</strong>. Sleeve reads it into a temporary image, ejects it and asks for a blank; as soon as the blank is recognized, it burns. While waiting, it says what is wrong with the disc that is in there — the original put back in, a DVD, a blank that is too small.</p>
       <p>With two drives, Sleeve reads in one and burns in the other, without a pause. <strong>Copy Again</strong> burns another copy from what was read; the original is not needed again. The temporary image is removed when you close the window.</p>
+      <p>If the original did not read cleanly, Sleeve asks before it burns — while the original is still in the drive, so you can clean it and try again instead of spending a blank on a copy with gaps.</p>
       <p>CD-TEXT titles are not copied — the copy carries the audio and the track boundaries.</p>
     </div>
   </div>

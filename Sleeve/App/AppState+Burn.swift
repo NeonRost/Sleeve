@@ -126,9 +126,12 @@ extension AppState {
             burnDevices = [staged]
             burnDevice = staged
             // -SleeveDebugStageBlank YES: a blank is in, for the burn sheet.
-            burnMedia = UserDefaults.standard.bool(forKey: "SleeveDebugStageBlank")
+            let blank = UserDefaults.standard.bool(forKey: "SleeveDebugStageBlank")
+            burnMedia = blank
                 ? .blank(sectors: 359_844)
                 : .unusable(reason: String(localized: "This disc already carries data."))
+            burnSpeeds = blank ? [16, 24, 32, 40] : []
+            burnMediaIsErasable = false
             return
         }
         #endif
