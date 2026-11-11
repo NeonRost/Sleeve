@@ -349,6 +349,9 @@ actor MusicBrainzClient {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .cancelled {
+            // A search replaced by a newer one is no error to show.
+            throw CancellationError()
         } catch {
             throw ClientError.transport(error.localizedDescription)
         }
@@ -386,6 +389,9 @@ actor MusicBrainzClient {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .cancelled {
+            // A search replaced by a newer one is no error to show.
+            throw CancellationError()
         } catch {
             throw ClientError.transport(error.localizedDescription)
         }

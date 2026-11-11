@@ -105,6 +105,8 @@ extension AppState {
         imageError = nil
 
         imageTask = Task { [ripEngine] in
+            let awake = KeepAwake("Reading a CD into an image")
+            defer { withExtendedLifetime(awake) {} }
             for await event in ripEngine.createImage(
                 in: folder, baseName: name, format: format, settings: settings,
                 albumTitle: album, albumArtist: artist,

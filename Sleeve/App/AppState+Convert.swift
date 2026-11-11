@@ -110,7 +110,8 @@ extension AppState {
         let targets = operationTargetsInDisplayOrder
         let planner = ConversionPlanner(tool: ffmpeg, settings: conversionSettings)
         let inputs = targets.map {
-            ConversionPlanner.Input(trackID: $0.id, url: $0.url, tags: $0.edited)
+            ConversionPlanner.Input(trackID: $0.id, url: $0.url, tags: $0.edited,
+                                    bitsPerSample: $0.properties.bitsPerSample)
         }
 
         let jobs: [ConversionPlanner.Job]
@@ -142,6 +143,8 @@ extension AppState {
         var done = 0
 
         let task = Task { [weak self] in
+            let awake = KeepAwake("Converting audio files")
+            defer { withExtendedLifetime(awake) {} }
             for await outcome in queue.run(jobs) {
                 guard let self else { return }
                 await self.absorb(outcome)

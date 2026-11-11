@@ -113,15 +113,23 @@ extension AppState {
         // Look right away at what is inside: it decides which extension the
         // pieces get — and whether there is sound at all.
         guard let tool = ffmpeg else { return }
-        Task {
+        // A file picked while the previous one is still being analyzed
+        // replaces it: the old analysis is stopped, and whatever it still
+        // delivers is dropped — before, its envelope could land on the new file.
+        splitLoadTask?.cancel()
+        splitLoadTask = Task {
             await splitPreview.check(url)
             do {
-                splitSourceInfo = try await AudioSplitter.probe(file: url, ffmpeg: tool)
-                await loadWaveform(url, duration: splitSourceInfo?.duration ?? 0, ffmpeg: tool)
+                let info = try await AudioSplitter.probe(file: url, ffmpeg: tool)
+                guard !Task.isCancelled, splitSource == url else { return }
+                splitSourceInfo = info
+                await loadWaveform(url, duration: info.duration, ffmpeg: tool)
             } catch SplitError.noAudioTrack {
+                guard !Task.isCancelled, splitSource == url else { return }
                 splitError = String(localized: "This file has no audio track.")
                 splitSource = nil
             } catch {
+                guard !Task.isCancelled, splitSource == url else { return }
                 splitError = String(localized: "The file could not be analyzed.")
                 splitSource = nil
             }
@@ -134,7 +142,9 @@ extension AppState {
         guard duration > 0 else { return }
         isLoadingWaveform = true
         defer { isLoadingWaveform = false }
-        splitWaveform = try? await WaveformSampler.load(url, duration: duration, ffmpeg: tool)
+        let waveform = try? await WaveformSampler.load(url, duration: duration, ffmpeg: tool)
+        guard !Task.isCancelled, splitSource == url else { return }
+        splitWaveform = waveform
     }
 
     /// Sets a new boundary at this position — the counterpart to merging.

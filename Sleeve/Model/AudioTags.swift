@@ -124,6 +124,21 @@ struct AudioTags: Equatable, Sendable {
         let cleaned = (text?.isEmpty ?? true) ? nil : text
         let number = cleaned.flatMap(Int.init)
 
+        // A number field that gets text which is no number keeps its value:
+        // a typo in the year field must not clear the year. Empty still
+        // clears. A year may come as a date ("2001-05-12").
+        if let cleaned, number == nil {
+            switch field {
+            case .year:
+                if let leading = cleaned.leadingYear { year = leading }
+                return
+            case .trackNumber, .trackTotal, .discNumber, .discTotal:
+                return
+            default:
+                break
+            }
+        }
+
         switch field {
         case .title:         title = cleaned
         case .artist:        artist = cleaned
@@ -151,6 +166,8 @@ struct AudioProperties: Equatable, Sendable {
     var bitrate: Int            // kbit/s
     var sampleRate: Int         // Hz
     var channels: Int
+    /// For lossless formats; 0 where the format has no such thing.
+    var bitsPerSample: Int = 0
 
     static let unknown = AudioProperties(
         duration: .zero, bitrate: 0, sampleRate: 0, channels: 0

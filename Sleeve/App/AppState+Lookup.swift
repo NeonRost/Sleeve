@@ -112,7 +112,9 @@ extension AppState {
     func updateDiscogsToken(_ token: String?) async {
         let trimmed = token?.trimmingCharacters(in: .whitespacesAndNewlines)
         discogsToken = (trimmed?.isEmpty == false) ? trimmed : nil
-        KeychainStore.set(discogsToken, for: KeychainStore.discogsToken)
+        // The token still works for this session if the keychain refuses —
+        // but the settings must not claim it is stored.
+        tokenKeychainFailed = !KeychainStore.set(discogsToken, for: KeychainStore.discogsToken)
         await discogs.updateToken(discogsToken)
     }
 }

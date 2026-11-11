@@ -21,6 +21,7 @@
 //
 
 import Foundation
+import CTagLib
 
 enum ConvertTests {
 
@@ -58,6 +59,25 @@ enum ConvertTests {
             try FileManager.default.copyItem(
                 at: URL(fileURLWithPath: root + "/TestFiles/" + name), to: target)
             return target
+        }
+
+        // MARK: - A program that hangs
+
+        section("A hung program is ended")
+        do {
+            let started = Date()
+            do {
+                // Ignores SIGTERM and sits still: only SIGKILL ends it.
+                _ = try await ProcessRunner.run(URL(fileURLWithPath: "/bin/sh"),
+                                                arguments: ["-c", "trap '' TERM; exec /bin/sleep 120"],
+                                                stallTimeout: 2)
+                check(false, "a program without processor time counts as hung")
+            } catch ProcessRunner.RunError.stalled {
+                check(true, "a program without processor time counts as hung")
+            }
+            let took = Date().timeIntervalSince(started)
+            check(took < 15, "and is ended even when it ignores SIGTERM",
+                  detail: String(format: "%.1f s", took))
         }
 
         // MARK: - Locating ffmpeg
@@ -192,6 +212,80 @@ enum ConvertTests {
         equal(bareTags.title, nil, "no title — `-map_metadata -1` works")
         equal(bareTags.artist, nil, "no artist")
         equal(bareTags.artwork.count, 0, "no cover picture — `-vn` works")
+
+        // MARK: - Tags Sleeve has no field for
+
+        section("Tags beyond Sleeve's fields survive, encoder details do not")
+        do {
+            func properties(_ url: URL) -> [String: [String]] {
+                guard let file = url.path.withCString({ taglib_file_new($0) }) else { return [:] }
+                defer { taglib_file_free(file) }
+                return TagLibBridge.readPropertyMap(from: file)
+            }
+            let source = try copyTestFile("04 - vorbis.flac", to: work + "/extra")
+            if let file = source.path.withCString({ taglib_file_new($0) }) {
+                taglib_property_set(file, "REPLAYGAIN_TRACK_GAIN", "-6.20 dB")
+                taglib_property_set(file, "MUSICBRAINZ_TRACKID", "0f3c1a2b-0000-4000-8000-000000000001")
+                taglib_property_set(file, "BPM", "120")
+                taglib_property_set(file, "ARTISTSORT", "Wolf, Peter und der")
+                taglib_property_set(file, "ENCODER", "some encoder 1.0")
+                _ = taglib_file_save(file)
+                taglib_file_free(file)
+            }
+            var tags = try TagLibBridge.read(from: source).tags
+            tags.comment = nil       // cleared in the editor: must stay cleared
+            for format in [AudioFormat.mp3, .flac, .aac, .opus] where tool.supports(format) {
+                var settings = ConversionSettings()
+                settings.format = format
+                settings.keepsOriginals = true
+                settings.destinationFolder = URL(fileURLWithPath: work + "/extra-\(format.fileExtension)")
+                let planner = ConversionPlanner(tool: tool, settings: settings)
+                for await outcome in ConversionQueue(planner: planner, artworkOptions: .passthrough)
+                    .run(try planner.plan([.init(trackID: UUID(), url: source, tags: tags)])) {
+                    guard let target = outcome.destination else {
+                        check(false, "  \(format.fileExtension): converted"); continue
+                    }
+                    let map = properties(target)
+                    equal(map["REPLAYGAIN_TRACK_GAIN"], ["-6.20 dB"], "  \(format.fileExtension): ReplayGain survives")
+                    equal(map["MUSICBRAINZ_TRACKID"], ["0f3c1a2b-0000-4000-8000-000000000001"],
+                          "  \(format.fileExtension): MusicBrainz ID survives")
+                    equal(map["BPM"], ["120"], "  \(format.fileExtension): BPM survives")
+                    equal(map["ARTISTSORT"], ["Wolf, Peter und der"], "  \(format.fileExtension): sort name survives")
+                    check(map["ENCODER"] == nil || map["ENCODER"] != ["some encoder 1.0"],
+                          "  \(format.fileExtension): the source's encoder is not claimed")
+                    equal(try TagLibBridge.read(from: target).tags.comment, nil,
+                          "  \(format.fileExtension): a field cleared in the editor stays cleared")
+                }
+            }
+        }
+
+        // 24 bit stays 24 bit on the way to WAV.
+        section("WAV keeps the resolution of the source")
+        do {
+            let folder = work + "/depth"
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+            let source = URL(fileURLWithPath: folder + "/hires.flac")
+            _ = try await ProcessRunner.run(tool.url, arguments: [
+                "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", "sine=frequency=440:duration=1:sample_rate=48000",
+                "-c:a", "flac", "-sample_fmt", "s32", "-bits_per_raw_sample", "24",
+                source.path])
+            let info = try TagLibBridge.read(from: source)
+            equal(info.properties.bitsPerSample, 24, "the source is 24 bit")
+            var settings = ConversionSettings()
+            settings.format = .wav
+            settings.keepsOriginals = true
+            let planner = ConversionPlanner(tool: tool, settings: settings)
+            let jobs = try planner.plan([.init(trackID: UUID(), url: source, tags: info.tags,
+                                               bitsPerSample: info.properties.bitsPerSample)])
+            check(jobs.first?.arguments.contains("pcm_s24le") == true, "WAV is written with 24 bit")
+            for await outcome in ConversionQueue(planner: planner, artworkOptions: .passthrough).run(jobs) {
+                if let target = outcome.destination {
+                    equal(try TagLibBridge.read(from: target).properties.bitsPerSample, 24,
+                          "the WAV really has 24 bit")
+                }
+            }
+        }
 
         // MARK: - Deleting originals
 

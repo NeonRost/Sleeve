@@ -153,11 +153,12 @@ Tag, Convert and Rip share one list of files; splitting long recordings has a wi
 - **Rename and extract** – one pattern syntax in both directions: `%track% - %artist% - %title%` turns tags into file names with a live preview, and the same pattern read backwards pulls tags out of file names. Missing tags drop their separators too, collisions get ` (2)`.
 - **Cover art** – every embedded image with its type (front, back, booklet page, disc …), added by drag and drop, replaced or appended, applied to all selected tracks at once, exported as a file.
 - **Look Up Album** – finds the release on **MusicBrainz** (no account needed) or **Discogs** (with your own token) and lays its tracks next to your files, with each file's length against the release's. A file more than 3 s off is marked, so a wrong match shows up even when the titles agree. Pick which fields to take over — the front cover included, in the size you choose; nothing reaches the disk until you save.
-- **Undo** – the last save can be undone. **Add to Music** hands the selection to the Music app.
+- **Undo** – the last save can be undone (`⌥⌘Z`), renamed files included; `⌘Z` stays with the text field. **Add to Music** hands the selection to the Music app.
+- **Careful with files** – an MP3 keeps its ID3 version (2.3 stays 2.3) and gets no ID3v1 tag it did not have, several artists or genres stay several values, and quitting in the middle of a save finishes the file in hand first.
 
 ## Convert
 
-Converts to MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV and AIFF with `ffmpeg` — and writes the tags afterwards itself, cover included. Generic converters tend to lose the album artist or the disc number on the way; Sleeve reads the tags first, keeps ffmpeg's own tag copying switched off, and writes them back with TagLib. File names come from the same pattern engine as renaming.
+Converts to MP3, AAC, ALAC, FLAC, Opus, Vorbis, WAV and AIFF with `ffmpeg` — and writes the tags afterwards itself, cover included. Generic converters tend to lose the album artist or the disc number on the way; Sleeve keeps ffmpeg's own tag copying switched off and carries every tag over with TagLib — ReplayGain, MusicBrainz IDs, BPM and sort names too. A 24-bit source stays 24 bit in WAV and AIFF, and originals you choose not to keep go to the Trash. File names come from the same pattern engine as renaming.
 
 ## Rip
 
@@ -227,7 +228,7 @@ Sleeve.app/Contents/MacOS/Sleeve -AppleLanguages '(es)'
 ## Known limitations
 
 - **CD-TEXT is not burned.** Images and copies carry the audio and the track boundaries, not the titles stored on the disc.
-- **No AccurateRip.** Rips are checked for repeatability (secure mode, second pass), not against other people's rips of the same pressing. The drive's read offset has to be entered by hand.
+- **No AccurateRip.** Rips are checked for repeatability (secure mode, second pass), not against other people's rips of the same pressing. The drive's read offset has to be entered by hand, as listed by AccurateRip (for example +6).
 - **Copy-protected discs are refused**, not worked around. Sleeve reads standard audio CDs only — no data tracks, no DVDs.
 - **Cue sheets mark track starts only.** Marking where the pause before a track begins (`INDEX 00`) would need the subchannel, which drives do not report reliably. The image itself is gapless; only the pause markers are missing.
 - **Opening a disc image is not supported yet.** Sleeve writes cue sheets but cannot read them back.

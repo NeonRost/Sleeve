@@ -198,6 +198,36 @@ without TagLib. In Debug this goes unnoticed because `ONLY_ACTIVE_ARCH = YES`
 applies; only the Release build breaks. That is why `ARCHS = arm64` is in the
 project configuration.
 
+**`taglib_file_save` rewrites every MP3 as ID3v2.4.** It calls
+`FileRef::save()`, which for MPEG means `save(AllTags, StripOthers, v4,
+Duplicate)`: an ID3v2.3 tag comes back as 2.4, and an ID3v1 tag appears that
+was never there (measured on copies of the test files). Older players,
+Windows Explorer and car radios read 2.4 badly. Sleeve therefore saves
+through a small C++ addition, `sleeve_taglib_file_save`
+(`Vendor/taglibshim/SleeveTagLibShim.h`, implemented in
+`Sleeve/TagEngine/SleeveTagLibShim.cpp` and compiled with the app and the
+test suite): ID3v2 in the version found on disk (a new tag is 2.4), ID3v1
+and APE only if they were there, nothing stripped or duplicated. Every other
+format saves as before. The same file exposes what the C binding lacks:
+bits per sample (for conversions to WAV/AIFF) and the exact sample count of
+a FLAC file (for burning).
+
+**Several values are kept.** Artist, album artist, composer and genre are
+shown with their values joined by `"; "` and split there again when written —
+showing only the first value, as before, lost the others as soon as the
+field was touched. Other fields stay single-valued.
+
+**A full date survives its year.** Writing a year equal to the year of the
+`DATE` on disk (`2001-05-12`) leaves the date alone; a batch fill no longer
+cuts off month and day. Another year replaces it.
+
+**Xiph comments keep number and total apart.** FLAC, Ogg and Opus get
+`TRACKNUMBER=3` and `TRACKTOTAL=12` instead of `3/12`, which many players
+do not parse; `TOTALTRACKS` is read and cleared. ID3 and MP4 keep `3/12`.
+
+**FLAC pictures state their size.** `width`, `height` and `colorDepth` are
+written from the image itself; before, a FLAC picture block claimed 0×0.
+
 **Smoke test:** `Scripts/run-smoketest.sh` compiles
 `Scripts/taglib-smoketest.swift` against the vendor build and reads every
 file in `TestFiles/`, including a write round trip. Run it once after every
@@ -243,6 +273,14 @@ App Sandbox thus exclude each other. Hardened Runtime and notarization are
 unaffected; the Mac App Store would be out, but it is incompatible with the
 GPLv3 anyway. Should a statically linked ffmpeg ever go into the bundle, the
 sandbox could be switched on again.
+
+**A hung ffmpeg is ended.** `ProcessRunner` watches the processor time of
+every child: a program that has not computed for 60 s is waiting for
+something that does not come — a network volume that went away, a file it
+cannot get past — and gets SIGTERM, then SIGKILL five seconds later if it
+ignores that (`RunError.stalled`, tested with a shell that ignores SIGTERM).
+Output cannot be the measure: with `-loglevel error` ffmpeg writes nothing
+while it works. Cancelling escalates the same way.
 
 **Version check:** `ffmpeg -version` when found; query the available encoders
 once via `ffmpeg -encoders` and cache them. An LGPL build without
@@ -366,6 +404,20 @@ pictures, via `taglib_complex_property_get(file, "PICTURE")`.
   only then is the reply sent.
 - **Removing asks.** Clearing the list or removing tracks with unsaved
   changes needs a confirmation, and both are locked while `isBusy`.
+- **Undo covers renames.** A save that renamed a file records the old name;
+  undo writes the tags back and renames the file back. A write that worked
+  before a failed rename is still undoable.
+- **Number fields keep their value on a typo.** Text that is no number in
+  year, track or disc fields leaves the value as it was (empty still
+  clears); a date in the year field gives its year.
+- **Reading and saving can be stopped** (the stop button next to the
+  progress, Cancel in the toolbar). Saving stops after the file in hand.
+  Files added while other work runs wait for it instead of being dropped —
+  a finished rip or split used to vanish from the list that way.
+- **The File menu's disc commands** bring the main window back when it was
+  closed (their sheets hang on it) and are locked while a rip, image, copy
+  or burn has the drive. In Rip mode a Save button appears next to Rip when
+  ripped tracks have unsaved tags.
 - **A change of spelling is not a collision.** On a case-insensitive volume
   "song.mp3" → "Song.mp3" finds its target "existing" — it is the same file
   (compared by `fileResourceIdentifier`) and is renamed directly instead of
@@ -459,8 +511,14 @@ no logic of its own.
 - Add via drag and drop or file picker, **replacing or in addition**
 - Picture type selectable per picture (front, back, booklet page, medium …).
   A scanned booklet belongs in the tag as `Leaflet Page`, not as a second
-  `Front Cover` — players tell the two apart. That is why, when appending, a
-  picture only replaces an existing one **of the same** type.
+  `Front Cover` — players tell the two apart. When appending, a front
+  cover, back cover or icon replaces the one there; booklet pages, band
+  pictures and the other types are many by nature and are added (the same
+  picture of the same type not twice). Before, a second booklet page
+  replaced the first.
+- Equal pictures share one buffer (`ArtworkPool`): the tracks of an album
+  usually carry the same cover, and 10,000 tracks with their own copy of a
+  300 KB cover were 3 GB. The artwork well compares by buffer identity first.
 - Remove, individually or all
 - **Apply to all selected tracks** — the most common case
 - Export as a file (the save panel suggests `cover.jpg` or `cover.png`); a
@@ -512,7 +570,22 @@ selection and applying do not know the difference.
 
 **Auth:** personal access token, entered by the user in the settings and
 stored in the **keychain**. No OAuth flow — needlessly complicated for a
-desktop app without a server.
+desktop app without a server. If the keychain refuses the token, the
+settings say so ("works until Sleeve quits") instead of claiming it stored.
+
+**429** is retried once, after `Retry-After` or ten seconds: the limiter
+keeps below the limit, but the limit counts per token, and another program
+with the same token counts too. A request replaced by a newer one is
+cancellation, not an error to show; switching the provider while a search
+runs starts the new search and drops the old answer (before, the search was
+skipped and the list stayed empty).
+
+**Index tracks.** Classical releases put a work as an `index` entry with
+its movements as `sub_tracks`, each with a position. Those become tracks
+named "Work: Movement", taking the work's artists if they have none; an
+index entry with a position of its own and movements without one is one
+track. Before, whole works were dropped. `+` in a search term is sent as
+`%2B`, not as a space.
 
 **Mandatory:** a User-Agent of its own in the format
 `Sleeve/1.0 +https://github.com/NeonRost/Sleeve`. Without it there is a 403.
@@ -594,6 +667,19 @@ releases. That is why the bytes are always straightened before decoding
 gone, cover as a 6 MB PNG, disc number missing. Sleeve already has the TagLib
 layer and writes the tags correctly after conversion. The pitch is not "can
 convert too" but "converts without you having to tag again afterwards".
+
+**Every tag comes along.** After ffmpeg (with its own copying off,
+`-map_metadata -1`) TagLib copies the source's whole PropertyMap onto the
+new file — ReplayGain, MusicBrainz IDs, BPM, ISRC, sort names, anything —
+and then writes Sleeve's fields as the editor has them, the empty ones
+included, so that a field cleared in the editor does not come back.
+Encoder details (`ENCODER`, `ENCODING`, iTunes' gapless and normalization
+data) are not copied: they describe the old file. TagLib maps the keys to
+the target (TXXX in ID3, freeform atoms in MP4). Checked for MP3, FLAC, AAC
+and Opus.
+
+**24 bit stays 24 bit.** WAV and AIFF are written as 16-bit PCM by default;
+for a source with more bits the encoder becomes `pcm_s24*` or `pcm_s32*`.
 
 **UI:** target format, quality/bitrate, target folder, file name template
 (the same pattern engine), checkbox "Keep originals". Switched off, a source goes to the **Trash**,
@@ -802,9 +888,48 @@ repeated up to `maxRetries`; two matching reads settle it, otherwise a
 bytewise majority decides. Positions without a real majority count as
 unresolved and go into the log.
 
-**Offset correction:** a drive with offset `o` delivers sample `p + o` when
-asked for position `p`. Whoever wants it from `start` asks from `start − o`.
-Before sector 0 and beyond the lead-out the gap is filled with silence.
+**Offset correction, with EAC's and AccurateRip's sign.** The value is the
+*correction* those tools list per drive model (AccurateRip: ASUS BW-16D1H(T)
+**+6**): a positive value reads later, towards the lead-out. The window for a
+track from `start` is read from `start + o`. Up to November 2026 Sleeve read
+from `start − o` — consistent with itself (the tests checked the size of the
+shift, not its direction) but the opposite of every published value: a rip
+with `+6` was 12 samples off. Before sector 0 and from the lead-out on the
+window is silence; the reader knows the lead-out (`CDReader.leadOutLBA`), so
+a positive offset no longer makes the last track fail.
+
+The direction could not be checked against the AccurateRip database on the
+test disc — it is not in it (`dBAR-014-001606df-…` → 404). The sign follows
+the documented convention; the one-sector and 6-sample checks in §6.4 now
+expect the later window.
+
+**Scratches cost their sectors, not the track.** A block the drive refuses
+(EIO) is read again sector by sector, each up to four times; a sector that
+does not come is silence, recorded as `UNREADABLE` in the log, and the track
+is not clean. More than 750 such sectors (ten seconds) give the track up.
+Before, one bad sector failed the whole track — or the whole image. The disc
+pulled out mid-read (ENXIO/ENODEV) is told apart and stops the rip.
+
+**C2 flags that a retry cleared do not count.** In secure mode a block whose
+reads agree without flags after a flagged first read is clean; the flags of
+the first read used to stay and mark the track "not clean".
+
+**Tracks are streamed to the file.** `CDReader.rip(track:writingTo:)` writes
+the WAV as it reads; the second pass only computes its checksum. A track was
+held two to three times in memory before — gigabytes for a single-track
+disc. Reading for a track and for an image is now the same code
+(`readContiguous`).
+
+**Enhanced CDs.** The TOC is parsed per session: the audio session's
+A0/A1/A2 make first track, last track and lead-out; the data session's
+track stays in the list, marked as data. Read across sessions, the second
+session overwrote the first, and the last audio track ran through the
+~11,400 sectors between the sessions that no drive delivers. FreeDB counts
+the whole disc (`discLeadOutLBA`), MusicBrainz the audio session.
+
+**Speed and sleep.** The drive is set back to its own speed after a rip or
+an image. Rip, image, copy, burn, conversion and saving hold off idle sleep
+(`KeepAwake`); the display may still go dark.
 
 ### 6.4 Verification
 
@@ -814,9 +939,10 @@ Two independent counter-checks, both in the test suite:
    tracks as AIFC (`sowt` = little-endian, payload from byte 2352). Read raw
    and read there, they match byte for byte — across the whole route
    including `RipEngine` and the WAV file.
-2. **Offset against itself.** An offset of exactly one sector has to give the
-   same as a read shifted by one sector; an offset of 6 samples has to hit
-   exactly 24 bytes. Both checked.
+2. **Offset against itself.** An offset of +1 sector has to give the same
+   as a read one sector later; +6 samples have to hit exactly 24 bytes later.
+   Both checked, as is reading past the lead-out (silence, not a failure) and
+   that a track streamed to a file carries the same bytes as one in memory.
 
 The checks on the device are skipped when no CD is inserted — they must not
 turn the suite red just because no drive is connected.
@@ -835,6 +961,11 @@ is decided by the setting:
 
 Checked on the test disc: ripped to FLAC, decodes bit-exact to what macOS
 reads from the same track (`MD5 2070ab26…` on both sides).
+
+**The cue sheet names the files that are there.** One `FILE` per track,
+each with `INDEX 01 00:00:00`, written after the conversion when the final
+names are known. It used to name a single `<Album>.wav` that a rip never
+writes.
 
 **Intermediates never touch the album folder.** When another format is
 wanted, the WAVs go to a folder of their own under the temporary directory
@@ -1164,9 +1295,19 @@ FLAC images are unpacked first — the drive only takes raw PCM — and
 unpacked to **raw samples (`-f s16le`), not to WAV**: ffmpeg's WAV header is
 not 44 bytes but 78, 104 or 140, depending on the tags of the source
 (measured), and every byte of header taken for audio shifts the whole disc.
-Only after unpacking is the length known, so the track lengths are computed
-again then; before that the last track counts as one sector, enough to show
-the list. The temporary file disappears afterwards.
+After unpacking the track lengths are computed again from what came out;
+for the sheet the FLAC stream header's sample count gives the length to the
+sector already (before, the last track counted as one sector, enough to show
+the list, and the length was wrong). The temporary file disappears afterwards.
+
+**What is in the burner.** A disc still spinning up and a drive another
+program is using are reported as such, not as "Insert a blank CD-R". A
+written CD-RW can be quick-erased in the sheet (`DRErase`, asks first). The
+**speed** is a picker with what the drive offers for the inserted disc
+(multiples of 1× = 176.4 KB/s), "Maximum" by default. Verifying is requested
+but DiscRecording verifies data discs only; for audio the check is reading
+the disc back. Erasing and the speed picker are built but have not run on a
+CD-RW yet.
 
 **WAV images are probed, not assumed.** `WAVProbe.locate` walks the RIFF
 chunks to the samples and checks the format: anything but 44.1 kHz, 16 bit,

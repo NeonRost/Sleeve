@@ -399,6 +399,64 @@ enum AppStateTests {
         equal(one.edited.artwork.count, 0, "all removed")
         state.trackList.selection = []
 
+        section("Booklet pages are many, front covers one")
+        let page2Data = picture + Data([0x00])   // other bytes, same picture for the eye
+        let page2 = Artwork(data: page2Data, mimeType: "image/jpeg", pictureType: .leafletPage)
+        state.applyArtwork(booklet, replacing: false)
+        state.applyArtwork(page2, replacing: false)
+        equal(one.edited.artwork.filter { $0.pictureType == .leafletPage }.count, 2,
+              "a second booklet page is added")
+        state.applyArtwork(page2, replacing: false)
+        equal(one.edited.artwork.filter { $0.pictureType == .leafletPage }.count, 2,
+              "the same page is not added twice")
+        state.applyArtwork(front, replacing: false)
+        state.applyArtwork(front, replacing: false)
+        equal(one.edited.artwork.filter { $0.pictureType == .frontCover }.count, 1,
+              "there is only ever one front cover")
+        one.revert()
+
+        section("Number fields keep their value on text that is no number")
+        var numbers = AudioTags()
+        numbers.year = 1999
+        numbers.setStringValue("199x", for: .year)
+        equal(numbers.year, 1999, "a typo does not clear the year")
+        numbers.setStringValue("2001-05-12", for: .year)
+        equal(numbers.year, 2001, "a date gives its year")
+        numbers.setStringValue("", for: .year)
+        equal(numbers.year, nil, "empty still clears")
+        numbers.trackNumber = 4
+        numbers.setStringValue("four", for: .trackNumber)
+        equal(numbers.trackNumber, 4, "a track number keeps its value")
+
+        section("Undo puts the file name back too")
+        let renamed = state.trackList.tracks[0]
+        let originalName = renamed.filename
+        renamed.proposedFilename = "Umbenannt – Größe." + renamed.url.pathExtension
+        renamed.set("Undo-Test", for: .comment)
+        await state.save()
+        equal(renamed.filename, "Umbenannt – Größe." + renamed.url.pathExtension, "renamed on saving")
+        await state.undoLastSave()
+        equal(renamed.filename, originalName, "the old name is back after undo")
+        check(FileManager.default.fileExists(atPath: renamed.url.path), "and the file is there")
+
+        section("Equal covers share one buffer")
+        let shareDir = workDir + "/share"
+        try FileManager.default.createDirectory(atPath: shareDir, withIntermediateDirectories: true)
+        for name in ["a.mp3", "b.mp3"] {
+            try FileManager.default.copyItem(atPath: root + "/TestFiles/01 - id3v2.3 - full.mp3",
+                                             toPath: shareDir + "/" + name)
+        }
+        await state.addFiles([URL(fileURLWithPath: shareDir)])
+        let pair = state.trackList.tracks.filter { $0.url.path.hasPrefix(shareDir) }
+        if pair.count == 2, let a = pair[0].edited.artwork.first?.data,
+           let b = pair[1].edited.artwork.first?.data {
+            let same = a.withUnsafeBytes { pa in b.withUnsafeBytes { pb in pa.baseAddress == pb.baseAddress } }
+            check(same, "two tracks with the same cover hold one copy of it")
+        } else {
+            check(false, "two tracks with a cover loaded")
+        }
+        state.trackList.tracks.removeAll { $0.url.path.hasPrefix(shareDir) }
+
         // MARK: - Errors do not abort the batch
 
         section("Error collection — one read-only file among three")

@@ -44,6 +44,9 @@ final class ReleaseSearch {
     /// Counts instead of toggling: a second click while the first is still
     /// loading must not switch the spinner off early.
     private var pending = 0
+    /// Counts the searches. A search whose answer arrives after a newer one
+    /// has started — from the other provider, say — is dropped.
+    private var generation = 0
     var isWorking: Bool { pending > 0 }
     private(set) var message: String?
 
@@ -77,11 +80,16 @@ final class ReleaseSearch {
         selectedID = nil
         release = nil
         message = nil
-        await search()
+        // Also while the old provider's search is still running: that one's
+        // answer is dropped (`generation`). Skipping here left the list empty.
+        await search(evenWhileWorking: true)
     }
 
-    func search() async {
-        guard canSearch else { return }
+    func search(evenWhileWorking: Bool = false) async {
+        guard !query.isEmpty, providerBlocker == nil, evenWhileWorking || !isWorking else { return }
+        generation += 1
+        let mine = generation
+        let searchedProvider = provider
         pending += 1
         message = nil
         release = nil
@@ -89,9 +97,14 @@ final class ReleaseSearch {
         defer { pending -= 1 }
 
         do {
-            results = try await service.search(query, using: provider)
+            let found = try await service.search(query, using: searchedProvider)
+            guard mine == generation else { return }
+            results = found
             if results.isEmpty { message = nothingFoundMessage }
+        } catch is CancellationError {
+            return
         } catch {
+            guard mine == generation else { return }
             results = []
             message = LookupService.describe(error)
         }
@@ -120,6 +133,8 @@ final class ReleaseSearch {
         do {
             let loaded = try await service.release(result)
             if selectedID == id { release = loaded }
+        } catch is CancellationError {
+            return
         } catch {
             if selectedID == id { message = LookupService.describe(error) }
         }

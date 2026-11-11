@@ -185,6 +185,14 @@ private struct StatusBar: View {
                     .frame(width: 160)
                 Text(state.progressLabel)
                     .foregroundStyle(.secondary)
+                // Reading or saving thousands of files takes a while; it can
+                // be stopped (saving after the file in hand).
+                Button {
+                    state.cancelWork()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .help("Stop")
             } else if state.isBusy {
                 ProgressView()
                     .controlSize(.small)

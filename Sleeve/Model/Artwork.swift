@@ -46,6 +46,15 @@ enum PictureType: UInt8, CaseIterable, Sendable, Hashable {
     case bandLogo           = 0x13
     case publisherLogo      = 0x14
 
+    /// Types a file has at most one of. ID3v2 even demands it for the two
+    /// icons; for the covers it is what every player assumes.
+    var isUnique: Bool {
+        switch self {
+        case .frontCover, .backCover, .fileIcon, .otherFileIcon: true
+        default: false
+        }
+    }
+
     /// Exactly the spelling `TagLib::Utils::pictureTypeToString` produces and
     /// `pictureTypeFromString` accepts again. Do not rephrase — TagLib matches
     /// on equality and otherwise silently falls back to `Other`.
@@ -134,6 +143,22 @@ struct Artwork: Equatable, Sendable, Identifiable {
             && lhs.description == rhs.description
     }
 
+    /// Whether two lists hold the same pictures. Pictures that share one
+    /// buffer are equal without looking at their bytes — see `ArtworkPool`.
+    static func sameList(_ a: [Artwork], _ b: [Artwork]) -> Bool {
+        guard a.count == b.count else { return false }
+        return zip(a, b).allSatisfy { x, y in
+            x.pictureType == y.pictureType && x.mimeType == y.mimeType
+                && x.description == y.description
+                && (sharesStorage(x.data, y.data) || x.data == y.data)
+        }
+    }
+
+    private static func sharesStorage(_ a: Data, _ b: Data) -> Bool {
+        guard a.count == b.count else { return false }
+        return a.withUnsafeBytes { pa in b.withUnsafeBytes { pb in pa.baseAddress == pb.baseAddress } }
+    }
+
     /// Moves the front cover to the first position.
     ///
     /// Players usually take the **first** embedded picture; only some of
@@ -172,6 +197,36 @@ struct Artwork: Equatable, Sendable, Identifiable {
             return "image/webp"
         default:
             return "application/octet-stream"
+        }
+    }
+}
+
+/// Lets equal pictures share one buffer.
+///
+/// Every track of an album usually carries the same cover. Read file by
+/// file, each brought its own copy: 10,000 tracks with a 300 KB cover were
+/// 3 GB in memory. Through the pool, the tracks of an album hold the same
+/// `Data` — one copy per distinct picture.
+struct ArtworkPool {
+    private var byLength: [Int: [Data]] = [:]
+
+    init(seededWith tracks: [[Artwork]] = []) {
+        for list in tracks { for artwork in list { _ = share(artwork.data) } }
+    }
+
+    /// `data` itself if the pool has nothing equal yet, otherwise the equal
+    /// buffer already there.
+    mutating func share(_ data: Data) -> Data {
+        if let match = byLength[data.count]?.first(where: { $0 == data }) { return match }
+        byLength[data.count, default: []].append(data)
+        return data
+    }
+
+    mutating func share(_ artwork: [Artwork]) -> [Artwork] {
+        artwork.map { picture in
+            var shared = picture
+            shared.data = share(picture.data)
+            return shared
         }
     }
 }

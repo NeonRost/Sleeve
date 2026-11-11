@@ -124,7 +124,11 @@ extension AppState {
             .appendingPathComponent("\(Self.copyFolderPrefix)\(UUID().uuidString)", isDirectory: true)
 
         copyTask = Task { [ripEngine] in
-            defer { copyTask = nil }
+            let awake = KeepAwake("Copying a CD")
+            defer {
+                withExtendedLifetime(awake) {}
+                copyTask = nil
+            }
             do {
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             } catch {

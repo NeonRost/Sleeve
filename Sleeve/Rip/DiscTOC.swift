@@ -59,8 +59,12 @@ struct DiscTrack: Equatable, Sendable, Identifiable {
 struct DiscTOC: Equatable, Sendable {
     var firstTrack: Int
     var lastTrack: Int
-    /// Start sector of the lead-out, i.e. the end of the last track.
+    /// Start sector of the lead-out of the audio session, i.e. the end of
+    /// the last audio track and of what can be read as audio.
     var leadOutLBA: Int
+    /// The lead-out of the whole disc. On an Enhanced CD the data session
+    /// lies behind `leadOutLBA`; FreeDB counts it, MusicBrainz does not.
+    var discLeadOutLBA: Int
     var tracks: [DiscTrack]
     var mcn: String?
 
@@ -78,6 +82,12 @@ struct DiscTOC: Equatable, Sendable {
     ///
     /// Of interest are the special points 0xA0 (first track), 0xA1 (last) and
     /// 0xA2 (lead-out), plus points 1…99 for the tracks themselves.
+    ///
+    /// **Per session.** An Enhanced CD carries the audio in session 1 and a
+    /// data track in session 2, each with its own A0/A1/A2. Read across
+    /// sessions, the second overwrote the first: the last audio track then
+    /// ran through the gap between the sessions — some 11,400 sectors no
+    /// drive delivers — and its rip failed.
     init?(rawTOC data: Data) {
         let bytes = [UInt8](data)
         guard bytes.count >= 4 else { return nil }
@@ -86,14 +96,17 @@ struct DiscTOC: Equatable, Sendable {
         let declared = (Int(bytes[0]) << 8 | Int(bytes[1])) + 2
         let limit = min(declared, bytes.count)
 
-        var first = 0, last = 0, leadOut = -1
-        var starts: [Int: (lba: Int, isData: Bool)] = [:]
+        var firstBySession: [Int: Int] = [:]
+        var lastBySession: [Int: Int] = [:]
+        var leadOutBySession: [Int: Int] = [:]
+        var starts: [Int: (lba: Int, isData: Bool, session: Int)] = [:]
 
         var i = 4
         while i + 11 <= limit {
             let d = Array(bytes[i..<(i + 11)])
             i += 11
 
+            let session = Int(d[0])
             let control = d[1] & 0x0F
             let point = d[3]
             // The P address is stored as minute/second/frame in the last
@@ -102,43 +115,61 @@ struct DiscTOC: Equatable, Sendable {
                 + Int(d[10]) - CDGeometry.leadInSectors
 
             switch point {
-            case 0xA0: first = Int(d[8])
-            case 0xA1: last = Int(d[8])
-            case 0xA2: leadOut = pLBA
+            case 0xA0: firstBySession[session] = Int(d[8])
+            case 0xA1: lastBySession[session] = Int(d[8])
+            case 0xA2: leadOutBySession[session] = pLBA
             case 1...99:
                 // Bit 2 of the control nibble tells data from audio.
-                starts[Int(point)] = (pLBA, control & 0x04 != 0)
+                starts[Int(point)] = (pLBA, control & 0x04 != 0, session)
             default: break
             }
         }
 
-        guard first > 0, last >= first, leadOut > 0, !starts.isEmpty else { return nil }
+        guard let firstSession = firstBySession.keys.min(),
+              let first = firstBySession[firstSession],
+              let lastOverall = lastBySession.values.max(),
+              let finalSession = leadOutBySession.keys.max(),
+              let discLeadOut = leadOutBySession[finalSession],
+              first > 0, lastOverall >= first, discLeadOut > 0, !starts.isEmpty
+        else { return nil }
 
-        // A track's length only follows from the start of the next one.
+        // A track's length only follows from the start of the next one — in
+        // the same session. The last track of a session ends at that
+        // session's lead-out.
         var built: [DiscTrack] = []
-        for number in first...last {
+        for number in first...lastOverall {
             guard let entry = starts[number] else { continue }
-            let next = starts[number + 1]?.lba ?? leadOut
+            let end: Int
+            if let next = starts[number + 1], next.session == entry.session {
+                end = next.lba
+            } else {
+                end = leadOutBySession[entry.session] ?? discLeadOut
+            }
             built.append(DiscTrack(number: number,
                                    startLBA: entry.lba,
-                                   sectorCount: max(0, next - entry.lba),
+                                   sectorCount: max(0, end - entry.lba),
                                    isData: entry.isData))
         }
         guard !built.isEmpty else { return nil }
 
+        // What counts as "the disc" for audio is the first session: its last
+        // track and its lead-out. The data session's tracks stay in `tracks`,
+        // marked as data, so that they can be shown and refused.
         self.firstTrack = first
-        self.lastTrack = last
-        self.leadOutLBA = leadOut
+        self.lastTrack = lastBySession[firstSession] ?? lastOverall
+        self.leadOutLBA = leadOutBySession[firstSession] ?? discLeadOut
+        self.discLeadOutLBA = discLeadOut
         self.tracks = built
         self.mcn = nil
     }
 
     /// Direct route for tests.
     init(firstTrack: Int, lastTrack: Int, leadOutLBA: Int,
-         tracks: [DiscTrack], mcn: String? = nil) {
+         tracks: [DiscTrack], mcn: String? = nil, discLeadOutLBA: Int? = nil) {
         self.firstTrack = firstTrack
         self.lastTrack = lastTrack
         self.leadOutLBA = leadOutLBA
+        self.discLeadOutLBA = discLeadOutLBA ?? leadOutLBA
         self.tracks = tracks
         self.mcn = mcn
     }
@@ -182,9 +213,10 @@ struct DiscTOC: Equatable, Sendable {
             }
         }
         let firstStart = tracks.first?.startLBA ?? 0
-        let total = (leadOutLBA + CDGeometry.leadInSectors) / CDGeometry.sectorsPerSecond
+        let total = (discLeadOutLBA + CDGeometry.leadInSectors) / CDGeometry.sectorsPerSecond
             - (firstStart + CDGeometry.leadInSectors) / CDGeometry.sectorsPerSecond
-        let value = (UInt32(checksum % 255) << 24) | (UInt32(total) << 8) | UInt32(lastTrack & 0xFF)
+        let value = (UInt32(checksum % 255) << 24) | (UInt32(total) << 8)
+            | UInt32(tracks.count & 0xFF)
         return String(format: "%08x", value)
     }
 
@@ -193,7 +225,9 @@ struct DiscTOC: Equatable, Sendable {
     var musicBrainzTOCParameter: String {
         var parts = [String(firstTrack), String(lastTrack),
                      String(leadOutLBA + CDGeometry.leadInSectors)]
-        parts += tracks.map { String($0.startLBA + CDGeometry.leadInSectors) }
+        // The audio session only, as for the disc ID.
+        parts += tracks.filter { $0.number <= lastTrack }
+            .map { String($0.startLBA + CDGeometry.leadInSectors) }
         return parts.joined(separator: "+")
     }
 }

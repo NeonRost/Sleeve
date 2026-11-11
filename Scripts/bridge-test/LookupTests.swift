@@ -128,6 +128,27 @@ enum LookupTests {
         check(!tricky.playableTracks.contains { $0.title == "Medley" },
               "index entry without a position skipped")
 
+        // A classical release: the work is an index entry, its movements
+        // are sub-tracks with positions of their own.
+        let classical = try JSONDecoder().decode(DiscogsRelease.self, from: Data("""
+            {"id": 1, "title": "Sinfonien", "tracklist": [
+              {"position": "1", "type_": "track", "title": "Ouvertüre"},
+              {"position": "", "type_": "index", "title": "Sinfonie Nr. 5",
+               "artists": [{"name": "Wiener Philharmoniker", "anv": "", "join": ""}],
+               "sub_tracks": [
+                 {"position": "2", "type_": "track", "title": "Allegro con brio"},
+                 {"position": "3", "type_": "track", "title": "Andante con moto"}]},
+              {"position": "4", "type_": "index", "title": "Peter und der Wolf",
+               "sub_tracks": [{"position": "", "type_": "track", "title": "Erzählung"}]}
+            ]}
+            """.utf8))
+        equal(classical.playableTracks.map(\.title),
+              ["Ouvertüre", "Sinfonie Nr. 5: Allegro con brio", "Sinfonie Nr. 5: Andante con moto",
+               "Peter und der Wolf"],
+              "movements of a work are tracks, named \"Work: Movement\"")
+        equal(classical.playableTracks[1].artistName, "Wiener Philharmoniker",
+              "a movement without artists takes the work's")
+
         let remotePreview = tricky.asLookupRelease().tracks
         equal(tricky.albumArtist, "Nirvana & Die Ärzte, Queen Featuring",
               "several artists joined, suffix \"(2)\" removed")

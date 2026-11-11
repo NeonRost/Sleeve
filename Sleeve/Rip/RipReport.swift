@@ -33,11 +33,12 @@ struct RipReport: Sendable {
         var verificationCRC: UInt32?
         var suspiciousSectors: [Int]
         var c2ErrorSectors: [Int]
+        var unreadableSectors: [Int] = []
         var retryCount: Int
         var isrc: String?
 
         var isAccurate: Bool {
-            suspiciousSectors.isEmpty && c2ErrorSectors.isEmpty
+            suspiciousSectors.isEmpty && c2ErrorSectors.isEmpty && unreadableSectors.isEmpty
                 && (verificationCRC == nil || verificationCRC == crc)
         }
 
@@ -47,6 +48,7 @@ struct RipReport: Sendable {
             self.verificationCRC = result.verificationCRC
             self.suspiciousSectors = result.suspiciousSectors
             self.c2ErrorSectors = result.c2ErrorSectors
+            self.unreadableSectors = result.unreadableSectors
             self.retryCount = result.retryCount
             self.isrc = result.track.isrc
         }
@@ -108,6 +110,10 @@ struct RipReport: Sendable {
                 lines.append("    UNRESOLVED       \(entry.suspiciousSectors.count) sectors from "
                     + "\(entry.suspiciousSectors[0])")
             }
+            if !entry.unreadableSectors.isEmpty {
+                lines.append("    UNREADABLE       \(entry.unreadableSectors.count) sectors from "
+                    + "\(entry.unreadableSectors[0]), filled with silence")
+            }
             lines.append("    \(entry.isAccurate ? "no problems" : "NOT READ CLEANLY")")
             lines.append("")
         }
@@ -152,6 +158,28 @@ struct RipReport: Sendable {
             }
             if let isrc = track.isrc { lines.append("    ISRC \(isrc)") }
             lines.append("    INDEX 01 \(Self.msf(track.startLBA))")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// The cue sheet of a rip into one file per track. Each track starts at
+    /// the beginning of its own file; the pause before a track is at the end
+    /// of the previous file, where the TOC's track boundaries put it.
+    func cueSheet(albumTitle: String?, albumArtist: String?,
+                  trackFiles: [Int: String], titles: [Int: String] = [:]) -> String {
+        var lines: [String] = []
+        if let mcn = toc.mcn { lines.append("CATALOG \(mcn)") }
+        if let albumArtist { lines.append("PERFORMER \"\(escape(albumArtist))\"") }
+        if let albumTitle { lines.append("TITLE \"\(escape(albumTitle))\"") }
+        for track in toc.tracks where !track.isData {
+            guard let file = trackFiles[track.number] else { continue }
+            lines.append("FILE \"\(escape(file))\" WAVE")
+            lines.append("  TRACK \(String(format: "%02d", track.number)) AUDIO")
+            if let title = titles[track.number], !title.isEmpty {
+                lines.append("    TITLE \"\(escape(title))\"")
+            }
+            if let isrc = track.isrc { lines.append("    ISRC \(isrc)") }
+            lines.append("    INDEX 01 00:00:00")
         }
         return lines.joined(separator: "\n")
     }

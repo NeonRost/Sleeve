@@ -73,6 +73,9 @@ struct DiscogsTrack: Decodable, Sendable, Hashable {
     var title: String?
     var duration: String?
     var artists: [DiscogsArtist]?
+    /// The movements of an index entry — "Symphony No. 5" with "I. Allegro
+    /// con brio" and so on beneath it, each with a position of its own.
+    var sub_tracks: [DiscogsTrack]?
 
     /// Track lists contain headings and index entries without a position.
     /// Those have to go before matching (spec §4.6).
@@ -80,6 +83,30 @@ struct DiscogsTrack: Decodable, Sendable, Hashable {
         let hasPosition = !(position ?? "").trimmingCharacters(in: .whitespaces).isEmpty
         let kind = (type_ ?? "track").lowercased()
         return kind == "track" && hasPosition
+    }
+
+    /// What this entry stands for on the disc. An index entry is its
+    /// movements, named "Work: Movement" — dropping it, as before, lost
+    /// whole works of classical releases. An index entry that has a
+    /// position itself and movements without one is a single track.
+    var playable: [DiscogsTrack] {
+        let kind = (type_ ?? "track").lowercased()
+        guard kind == "index" else { return isPlayable ? [self] : [] }
+        let parentTitle = (title ?? "").trimmingCharacters(in: .whitespaces)
+        let movements = (sub_tracks ?? []).filter(\.isPlayable).map { sub -> DiscogsTrack in
+            var track = sub
+            let own = (sub.title ?? "").trimmingCharacters(in: .whitespaces)
+            track.title = parentTitle.isEmpty ? own
+                : own.isEmpty ? parentTitle : "\(parentTitle): \(own)"
+            if track.artists?.isEmpty ?? true { track.artists = artists }
+            return track
+        }
+        if !movements.isEmpty { return movements }
+        let hasPosition = !(position ?? "").trimmingCharacters(in: .whitespaces).isEmpty
+        guard hasPosition else { return [] }
+        var single = self
+        single.type_ = "track"
+        return [single]
     }
 
     var artistName: String? { DiscogsArtist.combined(artists) }
@@ -154,7 +181,7 @@ struct DiscogsRelease: Decodable, Sendable {
     }
 
     /// Only the real pieces, in order.
-    var playableTracks: [DiscogsTrack] { (tracklist ?? []).filter(\.isPlayable) }
+    var playableTracks: [DiscogsTrack] { (tracklist ?? []).flatMap(\.playable) }
 
     var labelSummary: String? {
         guard let label = labels?.first else { return nil }

@@ -33,6 +33,8 @@ struct ConversionPlanner: Sendable {
         var trackID: UUID
         var url: URL
         var tags: AudioTags
+        /// Of the source; 0 when unknown or not applicable.
+        var bitsPerSample: Int = 0
     }
 
     struct Job: Sendable, Equatable {
@@ -50,9 +52,16 @@ struct ConversionPlanner: Sendable {
 
     // MARK: - Arguments
 
-    func arguments(source: URL, destination: URL) throws -> [String] {
-        guard let encoder = tool.encoder(for: settings.format) else {
+    func arguments(source: URL, destination: URL, bitsPerSample: Int = 0) throws -> [String] {
+        guard var encoder = tool.encoder(for: settings.format) else {
             throw PlanError.unsupportedFormat(settings.format)
+        }
+        // WAV and AIFF are written as 16 bit by default. A 24-bit source
+        // must not lose its resolution on the way into an uncompressed
+        // format — that would be a lossy conversion nobody asked for.
+        if bitsPerSample > 16, encoder.hasPrefix("pcm_s16") {
+            let depth = bitsPerSample > 24 ? "32" : "24"
+            encoder = encoder.replacingOccurrences(of: "s16", with: "s\(depth)")
         }
 
         var args = [
@@ -112,7 +121,8 @@ struct ConversionPlanner: Sendable {
                 trackID: input.trackID,
                 source: input.url,
                 destination: destination,
-                arguments: try arguments(source: input.url, destination: destination),
+                arguments: try arguments(source: input.url, destination: destination,
+                                         bitsPerSample: input.bitsPerSample),
                 tags: input.tags
             )
         }

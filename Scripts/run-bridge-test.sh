@@ -14,11 +14,18 @@ VENDOR="$ROOT/Vendor/taglib"
 CDSHIM="$ROOT/Vendor/cdshim"
 OUT="${TMPDIR:-/tmp}/sleeve-bridge-test"
 
+# Sleeve's C++ addition to the TagLib binding, compiled as the app does.
+SHIM_OBJ="${TMPDIR:-/tmp}/sleeve-taglib-shim.o"
+clang++ -c -std=c++17 -O1 -target arm64-apple-macos14.0 \
+  -o "$SHIM_OBJ" "$ROOT/Sleeve/TagEngine/SleeveTagLibShim.cpp"
+
 swiftc -g \
   -swift-version 6 \
   -target arm64-apple-macos14.0 \
   -I "$VENDOR" \
   -I "$CDSHIM" \
+  -I "$ROOT/Vendor/taglibshim" \
+  "$SHIM_OBJ" \
   -L "$VENDOR/lib" \
   -ltag_c -ltag -lz -lc++ \
   -o "$OUT" \
@@ -71,6 +78,7 @@ swiftc -g \
   "$ROOT/Sleeve/Lookup/LookupSession.swift" \
   "$ROOT/Sleeve/Lookup/DiscLookupSession.swift" \
   "$ROOT/Sleeve/Model/TrackListModel.swift" \
+  "$ROOT/Sleeve/App/KeepAwake.swift" \
   "$ROOT/Sleeve/App/AppState.swift" \
   "$ROOT/Sleeve/App/AppState+Convert.swift" \
   "$ROOT/Sleeve/App/AppState+Operations.swift" \

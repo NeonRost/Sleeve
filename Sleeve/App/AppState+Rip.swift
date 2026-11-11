@@ -341,6 +341,8 @@ extension AppState {
         // The drive the shown disc came from — not whichever is first now.
         let drive = disc.drive.bsdName
         ripTask = Task { [ripEngine] in
+            let awake = KeepAwake("Ripping a CD")
+            defer { withExtendedLifetime(awake) {} }
             var produced: [Int: URL] = [:]
             for await event in ripEngine.rip(tracks: numbers, to: workFolder,
                                              names: names, settings: settings,
@@ -390,6 +392,11 @@ extension AppState {
             // shift every tag onto its neighbour.
             await addFiles(numbers.compactMap { final[$0] })
             applyRippedTags(final, wanted: wanted)
+            // Only now are the names of the files known that the cue sheet
+            // points to.
+            if let report = ripReport, settings.writesCueSheet, !final.isEmpty {
+                writeCueSheet(report, files: final, to: folder)
+            }
 
             if settings.ejectsWhenDone, ripFailures.isEmpty, !stopped {
                 ripEngine.eject(bsdName: disc.drive.bsdName)
@@ -493,7 +500,7 @@ extension AppState {
 
     // MARK: - Finishing
 
-    /// Put log and cue sheet next to the files.
+    /// Put the log next to the files.
     private func writeSidecars(_ report: RipReport, to folder: URL) {
         let album = discAlbum, artist = discArtist
         let name = sanitizedAlbumFolderName
@@ -503,13 +510,19 @@ extension AppState {
             try? text.write(to: folder.appendingPathComponent("\(name).log"),
                             atomically: true, encoding: .utf8)
         }
-        if ripSettings.writesCueSheet {
-            let cue = report.cueSheet(albumTitle: album.isEmpty ? nil : album,
-                                      albumArtist: artist.isEmpty ? nil : artist,
-                                      audioFileName: "\(name).wav")
-            try? cue.write(to: folder.appendingPathComponent("\(name).cue"),
-                           atomically: true, encoding: .utf8)
-        }
+    }
+
+    /// A cue sheet for the files of a rip: one `FILE` per track, each named
+    /// as it really is in the folder. The earlier sheet named one
+    /// `<Album>.wav` that a rip never writes.
+    private func writeCueSheet(_ report: RipReport, files: [Int: URL], to folder: URL) {
+        let album = discAlbum, artist = discArtist
+        let cue = report.cueSheet(albumTitle: album.isEmpty ? nil : album,
+                                  albumArtist: artist.isEmpty ? nil : artist,
+                                  trackFiles: files.mapValues(\.lastPathComponent),
+                                  titles: discTitles)
+        try? cue.write(to: folder.appendingPathComponent("\(sanitizedAlbumFolderName).cue"),
+                       atomically: true, encoding: .utf8)
     }
 
     /// Enters the details into the list. When converting, ffmpeg has already

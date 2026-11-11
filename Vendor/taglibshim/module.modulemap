@@ -1,0 +1,7 @@
+// Sleeve's own addition to the TagLib C binding — see SleeveTagLibShim.h.
+// The implementation is compiled with the app (Sleeve/TagEngine/
+// SleeveTagLibShim.cpp) and with the test suite.
+module CTagLibShim {
+    header "SleeveTagLibShim.h"
+    export *
+}

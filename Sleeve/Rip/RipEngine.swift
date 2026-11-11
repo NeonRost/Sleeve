@@ -147,8 +147,11 @@ actor RipEngine {
             effective.c2WasRequestedButUnavailable = true
         }
 
-        let reader = CDReader(drive: drive, settings: effective)
+        let reader = CDReader(drive: drive, settings: effective, leadOutLBA: toc.leadOutLBA)
         var entries: [RipReport.Entry] = []
+        // Back to the drive's own speed afterwards — a limit set for a
+        // careful rip should not stay for the next disc in the Finder.
+        defer { drive.setSpeed(multiplier: nil) }
 
         for number in numbers {
             guard !Task.isCancelled else { break }
@@ -157,23 +160,32 @@ actor RipEngine {
 
             continuation.yield(.trackStarted(track: number))
             do {
-                let result = try reader.rip(track: track) { progress in
-                    if case let .sector(done, total) = progress, total > 0 {
-                        continuation.yield(.trackProgress(
-                            track: number, fraction: Double(done) / Double(total)))
-                    }
-                }
                 let base = names[number] ?? String(format: "%02d", number)
                 // Never over a file that is already there — neither an
                 // earlier rip nor another track of this one whose pattern
                 // renders to the same name.
                 let url = ConversionQueue.freePath(
                     for: destination.appendingPathComponent("\(base).wav"))
-                try WAVWriter.write(pcm: result.audio, to: url)
+                // Straight into the file: a track is never held in memory.
+                let result = try reader.rip(track: track, writingTo: url) { progress in
+                    if case let .sector(done, total) = progress, total > 0 {
+                        continuation.yield(.trackProgress(
+                            track: number, fraction: Double(done) / Double(total)))
+                    }
+                }
 
                 let entry = RipReport.Entry(result: result)
                 entries.append(entry)
                 continuation.yield(.trackFinished(entry, url: url))
+            } catch is CancellationError {
+                break
+            } catch CDDriveError.noDisc {
+                continuation.yield(.trackFailed(track: number,
+                    reason: String(localized: "The disc was removed.")))
+                break
+            } catch CDDriveError.unreadable {
+                continuation.yield(.trackFailed(track: number,
+                    reason: String(localized: "Too many sectors could not be read — the disc is too damaged here.")))
             } catch {
                 continuation.yield(.trackFailed(track: number, reason: "\(error)"))
             }
@@ -362,7 +374,8 @@ extension RipEngine {
             return
         }
 
-        let reader = CDReader(drive: drive, settings: effective)
+        let reader = CDReader(drive: drive, settings: effective, leadOutLBA: toc.leadOutLBA)
+        defer { drive.setSpeed(multiplier: nil) }
         var summary = CDReader.ReadSummary()
         do {
             // The WAV header comes first and needs the length — we know it

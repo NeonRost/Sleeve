@@ -112,6 +112,8 @@ struct ConversionQueue: Sendable {
             result = try await ProcessRunner.run(planner.tool.url, arguments: arguments)
         } catch ProcessRunner.RunError.launchFailed {
             return fail(.ffmpegMissing)
+        } catch ProcessRunner.RunError.stalled {
+            return fail(.ffmpegFailed(String(localized: "ffmpeg stopped responding and was ended.")))
         } catch {
             return fail(.ffmpegFailed(String(localized: "Cancelled")))
         }
@@ -131,8 +133,15 @@ struct ConversionQueue: Sendable {
                                      description: $0.description, options: artworkOptions)
         }
         do {
-            // Every field that has a value at all — the target is fresh and has
-            // no tags yet, `touchedFields` does not apply here.
+            // First everything the source carries, also what Sleeve has no
+            // field for (ReplayGain, MusicBrainz IDs, BPM, ISRC, sort names …).
+            // ffmpeg's own copying stays off (`-map_metadata -1`): across
+            // formats it mangles keys (spec §5).
+            try? TagLibBridge.copyTags(from: job.source, to: temporary)
+            // Then Sleeve's fields as the editor has them — every one, also
+            // the empty ones, so that a field cleared in the editor does not
+            // come back from the source. `touchedFields` does not apply here:
+            // the target is a new file.
             try TagLibBridge.write(tags, fields: Set(TagField.allCases), to: temporary)
         } catch {
             return fail(.taggingFailed)

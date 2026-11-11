@@ -175,6 +175,39 @@ enum RipTests {
         equal(toc.tracks.reduce(0) { $0 + $1.sectorCount }, 236218,
               "track lengths add up to the whole disc")
 
+        // An Enhanced CD: two audio tracks in session 1, a data track in
+        // session 2, each session with its own A0/A1/A2.
+        func msf(_ lba: Int) -> [UInt8] {
+            let f = lba + 150
+            return [UInt8(f / 4500), UInt8(f / 75 % 60), UInt8(f % 75)]
+        }
+        func entry(_ session: UInt8, _ control: UInt8, _ point: UInt8, _ p: [UInt8]) -> [UInt8] {
+            [session, 0x10 | control, 0, point, 0, 0, 0, 0] + p
+        }
+        var enhanced: [UInt8] = []
+        enhanced += entry(1, 0, 0xA0, [1, 0, 0])
+        enhanced += entry(1, 0, 0xA1, [2, 0, 0])
+        enhanced += entry(1, 0, 0xA2, msf(30000))
+        enhanced += entry(1, 0, 1, msf(0))
+        enhanced += entry(1, 0, 2, msf(15000))
+        enhanced += entry(2, 4, 0xA0, [3, 0, 0])
+        enhanced += entry(2, 4, 0xA1, [3, 0, 0])
+        enhanced += entry(2, 4, 0xA2, msf(50000))
+        enhanced += entry(2, 4, 3, msf(41400))
+        let length = enhanced.count + 2
+        let raw = Data([UInt8(length >> 8), UInt8(length & 0xFF), 1, 2] + enhanced)
+        if let cdExtra = DiscTOC(rawTOC: raw) {
+            equal(cdExtra.lastTrack, 2, "Enhanced CD: the last track is the last audio track")
+            equal(cdExtra.leadOutLBA, 30000, "Enhanced CD: the audio ends at session 1's lead-out")
+            equal(cdExtra.discLeadOutLBA, 50000, "Enhanced CD: the disc ends behind the data")
+            equal(cdExtra.audioTracks.count, 2, "Enhanced CD: two audio tracks")
+            equal(cdExtra.tracks.last?.isData, true, "Enhanced CD: track 3 is data")
+            equal(cdExtra.audioTracks.last?.sectorCount, 15000,
+                  "Enhanced CD: track 2 does not run through the gap between the sessions")
+        } else {
+            check(false, "an Enhanced CD's TOC can be parsed")
+        }
+
         check(DiscTOC(rawTOC: Data()) == nil, "an empty TOC is rejected")
         check(DiscTOC(rawTOC: Data([0, 4, 1, 1])) == nil, "a TOC without tracks is rejected")
     }
@@ -433,20 +466,52 @@ enum RipTests {
         // The sharpest check of the offset correction: an offset of exactly
         // one sector has to give the same as a piece shifted by one sector. If
         // that holds, the arithmetic is right — not just the length.
+        // The sign is EAC's and AccurateRip's: a positive correction reads
+        // later, towards the lead-out.
         settings.readOffset = CDGeometry.samplesPerSector
         let shifted = try CDReader(drive: drive, settings: settings).rip(track: piece)
-        let expectedShift = try drive.read(lba: sliceStart - 1, count: sliceSectors, withC2: false)
+        let expectedShift = try drive.read(lba: sliceStart + 1, count: sliceSectors, withC2: false)
         equal(shifted.audio, expectedShift.audio,
-              "an offset of one whole sector shifts the window correctly")
+              "an offset of +1 sector reads one sector later")
         check(shifted.audio != ripped.audio, "the shifted window really is different audio")
 
-        // And an odd offset: 6 samples are 24 bytes.
+        // And an odd offset: +6 samples are 24 bytes later.
         settings.readOffset = 6
         let odd = try CDReader(drive: drive, settings: settings).rip(track: piece)
-        let wide = try drive.read(lba: sliceStart - 1, count: sliceSectors + 1, withC2: false)
-        let expectedOdd = wide.audio.subdata(
-            in: (2352 - 24)..<(2352 - 24 + sliceSectors * 2352))
-        equal(odd.audio, expectedOdd, "an offset of 6 samples is exact to the byte")
+        let wide = try drive.read(lba: sliceStart, count: sliceSectors + 1, withC2: false)
+        let expectedOdd = wide.audio.subdata(in: 24..<(24 + sliceSectors * 2352))
+        equal(odd.audio, expectedOdd, "an offset of +6 samples is exact to the byte")
+
+        // Streaming a track into a file gives the same bytes as in memory.
+        let streamedURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sleeve-rip-stream-\(UUID().uuidString).wav")
+        defer { try? FileManager.default.removeItem(at: streamedURL) }
+        let toFile = try CDReader(drive: drive, settings: settings)
+            .rip(track: piece, writingTo: streamedURL)
+        let fileData = try Data(contentsOf: streamedURL)
+        check(toFile.audio.isEmpty, "a track written to a file is not held in memory")
+        equal(Data(fileData.dropFirst(44)), odd.audio, "the file carries the same audio")
+        equal(fileData.count, 44 + sliceSectors * 2352, "and the header announces its length")
+
+        // The last track: with a positive offset the window reaches past the
+        // lead-out. Those samples are silence, not a failed read.
+        if let last = toc.audioTracks.last {
+            var edge = RipSettings()
+            edge.mode = .burst
+            edge.readOffset = 1000
+            let tail = DiscTrack(number: last.number, startLBA: toc.leadOutLBA - 20,
+                                 sectorCount: 20, isData: false)
+            do {
+                let result = try CDReader(drive: drive, settings: edge, leadOutLBA: toc.leadOutLBA)
+                    .rip(track: tail)
+                equal(result.audio.count, 20 * 2352, "reading past the lead-out keeps the length")
+                check(result.audio.suffix(1000 * 4).allSatisfy { $0 == 0 },
+                      "what lies past the lead-out is silence")
+                check(result.unreadableSectors.isEmpty, "and does not count as unreadable")
+            } catch {
+                check(false, "reading past the lead-out does not fail", detail: "\(error)")
+            }
+        }
 
         // Burst has to deliver the same as secure as long as the disc is clean.
         settings.readOffset = 0

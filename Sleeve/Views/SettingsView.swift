@@ -51,9 +51,16 @@ private struct DiscogsSection: View {
             if state.hasDiscogsToken {
                 LabeledContent("Token") {
                     HStack {
-                        Label("Stored in your keychain", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .font(.callout)
+                        if state.tokenKeychainFailed {
+                            Label("The keychain refused the token — it works until Sleeve quits",
+                                  systemImage: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .font(.callout)
+                        } else {
+                            Label("Stored in your keychain", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.callout)
+                        }
                         Spacer()
                         Button("Remove") {
                             Task { await state.updateDiscogsToken(nil) }

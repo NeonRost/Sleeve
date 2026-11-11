@@ -188,6 +188,14 @@ final class AppState {
     var burnStop: CDBurner.Stop?
     /// Stop was asked for and the drive is still aborting.
     var isStoppingBurn = false
+    /// What the drive offers for the inserted disc, as multiples of CD speed.
+    var burnSpeeds: [Int] = []
+    /// The chosen one; `nil` is as fast as the drive goes.
+    var burnSpeed: Int?
+    /// A written CD-RW is in the burner; it can be erased.
+    var burnMediaIsErasable = false
+    var isErasingDisc = false
+    var isConfirmingErase = false
     var isConfirmingBurn = false
 
     // MARK: - Copying a disc (§6.11)
@@ -305,8 +313,14 @@ final class AppState {
     /// audio data when a tag grows — quitting in the middle of that leaves a
     /// broken file, so quitting waits for this (see `AppDelegate`).
     var isWritingTags = false
-    /// Set when quitting: the write loops stop after the file in hand.
+    /// The keychain refused the Discogs token; it is used for this session only.
+    var tokenKeychainFailed = false
+    /// Set when quitting or by Cancel: the loops for reading, saving and
+    /// undoing stop after the file in hand.
     var stopsAfterCurrentFile = false
+    /// The analysis of the splitter's source, so that a newer file can
+    /// replace it instead of racing it.
+    var splitLoadTask: Task<Void, Never>?
     var progress: Double = 0
     var progressLabel: LocalizedStringKey = ""
     /// Progress only from this count on (spec §4.1).
@@ -330,6 +344,8 @@ final class AppState {
         let trackID: TrackFile.ID
         let tags: AudioTags
         let fields: Set<TagField>
+        /// The file name before the save, when the save renamed the file.
+        var formerFilename: String?
     }
 
     private var undoStack: [UndoEntry] = []
@@ -359,26 +375,35 @@ final class AppState {
 
     // MARK: - Loading files
 
+    /// Reads files into the list. While other work runs, this waits for it
+    /// instead of doing nothing: dropped files, a finished rip or the pieces
+    /// of a split would otherwise silently not appear.
     func addFiles(_ urls: [URL]) async {
-        guard !isBusy else { return }
+        while isBusy {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         isBusy = true
+        stopsAfterCurrentFile = false
         progress = 0
         progressLabel = "Reading files…"
         defer { finishWork() }
 
         let audioFiles = await engine.collectAudioFiles(from: urls)
-        let newFiles = audioFiles.filter { !trackList.contains(url: $0) }
+        let known = trackList.knownPaths
+        let newFiles = audioFiles.filter { !known.contains($0.standardizedFileURL.path) }
         guard !newFiles.isEmpty else { return }
 
         showsProgress = newFiles.count >= Self.progressThreshold
 
         var loaded: [TrackFile] = []
         loaded.reserveCapacity(newFiles.count)
+        var pool = ArtworkPool(seededWith: trackList.tracks.map(\.original.artwork))
 
         for (index, url) in newFiles.enumerated() {
-            if Task.isCancelled { break }
+            if Task.isCancelled || stopsAfterCurrentFile { break }
             do {
-                let info = try await engine.read(url)
+                var info = try await engine.read(url)
+                info.tags.artwork = pool.share(info.tags.artwork)
                 loaded.append(TrackFile(url: url, info: info))
             } catch {
                 // An unreadable file must not abort the import.
@@ -406,6 +431,7 @@ final class AppState {
         progressLabel = "Writing tags…"
         showsProgress = dirty.count >= Self.progressThreshold
         failures.removeAll()
+        stopsAfterCurrentFile = false
         isWritingTags = true
         defer {
             isWritingTags = false
@@ -413,6 +439,8 @@ final class AppState {
         }
 
         var undo: [UndoEntry] = []
+        let awake = KeepAwake("Writing tags")
+        defer { withExtendedLifetime(awake) {} }
 
         for (index, track) in dirty.enumerated() {
             if Task.isCancelled || stopsAfterCurrentFile { break }
@@ -424,20 +452,24 @@ final class AppState {
             )
             // Back up the state on disk before writing — that is the undo
             // step.
-            let snapshot = UndoEntry(
+            var snapshot = UndoEntry(
                 trackID: track.id,
                 tags: track.original,
                 fields: track.touchedFields
             )
+            var wrote = false
 
             do {
                 if !track.touchedFields.isEmpty {
                     try await engine.write(request)
+                    wrote = true
                 }
                 // Rename after writing — if writing fails, the file should
                 // remain findable under its old name.
                 if let proposed = track.proposedFilename, proposed != track.filename {
+                    let former = track.filename
                     track.url = try await engine.rename(track.url, to: proposed)
+                    snapshot.formerFilename = former
                 }
                 // Only what went to disk is saved. A field edited while the
                 // write was running stays an unsaved change — committing the
@@ -447,6 +479,9 @@ final class AppState {
                 }
                 undo.append(snapshot)
             } catch {
+                // The tags may already be on disk although the rename
+                // failed: then that write is undoable all the same.
+                if wrote { undo.append(snapshot) }
                 track.lastError = error as? TagError
                 failures.append(SaveFailure(
                     filename: track.filename,
@@ -471,6 +506,7 @@ final class AppState {
         progressLabel = "Undoing…"
         showsProgress = entries.count >= Self.progressThreshold
         failures.removeAll()
+        stopsAfterCurrentFile = false
         isWritingTags = true
         defer {
             isWritingTags = false
@@ -482,9 +518,15 @@ final class AppState {
             guard let track = trackList.track(id: entry.trackID) else { continue }
             track.restore(entry.tags, fields: entry.fields)
             do {
-                try await engine.write(TagEngine.WriteRequest(
-                    url: track.url, tags: entry.tags, fields: entry.fields
-                ))
+                if !entry.fields.isEmpty {
+                    try await engine.write(TagEngine.WriteRequest(
+                        url: track.url, tags: entry.tags, fields: entry.fields
+                    ))
+                }
+                // The name, too, goes back to what it was.
+                if let former = entry.formerFilename, former != track.filename {
+                    track.url = try await engine.rename(track.url, to: former)
+                }
                 track.commit()
             } catch {
                 track.lastError = error as? TagError
@@ -497,6 +539,20 @@ final class AppState {
         }
 
         if !failures.isEmpty { isShowingFailureSheet = true }
+    }
+
+    /// A rip, an image, a copy or a burn has the drive. Another of them
+    /// started now would wait on the engine at 0 % or find the drive busy.
+    var isUsingDrive: Bool {
+        isRipping || imageTask != nil || copyTask != nil || burnTask != nil
+    }
+
+    /// Stops whatever list work runs: reading, saving, undoing, converting.
+    /// Saving stops after the file in hand — a file is never left half
+    /// written; what was not reached stays an unsaved change.
+    func cancelWork() {
+        stopsAfterCurrentFile = true
+        cancelConversion()
     }
 
     func revertSelection() {

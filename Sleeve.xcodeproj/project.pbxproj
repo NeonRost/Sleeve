@@ -242,6 +242,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/Vendor/taglib",
 					"$(SRCROOT)/Vendor/cdshim",
+					"$(SRCROOT)/Vendor/taglibshim",
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = Sleeve;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
@@ -258,7 +259,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = de.neonrost.Sleeve;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Vendor/taglib $(SRCROOT)/Vendor/cdshim";
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Vendor/taglib $(SRCROOT)/Vendor/cdshim $(SRCROOT)/Vendor/taglibshim";
 			};
 			name = Debug;
 		};
@@ -278,6 +279,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/Vendor/taglib",
 					"$(SRCROOT)/Vendor/cdshim",
+					"$(SRCROOT)/Vendor/taglibshim",
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = Sleeve;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
@@ -294,7 +296,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = de.neonrost.Sleeve;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Vendor/taglib $(SRCROOT)/Vendor/cdshim";
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Vendor/taglib $(SRCROOT)/Vendor/cdshim $(SRCROOT)/Vendor/taglibshim";
 			};
 			name = Release;
 		};

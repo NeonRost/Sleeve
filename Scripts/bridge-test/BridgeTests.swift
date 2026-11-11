@@ -21,6 +21,8 @@
 //
 
 import Foundation
+import CTagLib
+import CTagLibShim
 
 enum BridgeTests {
 
@@ -142,6 +144,119 @@ enum BridgeTests {
             try TagLibBridge.write(cleared, fields: [.lyrics], to: url)
             equal(try TagLibBridge.read(from: url).tags.lyrics, nil,
                   "  \(name): can be removed again")
+        }
+
+        section("Writing — an MP3 keeps its ID3 version")
+        do {
+            func id3(_ url: URL) -> (version: Int32, hasV1: Bool) {
+                guard let file = url.path.withCString({ taglib_file_new($0) }) else { return (-1, false) }
+                defer { taglib_file_free(file) }
+                return (sleeve_taglib_id3v2_version(file), sleeve_taglib_has_id3v1(file) != 0)
+            }
+            for (name, version) in [("01 - id3v2.3 - full.mp3", Int32(3)), ("02 - id3v2.4.mp3", Int32(4))] {
+                let url = try copyOfTestFile(name)
+                let before = id3(url)
+                equal(before.version, version, "  \(name): ID3v2.\(version) before")
+                var tags = try TagLibBridge.read(from: url).tags
+                tags.title = "Für Elise — ß"
+                try TagLibBridge.write(tags, fields: [.title], to: url)
+                let after = id3(url)
+                equal(after.version, version, "  \(name): still ID3v2.\(version) after saving")
+                equal(after.hasV1, before.hasV1, "  \(name): no ID3v1 tag added or removed")
+                equal(try TagLibBridge.read(from: url).tags.title, "Für Elise — ß",
+                      "  \(name): the umlauts arrive")
+            }
+            // A file without any tag gets a current one.
+            let bare = try copyOfTestFile("03 - no tag.mp3")
+            var tags = AudioTags()
+            tags.title = "Neu"
+            try TagLibBridge.write(tags, fields: [.title], to: bare)
+            equal(id3(bare).version, 4, "  an MP3 without a tag gets ID3v2.4")
+            equal(id3(bare).hasV1, false, "  and no ID3v1 tag")
+        }
+
+        section("Writing — several values, full dates, FLAC numbers and pictures")
+        do {
+            func properties(_ url: URL) -> [String: [String]] {
+                guard let file = url.path.withCString({ taglib_file_new($0) }) else { return [:] }
+                defer { taglib_file_free(file) }
+                return TagLibBridge.readPropertyMap(from: file)
+            }
+            func flacPictureGeometry(_ url: URL) -> (width: Int, height: Int)? {
+                guard let file = url.path.withCString({ taglib_file_new($0) }) else { return nil }
+                defer { taglib_file_free(file) }
+                guard let pictures = taglib_complex_property_get(file, "PICTURE"),
+                      let attributes = pictures.pointee else { return nil }
+                defer { taglib_complex_property_free(pictures) }
+                var width = 0, height = 0
+                var cursor = attributes
+                while let attribute = cursor.pointee {
+                    let key = String(cString: attribute.pointee.key)
+                    if key == "width" { width = Int(attribute.pointee.value.value.intValue) }
+                    if key == "height" { height = Int(attribute.pointee.value.value.intValue) }
+                    cursor = cursor.advanced(by: 1)
+                }
+                return (width, height)
+            }
+            func setRaw(_ url: URL, _ key: String, _ values: [String]) {
+                guard let file = url.path.withCString({ taglib_file_new($0) }) else { return }
+                defer { taglib_file_free(file) }
+                taglib_property_set(file, key, values.first)
+                for more in values.dropFirst() { taglib_property_set_append(file, key, more) }
+                _ = taglib_file_save(file)
+            }
+
+            let flac = try copyOfTestFile("04 - vorbis.flac")
+            setRaw(flac, "ARTIST", ["Peter", "der Wolf"])
+            setRaw(flac, "DATE", ["2001-05-12"])
+            var tags = try TagLibBridge.read(from: flac).tags
+            equal(tags.artist, "Peter; der Wolf", "  two artists are shown, joined")
+
+            // Touching the title must not touch the artists; touching the
+            // year with the same year must not cut the date.
+            tags.title = "Neu"
+            try TagLibBridge.write(tags, fields: [.title, .year], to: flac)
+            equal(properties(flac)["ARTIST"], ["Peter", "der Wolf"], "  both artists survive")
+            equal(properties(flac)["DATE"], ["2001-05-12"], "  the full date survives the same year")
+
+            // Edited, the joined form is split again.
+            tags.artist = "Peter; der Wolf; Großvater"
+            try TagLibBridge.write(tags, fields: [.artist], to: flac)
+            equal(properties(flac)["ARTIST"], ["Peter", "der Wolf", "Großvater"],
+                  "  an edited list is written as three values")
+
+            // Another year replaces the date.
+            tags.year = 1999
+            try TagLibBridge.write(tags, fields: [.year], to: flac)
+            equal(properties(flac)["DATE"], ["1999"], "  another year replaces the date")
+
+            // FLAC: number and total apart.
+            tags.trackNumber = 3
+            tags.trackTotal = 12
+            try TagLibBridge.write(tags, fields: [.trackNumber, .trackTotal], to: flac)
+            equal(properties(flac)["TRACKNUMBER"], ["3"], "  FLAC: TRACKNUMBER carries only the number")
+            equal(properties(flac)["TRACKTOTAL"], ["12"], "  FLAC: TRACKTOTAL carries the total")
+            let back = try TagLibBridge.read(from: flac).tags
+            equal(back.trackNumber, 3, "  FLAC: number read back")
+            equal(back.trackTotal, 12, "  FLAC: total read back")
+
+            // MP3 keeps the combined form.
+            let mp3 = try copyOfTestFile("02 - id3v2.4.mp3")
+            var mp3Tags = try TagLibBridge.read(from: mp3).tags
+            mp3Tags.trackNumber = 3
+            mp3Tags.trackTotal = 12
+            try TagLibBridge.write(mp3Tags, fields: [.trackNumber], to: mp3)
+            equal(properties(mp3)["TRACKNUMBER"], ["3/12"], "  MP3: number and total in one frame")
+
+            // A FLAC picture states its size.
+            let cover = try Data(contentsOf: URL(fileURLWithPath: testFiles + "/cover.jpg"))
+            tags.artwork = [Artwork(data: cover, mimeType: "image/jpeg", pictureType: .frontCover,
+                                    description: nil)]
+            try TagLibBridge.write(tags, fields: [.artwork], to: flac)
+            let geometry = flacPictureGeometry(flac)
+            check((geometry?.width ?? 0) > 0 && (geometry?.height ?? 0) > 0,
+                  "  FLAC: the picture block states its size",
+                  detail: "\(geometry.map { "\($0.width)×\($0.height)" } ?? "none")")
         }
 
         section("Writing — only touched fields (spec §4.1)")

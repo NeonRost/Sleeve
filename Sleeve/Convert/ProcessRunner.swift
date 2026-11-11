@@ -35,7 +35,15 @@ enum ProcessRunner {
     enum RunError: Error, Sendable {
         case launchFailed(String)
         case cancelled
+        /// The program used no processor time for `stallTimeout` and was
+        /// ended. A working ffmpeg always computes; one that sits still is
+        /// waiting for something that does not come — a network volume that
+        /// went away, a broken file it cannot get past.
+        case stalled
     }
+
+    /// How long a program may sit idle before it counts as hung.
+    static let defaultStallTimeout: TimeInterval = 60
 
     /// Starts the program and waits for it to finish.
     ///
@@ -44,11 +52,14 @@ enum ProcessRunner {
     /// ffmpeg exactly that happens, because it writes its progress to stderr
     /// while we are still waiting on stdout.
     ///
-    /// If the calling task is cancelled, the process gets SIGTERM.
+    /// If the calling task is cancelled, the process gets SIGTERM, and
+    /// SIGKILL five seconds later if it is still there. The same happens
+    /// when it hangs (see `RunError.stalled`).
     static func run(
         _ executable: URL,
         arguments: [String],
-        currentDirectory: URL? = nil
+        currentDirectory: URL? = nil,
+        stallTimeout: TimeInterval? = defaultStallTimeout
     ) async throws -> Result {
         let box = ProcessBox()
 
@@ -74,6 +85,7 @@ enum ProcessRunner {
                         return
                     }
                     box.adopt(process)
+                    if let stallTimeout { watch(process, box: box, timeout: stallTimeout) }
 
                     let collected = OutputBox()
                     let group = DispatchGroup()
@@ -88,6 +100,10 @@ enum ProcessRunner {
                     group.wait()
                     process.waitUntilExit()
 
+                    if box.hasStalled {
+                        continuation.resume(throwing: RunError.stalled)
+                        return
+                    }
                     continuation.resume(returning: Result(
                         status: process.terminationStatus,
                         standardOutput: collected.text(isStandardOutput: true),
@@ -98,6 +114,39 @@ enum ProcessRunner {
         } onCancel: {
             box.terminate()
         }
+    }
+
+    /// Watches the processor time of the child. Output cannot be the measure:
+    /// ffmpeg with `-loglevel error` writes nothing while it works.
+    private static func watch(_ process: Process, box: ProcessBox, timeout: TimeInterval) {
+        let pid = process.processIdentifier
+        DispatchQueue.global(qos: .utility).async {
+            var lastTime = cpuTime(of: pid)
+            var lastChange = Date()
+            while process.isRunning {
+                Thread.sleep(forTimeInterval: 1)
+                let now = cpuTime(of: pid)
+                if now != lastTime {
+                    lastTime = now
+                    lastChange = Date()
+                } else if Date().timeIntervalSince(lastChange) > timeout {
+                    box.stall()
+                    return
+                }
+            }
+        }
+    }
+
+    /// User plus system time in nanoseconds; 0 when it cannot be read.
+    private static func cpuTime(of pid: pid_t) -> UInt64 {
+        var info = rusage_info_v2()
+        let status = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
+                proc_pid_rusage(pid, RUSAGE_INFO_V2, $0)
+            }
+        }
+        guard status == 0 else { return 0 }
+        return info.ri_user_time &+ info.ri_system_time
     }
 }
 
@@ -139,10 +188,32 @@ private final class ProcessBox: @unchecked Sendable {
         }
     }
 
+    private var stalled = false
+
+    var hasStalled: Bool { lock.withLock { stalled } }
+
     func terminate() {
         lock.lock()
         defer { lock.unlock() }
         cancelled = true
-        if let process, process.isRunning { process.terminate() }
+        end()
+    }
+
+    func stall() {
+        lock.lock()
+        defer { lock.unlock() }
+        stalled = true
+        end()
+    }
+
+    /// SIGTERM, and SIGKILL if that is not heeded within five seconds —
+    /// a hung process does not always react to the polite request.
+    private func end() {
+        guard let process, process.isRunning else { return }
+        process.terminate()
+        let pid = process.processIdentifier
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { [process] in
+            if process.isRunning { kill(pid, SIGKILL) }
+        }
     }
 }

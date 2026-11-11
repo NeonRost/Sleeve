@@ -28,10 +28,12 @@ enum KeychainStore {
 
     private static let service = "de.neonrost.Sleeve"
 
-    static func set(_ value: String?, for account: String) {
+    /// `false` when the keychain refused — locked, access denied. The
+    /// caller has to say so instead of claiming the token is stored.
+    @discardableResult
+    static func set(_ value: String?, for account: String) -> Bool {
         guard let value, !value.isEmpty else {
-            remove(account)
-            return
+            return remove(account)
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -43,12 +45,12 @@ enum KeychainStore {
         ]
 
         // Update first; if the entry does not exist yet, create it.
-        if SecItemUpdate(query as CFDictionary, attributes as CFDictionary) == errSecItemNotFound {
-            var insert = query
-            insert[kSecValueData as String] = Data(value.utf8)
-            insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            SecItemAdd(insert as CFDictionary, nil)
-        }
+        let updated = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        guard updated == errSecItemNotFound else { return updated == errSecSuccess }
+        var insert = query
+        insert[kSecValueData as String] = Data(value.utf8)
+        insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        return SecItemAdd(insert as CFDictionary, nil) == errSecSuccess
     }
 
     static func get(_ account: String) -> String? {
@@ -66,13 +68,15 @@ enum KeychainStore {
         return String(decoding: data, as: UTF8.self)
     }
 
-    static func remove(_ account: String) {
+    @discardableResult
+    static func remove(_ account: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 
     static let discogsToken = "discogs.token"

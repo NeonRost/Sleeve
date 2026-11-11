@@ -275,6 +275,12 @@ final class CDDrive {
             request.buffer = raw.baseAddress
             if ioctl(descriptor, kSleeveIOCDRead, &request) != 0 { failure = errno }
         }
+        // The disc gone or the drive unplugged is no scratch: retrying
+        // sector by sector would only fill the rest of the track with
+        // silence, slowly.
+        if failure == ENXIO || failure == ENODEV || failure == ENOENT {
+            throw CDDriveError.noDisc
+        }
         guard failure == 0 else {
             throw CDDriveError.readFailed(lba: lba, reason: String(cString: strerror(failure)))
         }

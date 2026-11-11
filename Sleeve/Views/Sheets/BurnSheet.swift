@@ -80,7 +80,27 @@ struct BurnSheet: View {
                     LabeledContent("Disc") {
                         Text(discText).foregroundStyle(.secondary)
                     }
-                    Button("Check again") { state.refreshBurnMedia() }
+                    if !state.burnSpeeds.isEmpty {
+                        // Slower is often kinder to older players; the
+                        // drive's maximum stays the default.
+                        Picker("Speed", selection: $state.burnSpeed) {
+                            Text("Maximum").tag(Int?.none)
+                            ForEach(state.burnSpeeds, id: \.self) { speed in
+                                Text(verbatim: "\(speed)×").tag(Int?.some(speed))
+                            }
+                        }
+                    }
+                    HStack {
+                        Button("Check again") { state.refreshBurnMedia() }
+                        if state.burnMediaIsErasable {
+                            Button("Erase CD-RW…") { state.isConfirmingErase = true }
+                                .disabled(state.isErasingDisc || state.burnStage != .idle)
+                        }
+                        if state.isErasingDisc {
+                            ProgressView().controlSize(.small)
+                            Text("Erasing…").foregroundStyle(.secondary)
+                        }
+                    }
                 }
 
                 if let message = state.burnError {
@@ -96,8 +116,14 @@ struct BurnSheet: View {
             Divider()
             footer
         }
-        .frame(width: 480, height: 580)
+        .frame(width: 480, height: 620)
         .task { state.refreshBurnMedia() }
+        .confirmationDialog("Erase this CD-RW?", isPresented: $state.isConfirmingErase) {
+            Button("Erase", role: .destructive) { state.eraseBurnDisc() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Everything on the disc is lost.")
+        }
         .confirmationDialog("Burn this disc for real?",
                             isPresented: $state.isConfirmingBurn) {
             Button("Burn", role: .destructive) { state.startBurn(simulated: false) }

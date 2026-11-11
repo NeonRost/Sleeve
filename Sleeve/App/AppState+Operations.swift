@@ -208,11 +208,17 @@ extension AppState {
     /// global preset never gets it right for every picture anyway.
     func applyArtwork(_ artwork: Artwork, replacing: Bool = true) {
         for track in operationTargets {
-            // When appending, do not keep the same picture type twice — two
-            // "Front Cover" pictures in one file are a mistake, not a booklet.
+            // When appending, a front cover, back cover or icon replaces the
+            // one there — two front covers in one file are a mistake. Pages
+            // of a booklet, pictures of the band and the like are many by
+            // nature; a second one is added, not swapped for the first.
+            // The very same picture of the same type is not added twice.
             let existing = replacing
                 ? []
-                : track.edited.artwork.filter { $0.pictureType != artwork.pictureType }
+                : track.edited.artwork.filter {
+                    $0.pictureType != artwork.pictureType
+                        || (!artwork.pictureType.isUnique && $0.data != artwork.data)
+                }
             track.setArtwork(existing + [artwork])
         }
     }

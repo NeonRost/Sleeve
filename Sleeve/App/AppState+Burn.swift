@@ -82,12 +82,15 @@ extension AppState {
     }
 
     private func buildBurnLayout(audioURL: URL, cue: CueSheet) {
-        // FLAC has to be unpacked first — `startBurn` does that and only
-        // then knows the real length. Until then the last track counts as
-        // one sector, which is enough to show the track list.
+        // FLAC has to be unpacked first — `startBurn` does that and works the
+        // lengths out again from what came out. For the sheet the stream
+        // header's sample count gives the length to the sector already.
         burnNeedsDecoding = audioURL.pathExtension.lowercased() == "flac"
         if burnNeedsDecoding {
-            let total = cue.tracks.last.map { $0.startLBA + 1 } ?? 0
+            let frames = TagLibBridge.flacSampleFrames(of: audioURL)
+            let total = frames > 0
+                ? frames / CDGeometry.samplesPerSector
+                : cue.tracks.last.map { $0.startLBA + 1 } ?? 0
             burnLayout = CDBurner.Layout(imageURL: audioURL, headerBytes: 0,
                                          tracks: cue.tracks,
                                          sectorCounts: cue.sectorCounts(totalSectors: total))
@@ -136,6 +139,34 @@ extension AppState {
         let device = CDBurner.device(id: burnDeviceID)
         burnDevice = device.map(CDBurner.info)
         burnMedia = CDBurner.mediaState(of: device)
+        burnMediaIsErasable = CDBurner.hasErasableDisc(device)
+        burnSpeeds = CDBurner.speeds(of: device)
+        if let speed = burnSpeed, !burnSpeeds.contains(speed) { burnSpeed = nil }
+    }
+
+    /// Quick-erases the CD-RW in the burner. Asked for in the sheet first:
+    /// what is on it is gone.
+    func eraseBurnDisc() {
+        guard burnMediaIsErasable, !isErasingDisc, burnTask == nil else { return }
+        isErasingDisc = true
+        burnError = nil
+        burnProgress = 0
+        let id = burnDevice?.id
+        Task {
+            let awake = KeepAwake("Erasing a CD-RW")
+            defer {
+                withExtendedLifetime(awake) {}
+                isErasingDisc = false
+                refreshBurnMedia()
+            }
+            for await event in CDBurner.erase(deviceID: id) {
+                switch event {
+                case let .progress(fraction): burnProgress = fraction
+                case let .failed(reason):     burnError = reason
+                case .finished, .stopped:     burnProgress = 0
+                }
+            }
+        }
     }
 
     func selectBurnDevice(_ id: String) {
@@ -176,6 +207,8 @@ extension AppState {
         burnStop = stop
 
         burnTask = Task {
+            let awake = KeepAwake("Burning a CD")
+            defer { withExtendedLifetime(awake) {} }
             var temporary: URL?
             defer {
                 if let temporary { try? FileManager.default.removeItem(at: temporary) }
@@ -219,7 +252,8 @@ extension AppState {
             }
 
             for await event in CDBurner.burn(layout, simulated: simulated,
-                                             deviceID: burnDevice?.id, stop: stop) {
+                                             deviceID: burnDevice?.id, speed: burnSpeed,
+                                             stop: stop) {
                 switch event {
                 case let .progress(fraction):
                     burnProgress = fraction

@@ -101,7 +101,20 @@ struct SleeveToolbar: ToolbarContent {
         // meant to do right now: write tags — or rip.
         ToolbarItem(placement: .navigation) {
             if state.activeMode == .rip {
-                RipActionButton()
+                HStack {
+                    RipActionButton()
+                    // Ripped tracks land in the list with their tags not yet
+                    // written (WAV) — saving them should not need a mode switch.
+                    if state.trackList.changedCount > 0 {
+                        Button {
+                            Task { await state.save() }
+                        } label: {
+                            Label("Save", systemImage: "internaldrive")
+                        }
+                        .disabled(state.isBusy)
+                        .help("Write all pending changes to the files")
+                    }
+                }
             } else {
                 Button {
                     Task { await state.save() }
@@ -224,8 +237,9 @@ struct SleeveToolbar: ToolbarContent {
     @ViewBuilder
     private var convertItems: some View {
         if state.isBusy {
+            // Whatever runs — converting, but also reading or saving.
             Button {
-                state.cancelConversion()
+                state.cancelWork()
             } label: {
                 Label("Cancel", systemImage: "stop.circle")
             }

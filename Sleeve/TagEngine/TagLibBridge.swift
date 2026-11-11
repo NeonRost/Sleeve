@@ -27,7 +27,9 @@
 //
 
 import Foundation
+import ImageIO
 import CTagLib
+import CTagLibShim
 
 enum TagError: Error, Equatable, Sendable {
     /// TagLib could not open the file or does not recognize the format.
@@ -64,24 +66,33 @@ enum TagLibBridge {
             guard let value = properties[key]?.first, !value.isEmpty else { return nil }
             return value
         }
+        // Several artists or genres are several values in FLAC, MP4 and
+        // ID3v2.4. Showing only the first meant losing the others as soon as
+        // the field was touched; joined, they survive (see `multiValueSeparator`).
+        func all(_ key: String) -> String? {
+            let values = (properties[key] ?? []).filter { !$0.isEmpty }
+            return values.isEmpty ? nil : values.joined(separator: multiValueSeparator)
+        }
 
         let track = NumberPair(parsing: first(PropertyKeys.trackNumber) ?? "")
         let disc = NumberPair(parsing: first(PropertyKeys.discNumber) ?? "")
 
         // Vorbis comments additionally have keys of their own for the
         // total. Those take precedence when present.
-        let trackTotal = first("TRACKTOTAL").flatMap(Int.init) ?? track.total
-        let discTotal = first("DISCTOTAL").flatMap(Int.init) ?? disc.total
+        let trackTotal = (first("TRACKTOTAL") ?? first("TOTALTRACKS")).flatMap(Int.init)
+            ?? track.total
+        let discTotal = (first("DISCTOTAL") ?? first("TOTALDISCS")).flatMap(Int.init)
+            ?? disc.total
 
         let compilation = first(PropertyKeys.compilation)
 
         return AudioTags(
             title: first(PropertyKeys.title),
-            artist: first(PropertyKeys.artist),
-            albumArtist: first(PropertyKeys.albumArtist),
+            artist: all(PropertyKeys.artist),
+            albumArtist: all(PropertyKeys.albumArtist),
             album: first(PropertyKeys.album),
-            composer: first(PropertyKeys.composer),
-            genre: first(PropertyKeys.genre),
+            composer: all(PropertyKeys.composer),
+            genre: all(PropertyKeys.genre),
             year: first(PropertyKeys.date)?.leadingYear,
             trackNumber: track.number,
             trackTotal: trackTotal,
@@ -119,8 +130,37 @@ enum TagLibBridge {
             duration: .seconds(Int(taglib_audioproperties_length(audio))),
             bitrate: Int(taglib_audioproperties_bitrate(audio)),
             sampleRate: Int(taglib_audioproperties_samplerate(audio)),
-            channels: Int(taglib_audioproperties_channels(audio))
+            channels: Int(taglib_audioproperties_channels(audio)),
+            bitsPerSample: Int(sleeve_taglib_bits_per_sample(file))
         )
+    }
+
+    /// The exact length of a FLAC file in sample frames; 0 if unknown.
+    static func flacSampleFrames(of url: URL) -> Int {
+        (try? withFile(at: url) { Int(sleeve_taglib_flac_sample_frames($0)) }) ?? 0
+    }
+
+    /// Keys that describe how a file was encoded, not what it contains —
+    /// carried over, they would claim the LAME settings for a FLAC file.
+    static let encodingKeys: Set<String> = ["ENCODER", "ENCODING", "ENCODERSETTINGS",
+                                             "ITUNSMPB", "ITUNNORM", "ITUNPGAP"]
+
+    /// Copies every tag of `source` onto `target` — the whole PropertyMap,
+    /// not only the fields Sleeve shows: ReplayGain, MusicBrainz IDs, BPM,
+    /// ISRC, sort names, everything. TagLib maps the keys to the target's
+    /// own fields (TXXX in ID3, freeform atoms in MP4). Pictures are not
+    /// part of it; they go through `write` with the artwork field.
+    static func copyTags(from source: URL, to target: URL) throws {
+        let map = try withFile(at: source) { readPropertyMap(from: $0) }
+        let wanted = map.filter { !$0.value.isEmpty && !encodingKeys.contains($0.key) }
+        guard !wanted.isEmpty else { return }
+        try withFile(at: target) { file in
+            for (key, values) in wanted {
+                taglib_property_set(file, key, values[0])
+                for more in values.dropFirst() { taglib_property_set_append(file, key, more) }
+            }
+            guard sleeve_taglib_file_save(file) != 0 else { throw TagError.saveFailed(target) }
+        }
     }
 
     /// Reads **all** embedded pictures. `taglib_picture_from_complex_property`
@@ -196,45 +236,69 @@ enum TagLibBridge {
     static func write(_ tags: AudioTags, fields: Set<TagField>, to url: URL) throws {
         guard !fields.isEmpty else { return }
 
+        // Xiph comments keep number and total apart (TRACKNUMBER=3,
+        // TRACKTOTAL=12); "3/12" in TRACKNUMBER is what ID3 and MP4 want and
+        // what many FLAC players do not understand.
+        let separateTotals = xiphExtensions.contains(url.pathExtension.lowercased())
         try withFile(at: url) { file in
             for field in fields {
-                apply(field, of: tags, to: file)
+                apply(field, of: tags, to: file, separateTotals: separateTotals)
             }
             if fields.contains(.artwork) {
                 writeArtwork(tags.artwork, to: file)
             }
-            guard taglib_file_save(file) != 0 else {
+            // Not `taglib_file_save`: that turns every MP3 into ID3v2.4 and
+            // adds an ID3v1 tag (see SleeveTagLibShim.h).
+            guard sleeve_taglib_file_save(file) != 0 else {
                 throw TagError.saveFailed(url)
             }
         }
     }
 
-    private static func apply(_ field: TagField, of tags: AudioTags, to file: FileRef) {
+    /// Formats whose tags are Xiph comments.
+    private static let xiphExtensions: Set<String> = ["flac", "ogg", "oga", "opus", "spx"]
+
+    /// How several values of one field are shown in a single text field —
+    /// and split again when written. Only for the fields that are commonly
+    /// multi-valued (artist, album artist, composer, genre); a title with a
+    /// semicolon stays one title.
+    static let multiValueSeparator = "; "
+
+    private static func apply(_ field: TagField, of tags: AudioTags, to file: FileRef,
+                              separateTotals: Bool) {
         switch field {
         case .title:       set(PropertyKeys.title, tags.title, on: file)
-        case .artist:      set(PropertyKeys.artist, tags.artist, on: file)
-        case .albumArtist: set(PropertyKeys.albumArtist, tags.albumArtist, on: file)
+        case .artist:      setMultiple(PropertyKeys.artist, tags.artist, on: file)
+        case .albumArtist: setMultiple(PropertyKeys.albumArtist, tags.albumArtist, on: file)
         case .album:       set(PropertyKeys.album, tags.album, on: file)
-        case .composer:    set(PropertyKeys.composer, tags.composer, on: file)
-        case .genre:       set(PropertyKeys.genre, tags.genre, on: file)
+        case .composer:    setMultiple(PropertyKeys.composer, tags.composer, on: file)
+        case .genre:       setMultiple(PropertyKeys.genre, tags.genre, on: file)
         case .comment:     set(PropertyKeys.comment, tags.comment, on: file)
         case .lyrics:      set(PropertyKeys.lyrics, tags.lyrics, on: file)
-        case .year:        set(PropertyKeys.date, tags.year.map(String.init), on: file)
+        case .year:
+            // A full date ("2001-05-12") whose year is the one wanted stays
+            // as it is: touching the year — by a batch fill, say — must not
+            // cut off month and day.
+            if let year = tags.year, let current = currentValue(PropertyKeys.date, of: file),
+               current.leadingYear == year {
+                break
+            }
+            set(PropertyKeys.date, tags.year.map(String.init), on: file)
 
         // Number and total share one property. If the user touches only
         // one half, the other has to be written along from the current
         // state — otherwise it would be lost.
         case .trackNumber, .trackTotal:
-            let pair = NumberPair(number: tags.trackNumber, total: tags.trackTotal)
-            set(PropertyKeys.trackNumber, pair.formatted, on: file)
-            // Clean up the separate Vorbis keys so that they do not contradict
-            // the combined notation.
-            set("TRACKTOTAL", nil, on: file)
+            writeNumbers(number: tags.trackNumber, total: tags.trackTotal,
+                         key: PropertyKeys.trackNumber,
+                         totalKeys: ["TRACKTOTAL", "TOTALTRACKS"],
+                         separate: separateTotals, on: file)
 
         case .discNumber, .discTotal:
-            let pair = NumberPair(number: tags.discNumber, total: tags.discTotal)
-            set(PropertyKeys.discNumber, pair.formatted, on: file)
-            set("DISCTOTAL", nil, on: file)
+            writeNumbers(number: tags.discNumber, total: tags.discTotal,
+                         key: PropertyKeys.discNumber,
+                         totalKeys: ["DISCTOTAL", "TOTALDISCS"],
+                         separate: separateTotals, on: file)
 
         case .isCompilation:
             // For `false`, remove the property instead of writing "0" —
@@ -243,6 +307,43 @@ enum TagLibBridge {
 
         case .artwork:
             break   // separately, see writeArtwork
+        }
+    }
+
+    /// Number and total either in one property ("3/12") or, for Xiph
+    /// comments, apart. Whichever form is not used is removed, so that the
+    /// two never contradict each other.
+    private static func writeNumbers(number: Int?, total: Int?, key: String,
+                                     totalKeys: [String], separate: Bool, on file: FileRef) {
+        if separate {
+            set(key, number.map(String.init), on: file)
+            set(totalKeys[0], total.map(String.init), on: file)
+            for other in totalKeys.dropFirst() { set(other, nil, on: file) }
+        } else {
+            set(key, NumberPair(number: number, total: total).formatted, on: file)
+            for other in totalKeys { set(other, nil, on: file) }
+        }
+    }
+
+    /// The first value a property has in the file right now.
+    private static func currentValue(_ key: String, of file: FileRef) -> String? {
+        guard let values = taglib_property_get(file, key) else { return nil }
+        defer { taglib_property_free(values) }
+        return stringList(from: values).first
+    }
+
+    /// Several values from one text field, split at `multiValueSeparator`.
+    private static func setMultiple(_ key: String, _ value: String?, on file: FileRef) {
+        let values = (value ?? "").components(separatedBy: multiValueSeparator)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard let first = values.first else {
+            taglib_property_set(file, key, nil)
+            return
+        }
+        taglib_property_set(file, key, first)
+        for more in values.dropFirst() {
+            taglib_property_set_append(file, key, more)
         }
     }
 
@@ -327,6 +428,22 @@ enum TagLibBridge {
 /// Keeps the C buffers alive for one `taglib_complex_property_set` call and
 /// frees them all at once afterwards.
 private final class Arena {
+    /// Pixel size and bits per pixel of a picture, as a FLAC picture block
+    /// states them. `nil` when ImageIO cannot read it.
+    static func imageGeometry(of data: Data) -> (width: Int, height: Int, bitsPerPixel: Int)? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int
+        else { return nil }
+        let depth = properties[kCGImagePropertyDepth] as? Int ?? 8
+        let model = properties[kCGImagePropertyColorModel] as? String
+        let alpha = properties[kCGImagePropertyHasAlpha] as? Bool ?? false
+        let channels = (model == (kCGImagePropertyColorModelGray as String) ? 1 : 3) + (alpha ? 1 : 0)
+        return (width, height, depth * channels)
+    }
+
+
     private var byteBuffers: [UnsafeMutablePointer<CChar>] = []
     private var attributeBlocks: [UnsafeMutablePointer<TagLib_Complex_Property_Attribute>] = []
     private var pointerBlocks: [UnsafeMutablePointer<UnsafePointer<TagLib_Complex_Property_Attribute>?>] = []
@@ -380,12 +497,27 @@ private final class Arena {
         dataVariant.size = UInt32(artwork.data.count)
         dataVariant.value.byteVectorValue = bytes(artwork.data)
 
-        let entries: [(String, TagLib_Variant)] = [
+        func variant(int value: Int) -> TagLib_Variant {
+            var variant = TagLib_Variant()
+            variant.type = TagLib_Variant_Int
+            variant.size = 0
+            variant.value.intValue = Int32(clamping: value)
+            return variant
+        }
+
+        var entries: [(String, TagLib_Variant)] = [
             (PropertyKeys.PictureAttribute.data, dataVariant),
             (PropertyKeys.PictureAttribute.mimeType, variant(string: artwork.mimeType)),
             (PropertyKeys.PictureAttribute.description, variant(string: artwork.description ?? "")),
             (PropertyKeys.PictureAttribute.pictureType, variant(string: artwork.pictureType.taglibName)),
         ]
+        // A FLAC picture block states its size; without these it said 0×0,
+        // which some players take literally. ID3 and MP4 ignore them.
+        if let size = Self.imageGeometry(of: artwork.data) {
+            entries.append(("width", variant(int: size.width)))
+            entries.append(("height", variant(int: size.height)))
+            entries.append(("colorDepth", variant(int: size.bitsPerPixel)))
+        }
 
         let attributes = UnsafeMutablePointer<TagLib_Complex_Property_Attribute>
             .allocate(capacity: entries.count)

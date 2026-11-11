@@ -138,23 +138,39 @@ actor DiscogsClient {
             request.setValue("Discogs token=\(token)", forHTTPHeaderField: "Authorization")
         }
 
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            throw ClientError.transport(error.localizedDescription)
-        }
+        var data = Data()
+        // One second attempt after "too many requests". The limiter keeps
+        // below Discogs' limit, but the limit counts per token, and another
+        // program with the same token counts too.
+        for attempt in 0..<2 {
+            let response: URLResponse
+            do {
+                (data, response) = try await session.data(for: request)
+            } catch let error as URLError where error.code == .cancelled {
+                throw CancellationError()
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw ClientError.transport(error.localizedDescription)
+            }
 
-        if let http = response as? HTTPURLResponse {
+            guard let http = response as? HTTPURLResponse else { break }
             switch http.statusCode {
             case 200..<300: break
             case 401:       throw ClientError.unauthorized
             case 403:       throw ClientError.forbidden(Self.message(in: data))
             case 404:       throw ClientError.notFound
-            case 429:       throw ClientError.rateLimited
+            case 429:
+                guard attempt == 0 else { throw ClientError.rateLimited }
+                // Discogs' window is a minute; `Retry-After` says when, if sent.
+                let wait = http.value(forHTTPHeaderField: "Retry-After")
+                    .flatMap(Double.init).map { min(max($0, 1), 60) } ?? 10
+                try await Task.sleep(for: .seconds(wait))
+                await limiter.acquire()
+                continue
             default:        throw ClientError.server(http.statusCode)
             }
+            break
         }
 
         do {

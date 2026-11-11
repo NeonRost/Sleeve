@@ -90,6 +90,11 @@ enum DebugHooks {
             if defaults.bool(forKey: "SleeveDebugSelectAll") {
                 state.trackList.selection = Set(state.trackList.tracks.map(\.id))
             }
+            // -SleeveDebugComment "text" leaves every track with an unsaved
+            // change — for the dialogs that ask before something is lost.
+            if let comment = defaults.string(forKey: "SleeveDebugComment") {
+                state.trackList.tracks.forEach { $0.set(comment, for: .comment) }
+            }
         }
         guard let path = defaults.string(forKey: "SleeveDebugTagLookup") else { return }
         await state.addFiles([URL(fileURLWithPath: path)])
@@ -101,6 +106,12 @@ enum DebugHooks {
     static func run(state: AppState, openWindow: OpenWindowAction) async {
         let defaults = UserDefaults.standard
         stageDisc(state: state, defaults: defaults)
+        // -SleeveDebugWindowIDs YES prints the identifiers of the open
+        // windows — what `showMainWindow` looks for.
+        if defaults.bool(forKey: "SleeveDebugWindowIDs") {
+            try? await Task.sleep(for: .seconds(1))
+            NSLog("windows: %@", NSApp.windows.map { $0.identifier?.rawValue ?? "-" }.joined(separator: ", "))
+        }
         // -SleeveDebugWindowSize 1512x880: a defined window size for
         // screenshots.
         if let size = defaults.string(forKey: "SleeveDebugWindowSize")?

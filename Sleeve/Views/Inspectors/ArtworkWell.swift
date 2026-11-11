@@ -37,18 +37,19 @@ struct ArtworkWell: View {
     /// Source data and name of the picture currently being decided on.
     @State private var pending: (data: Data, name: String)?
 
-    private var artworks: [Artwork] {
-        // Only show what all of them have in common — otherwise it is unclear
-        // what the picture represents at all.
-        guard let first = tracks.first?.edited.artwork else { return [] }
-        let allSame = tracks.allSatisfy { $0.edited.artwork == first }
-        return allSame ? first : []
+    /// Whether all selected tracks carry the same pictures. Compared once
+    /// per render, and cheaply: pictures loaded from the same cover share one
+    /// buffer (`TrackFile.sharingArtwork`), so most comparisons end at the
+    /// buffer's identity instead of comparing 300 KB byte by byte — before,
+    /// that happened several times per render for every selected track.
+    private var common: (artworks: [Artwork], isMixed: Bool) {
+        guard let first = tracks.first?.edited.artwork else { return ([], false) }
+        let allSame = tracks.dropFirst().allSatisfy { Artwork.sameList($0.edited.artwork, first) }
+        return allSame ? (first, false) : ([], true)
     }
 
-    private var isMixed: Bool {
-        guard let first = tracks.first?.edited.artwork else { return false }
-        return !tracks.allSatisfy { $0.edited.artwork == first }
-    }
+    private var artworks: [Artwork] { common.artworks }
+    private var isMixed: Bool { common.isMixed }
 
     private var current: Artwork? {
         guard artworks.indices.contains(index) else { return artworks.first }

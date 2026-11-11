@@ -109,8 +109,17 @@ enum CDBurner {
         guard let device else { return .noDrive }
         let status = device.status() ?? [:]
 
-        guard let state = status[DRDeviceMediaStateKey] as? String,
-              state == (kDRDeviceMediaStateMediaPresent as String) else {
+        // A disc that is still spinning up, or a drive another program is
+        // writing with, is not "no disc" — "Insert a blank CD-R" with a
+        // blank in the tray is plainly wrong.
+        let state = status[DRDeviceMediaStateKey] as? String
+        if state == (kDRDeviceMediaStateInTransition as String) {
+            return .unusable(reason: String(localized: "The drive is still reading the disc — a moment."))
+        }
+        if (status[DRDeviceIsBusyKey] as? Bool) == true {
+            return .unusable(reason: String(localized: "The drive is busy — another program may be using it."))
+        }
+        guard state == (kDRDeviceMediaStateMediaPresent as String) else {
             return .noDisc
         }
         guard let media = status[DRDeviceMediaInfoKey] as? [AnyHashable: Any] else {
@@ -132,11 +141,35 @@ enum CDBurner {
                 : String(localized: "This is a \(name), not a blank CD-R."))
         }
         guard isBlank else {
+            if isErasable(media) {
+                return .unusable(reason: String(localized: "This CD-RW carries data. Erase it to burn onto it."))
+            }
             return .unusable(reason: String(localized: "This disc already carries data."))
         }
 
         let free = (media[DRDeviceMediaBlocksFreeKey] as? Int) ?? 0
         return .blank(sectors: free)
+    }
+
+    private static func isErasable(_ media: [AnyHashable: Any]) -> Bool {
+        (media[DRDeviceMediaIsErasableKey] as? Bool) == true
+            && (media[DRDeviceMediaTypeKey] as? String) == (kDRDeviceMediaTypeCDRW as String)
+    }
+
+    /// A written CD-RW that can be erased for a new burn.
+    static func hasErasableDisc(_ device: DRDevice?) -> Bool {
+        guard let media = device?.status()?[DRDeviceMediaInfoKey] as? [AnyHashable: Any],
+              (media[DRDeviceMediaIsBlankKey] as? Bool) != true else { return false }
+        return isErasable(media)
+    }
+
+    /// The speeds the drive offers for the inserted disc, as multiples of
+    /// CD speed (1× = 176.4 KB/s), slowest first. Empty without a disc.
+    static func speeds(of device: DRDevice?) -> [Int] {
+        guard let media = device?.status()?[DRDeviceMediaInfoKey] as? [AnyHashable: Any],
+              let raw = media[DRDeviceBurnSpeedsKey] as? [NSNumber] else { return [] }
+        let multiples = raw.map { Int(($0.doubleValue / Double(kDRDeviceBurnSpeedCD1x)).rounded()) }
+        return Array(Set(multiples.filter { $0 > 0 })).sorted()
     }
 }
 
@@ -385,8 +418,11 @@ extension CDBurner {
     /// `simulated` keeps the laser off: the whole process runs through,
     /// nothing is written, the blank stays unwritten. That is the way to check
     /// everything except the last step.
+    /// `speed` as a multiple of CD speed; `nil` lets the drive go as fast as
+    /// it can.
     static func burn(_ layout: Layout, simulated: Bool,
-                     deviceID: String?, stop: Stop = Stop()) -> AsyncStream<BurnEvent> {
+                     deviceID: String?, speed: Int? = nil,
+                     stop: Stop = Stop()) -> AsyncStream<BurnEvent> {
         AsyncStream { continuation in
             let task = Task.detached {
                 guard let device = CDBurner.device(id: deviceID) else {
@@ -418,14 +454,20 @@ extension CDBurner {
                     continuation.finish()
                     return
                 }
-                burn.setProperties([
+                var properties: [AnyHashable: Any] = [
                     DRBurnTestingKey: NSNumber(value: simulated),
                     // Gapless: all tracks in one pass, disc closed.
                     DRBurnStrategyKey: kDRBurnStrategyCDSAO as String,
                     DRBurnAppendableKey: NSNumber(value: false),
                     DRBurnCompletionActionKey: kDRBurnCompletionActionEject as String,
+                    // Asked for, but DiscRecording verifies data discs only —
+                    // for audio the real check is reading the disc back
+                    // (spec §6.10.1).
                     DRBurnVerifyDiscKey: NSNumber(value: !simulated),
-                ])
+                ]
+                properties[DRBurnRequestedSpeedKey] = NSNumber(
+                    value: speed.map { Float($0) * kDRDeviceBurnSpeedCD1x } ?? kDRDeviceBurnSpeedMax)
+                burn.setProperties(properties)
                 #if DEBUG
                 BurnTrace.start(simulated: simulated, tracks: layout.tracks.count)
                 #endif
@@ -480,6 +522,43 @@ extension CDBurner {
                         try? await Task.sleep(for: .milliseconds(400))
                     }
                     continuation.yield(.stopped)
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Quick-erases a CD-RW so that it can be burned again. Quick is
+    /// enough: it clears the table of contents, and a burn writes over the
+    /// rest.
+    static func erase(deviceID: String?) -> AsyncStream<BurnEvent> {
+        AsyncStream { continuation in
+            let task = Task.detached {
+                guard let device = CDBurner.device(id: deviceID), let erase = DRErase(device: device) else {
+                    continuation.yield(.failed(String(localized: "No optical drive found.")))
+                    continuation.finish()
+                    return
+                }
+                erase.setProperties([kDREraseTypeKey as String: kDREraseTypeQuick as String])
+                erase.start()
+                while !Task.isCancelled {
+                    let status = erase.status() ?? [:]
+                    let state = (status[DRStatusStateKey] as? String) ?? ""
+                    if let fraction = status[DRStatusPercentCompleteKey] as? Double, fraction >= 0 {
+                        continuation.yield(.progress(min(fraction, 1)))
+                    }
+                    if state == (kDRStatusStateDone as String) {
+                        continuation.yield(.finished(wasSimulated: false))
+                        break
+                    }
+                    if state == (kDRStatusStateFailed as String) {
+                        let error = status[DRErrorStatusKey] as? [AnyHashable: Any]
+                        continuation.yield(.failed((error?[DRErrorStatusErrorStringKey] as? String)
+                            ?? String(localized: "The disc could not be erased.")))
+                        break
+                    }
+                    try? await Task.sleep(for: .milliseconds(400))
                 }
                 continuation.finish()
             }

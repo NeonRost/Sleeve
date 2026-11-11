@@ -22,6 +22,7 @@ import SwiftUI
 
 @main
 struct SleeveApp: App {
+    static let mainWindowID = "main"
     static let splitWindowID = "split"
     static let aboutWindowID = "about"
     static let licensesWindowID = "licenses"
@@ -30,7 +31,7 @@ struct SleeveApp: App {
     @State private var state = AppState()
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: SleeveApp.mainWindowID) {
             ContentView()
                 .environment(state)
                 .frame(minWidth: 900, minHeight: 500)
@@ -117,9 +118,15 @@ struct SleeveCommands: Commands {
             // Sleeve menu — on macOS that one is for the program itself
             // (About, Settings, Quit). And not in the Rip section: there one
             // picks tracks, an image is always the whole disc (spec §6.9).
-            Button("Create Disc Image…") { state.showImageSheet() }
-            Button("Burn Image to CD…") { state.showBurnSheet() }
-            Button("Copy CD…") { state.showCopySheet() }
+            // The sheets hang on the main window; with it closed the
+            // commands did nothing. And while a rip reads the drive, nothing
+            // else may claim it.
+            Button("Create Disc Image…") { showMainWindow(); state.showImageSheet() }
+                .disabled(state.isUsingDrive)
+            Button("Burn Image to CD…") { showMainWindow(); state.showBurnSheet() }
+                .disabled(state.isUsingDrive)
+            Button("Copy CD…") { showMainWindow(); state.showCopySheet() }
+                .disabled(state.isUsingDrive)
 
             Divider()
 
@@ -135,6 +142,20 @@ struct SleeveCommands: Commands {
             }
             .keyboardShortcut("s")
             .disabled(state.trackList.changedCount == 0 || state.isBusy)
+        }
+    }
+
+    /// Brings the main window back when it was closed — the sheets of the
+    /// File menu hang on it.
+    @MainActor
+    private func showMainWindow() {
+        let main = NSApp.windows.first {
+            $0.identifier?.rawValue.hasPrefix(SleeveApp.mainWindowID) == true
+        }
+        if let main {
+            main.makeKeyAndOrderFront(nil)
+        } else {
+            openWindow(id: SleeveApp.mainWindowID)
         }
     }
 

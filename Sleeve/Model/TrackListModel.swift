@@ -93,6 +93,10 @@ final class TrackListModel {
         tracks.append(contentsOf: newTracks.filter { !known.contains($0.url.standardizedFileURL) })
     }
 
+    /// The paths in the list, for checking many new files at once — one
+    /// set instead of a pass over the list per file.
+    var knownPaths: Set<String> { Set(tracks.map(\.url.standardizedFileURL.path)) }
+
     func contains(url: URL) -> Bool {
         let standardized = url.standardizedFileURL
         return tracks.contains { $0.url.standardizedFileURL == standardized }
